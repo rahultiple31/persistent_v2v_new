@@ -1,0 +1,224 @@
+trigger: none
+
+pr: none
+
+parameters:
+  - name: targetEnvironment
+    displayName: Target environment
+    type: string
+    default: dev
+    values:
+      - dev
+      - uat
+
+  - name: targetModule
+    displayName: Target module
+    type: string
+    default: connect
+    values:
+      - connect
+      - lambda
+      - v2v
+
+  - name: terraformAction
+    displayName: Terraform action
+    type: string
+    default: plan
+    values:
+      - plan
+      - apply
+
+variables:
+  terraformVersion: '1.10.0'
+  nodeVersion: '20.x'
+  deploymentRegion: 'us-east-1'
+  workingDirectory: 'environments/${{ parameters.targetEnvironment }}'
+  backendBucket: 'bts-cloud-terraform-tfstate'
+  backendKey: 'terraform-state/${{ parameters.targetEnvironment }}/us-east-1/${{ parameters.targetModule }}/terraform.tfstate'
+  backendRegion: 'us-east-1'
+  planArtifactName: 'terraform-plan-${{ parameters.targetEnvironment }}-us-east-1-${{ parameters.targetModule }}'
+
+stages:
+  - stage: plan
+    displayName: Plan ${{ parameters.targetEnvironment }} us-east-1 ${{ parameters.targetModule }}
+    condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+    jobs:
+      - job: terraform_plan
+        displayName: Terraform Plan ${{ parameters.targetEnvironment }} us-east-1 ${{ parameters.targetModule }}
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: $(terraformVersion)
+
+          - task: NodeTool@0
+            displayName: Install Node.js
+            condition: eq('${{ parameters.targetModule }}', 'v2v')
+            inputs:
+              versionSpec: $(nodeVersion)
+
+          - script: |
+              set -euo pipefail
+
+              case '${{ parameters.targetModule }}' in
+                connect)
+                  TF_TARGET_ARGS='-target=module.connect_us_east_1[0]'
+                  ;;
+                lambda)
+                  TF_TARGET_ARGS='-target=module.lambda_us_east_1[0]'
+                  ;;
+                v2v)
+                  TF_TARGET_ARGS='-target=module.cognito_v2v[0] -target=module.iam_v2v[0] -target=module.s3_v2v[0] -target=module.cloudfront_v2v[0] -target=module.ssm_v2v[0]'
+                  ;;
+                *)
+                  echo "Unsupported target module: ${{ parameters.targetModule }}"
+                  exit 1
+                  ;;
+              esac
+
+              case '${{ parameters.targetEnvironment }}' in
+                dev)
+                  AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
+                  ;;
+                uat)
+                  AWS_ROLE_ARN='$(AWS_UAT_OIDC_ROLE_ARN)'
+                  ;;
+              esac
+
+              if [ -z "$AWS_ROLE_ARN" ] || [[ "$AWS_ROLE_ARN" == \$\(* ]]; then
+                echo "AWS OIDC role ARN is not configured for ${{ parameters.targetEnvironment }}."
+                exit 1
+              fi
+
+              OIDC_RESPONSE="$(curl -sS \
+                -X POST \
+                -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+                -H "Content-Length: 0" \
+                "${SYSTEM_OIDCREQUESTURI}?api-version=7.1-preview.1")"
+              OIDC_TOKEN="$(printf '%s' "$OIDC_RESPONSE" | python3 -c 'import json, sys; print(json.load(sys.stdin)["oidcToken"])')"
+              AWS_WEB_IDENTITY_TOKEN_FILE="$(Agent.TempDirectory)/aws-oidc-token"
+              printf '%s' "$OIDC_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE"
+
+              export AWS_ROLE_ARN
+              export AWS_WEB_IDENTITY_TOKEN_FILE
+              export AWS_ROLE_SESSION_NAME="azure-pipelines-${{ parameters.targetEnvironment }}-$(Build.BuildId)"
+              export AWS_REGION='$(deploymentRegion)'
+              export AWS_DEFAULT_REGION='$(deploymentRegion)'
+
+              if [ '${{ parameters.targetModule }}' = 'v2v' ]; then
+                npm ci --prefix "$(Build.SourcesDirectory)/webapp" --no-audit --no-fund
+                npm run build --prefix "$(Build.SourcesDirectory)/webapp"
+              fi
+
+              terraform init -reconfigure \
+                -backend-config="bucket=$(backendBucket)" \
+                -backend-config="key=$(backendKey)" \
+                -backend-config="region=$(backendRegion)" \
+                -backend-config="encrypt=true"
+
+              terraform fmt -recursive ../..
+              terraform validate
+              python3 -m pip install --upgrade pip
+              python3 -m pip install checkov
+              checkov -d ../.. --framework terraform --soft-fail
+              terraform plan -var='enabled_modules=["${{ parameters.targetModule }}"]' ${TF_TARGET_ARGS} -out=tfplan
+
+              PLAN_ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)/terraform-plan"
+              mkdir -p "$PLAN_ARTIFACT_DIR"
+              cp tfplan "$PLAN_ARTIFACT_DIR/"
+              find . -maxdepth 1 -name '*.zip' -exec cp {} "$PLAN_ARTIFACT_DIR/" \;
+              if [ '${{ parameters.targetModule }}' = 'v2v' ]; then
+                mkdir -p "$PLAN_ARTIFACT_DIR/v2v-dist"
+                cp -R "$(Build.SourcesDirectory)/webapp/dist/." "$PLAN_ARTIFACT_DIR/v2v-dist/"
+              fi
+            displayName: Terraform Init, Validate, and Plan
+            workingDirectory: $(workingDirectory)
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+
+          - publish: $(Build.ArtifactStagingDirectory)/terraform-plan
+            displayName: Publish Plan
+            artifact: $(planArtifactName)
+
+  - stage: apply
+    displayName: Apply ${{ parameters.terraformAction }} ${{ parameters.targetEnvironment }} us-east-1 ${{ parameters.targetModule }}
+    dependsOn: plan
+    condition: and(succeeded(), eq('${{ parameters.terraformAction }}', 'apply'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: terraform_apply
+        displayName: Terraform Apply ${{ parameters.terraformAction }} ${{ parameters.targetEnvironment }} us-east-1 ${{ parameters.targetModule }}
+        environment: ${{ parameters.targetEnvironment }}
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: TerraformInstaller@1
+                  displayName: Install Terraform
+                  inputs:
+                    terraformVersion: $(terraformVersion)
+
+                - download: current
+                  displayName: Download Plan
+                  artifact: $(planArtifactName)
+
+                - script: |
+                    set -euo pipefail
+
+                    case '${{ parameters.targetEnvironment }}' in
+                      dev)
+                        AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
+                        ;;
+                      uat)
+                        AWS_ROLE_ARN='$(AWS_UAT_OIDC_ROLE_ARN)'
+                        ;;
+                    esac
+
+                    if [ -z "$AWS_ROLE_ARN" ] || [[ "$AWS_ROLE_ARN" == \$\(* ]]; then
+                      echo "AWS OIDC role ARN is not configured for ${{ parameters.targetEnvironment }}."
+                      exit 1
+                    fi
+
+                    OIDC_RESPONSE="$(curl -sS \
+                      -X POST \
+                      -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+                      -H "Content-Length: 0" \
+                      "${SYSTEM_OIDCREQUESTURI}?api-version=7.1-preview.1")"
+                    OIDC_TOKEN="$(printf '%s' "$OIDC_RESPONSE" | python3 -c 'import json, sys; print(json.load(sys.stdin)["oidcToken"])')"
+                    AWS_WEB_IDENTITY_TOKEN_FILE="$(Agent.TempDirectory)/aws-oidc-token"
+                    printf '%s' "$OIDC_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE"
+
+                    export AWS_ROLE_ARN
+                    export AWS_WEB_IDENTITY_TOKEN_FILE
+                    export AWS_ROLE_SESSION_NAME="azure-pipelines-${{ parameters.targetEnvironment }}-$(Build.BuildId)"
+                    export AWS_REGION='$(deploymentRegion)'
+                    export AWS_DEFAULT_REGION='$(deploymentRegion)'
+
+                    if [ '${{ parameters.targetModule }}' = 'v2v' ]; then
+                      V2V_DIST_DIR="$(Build.SourcesDirectory)/webapp/dist"
+                      rm -rf "$V2V_DIST_DIR"
+                      mkdir -p "$V2V_DIST_DIR"
+                      cp -R "$(Pipeline.Workspace)/$(planArtifactName)/v2v-dist/." "$V2V_DIST_DIR/"
+                    fi
+
+                    terraform init -reconfigure \
+                      -backend-config="bucket=$(backendBucket)" \
+                      -backend-config="key=$(backendKey)" \
+                      -backend-config="region=$(backendRegion)" \
+                      -backend-config="encrypt=true"
+
+                    find "$(Pipeline.Workspace)/$(planArtifactName)" -maxdepth 1 -name '*.zip' -exec cp {} . \;
+                    terraform apply -auto-approve "$(Pipeline.Workspace)/$(planArtifactName)/tfplan"
+                  displayName: Terraform Apply
+                  workingDirectory: $(workingDirectory)
+                  env:
+                    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+                    SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)

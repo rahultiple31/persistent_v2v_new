@@ -1,0 +1,134 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "ab754f09-4a96-4a6b-b49e-82e49b5cfa1d",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": 92,
+      "y": 56.8
+    },
+    "ActionMetadata": {
+      "ab754f09-4a96-4a6b-b49e-82e49b5cfa1d": {
+        "position": {
+          "x": 202.4,
+          "y": 13.6
+        }
+      },
+      "c2a77b6b-1579-4870-abf1-bf45f7fa6197": {
+        "position": {
+          "x": 432.8,
+          "y": 12.8
+        }
+      },
+      "d5d8018a-a372-4556-9910-21128d0c0112": {
+        "position": {
+          "x": 666.4,
+          "y": 10.4
+        },
+        "parameters": {
+          "CallerId": {
+            "Number": {
+              "inputOption": "dynamic"
+            }
+          }
+        },
+        "setOptionalCallerId": true,
+        "callerIdSource": "dynamic",
+        "useDynamicConnectionTimeout": false
+      },
+      "7e89227a-8e96-459d-b243-379815f05ecc": {
+        "position": {
+          "x": 888.8,
+          "y": 12
+        }
+      },
+      "fe0cff31-99e2-4b4a-b1ec-ff7baa711d7b": {
+        "position": {
+          "x": 1116,
+          "y": 31.2
+        }
+      }
+    },
+    "Annotations": [],
+    "name": "ABBVIE-US-SD-OutboundWhisperFlow",
+    "description": "Abbvie_Outbound_Whisper_Flow",
+    "type": "outboundWhisper",
+    "status": "PUBLISHED",
+    "hash": {}
+  },
+  "Actions": [
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "ab754f09-4a96-4a6b-b49e-82e49b5cfa1d",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "c2a77b6b-1579-4870-abf1-bf45f7fa6197"
+      }
+    },
+    {
+      "Parameters": {
+        "RecordingBehavior": {
+          "RecordedParticipants": [
+            "Agent",
+            "Customer"
+          ],
+          "IVRRecordingBehavior": "Disabled"
+        },
+        "AnalyticsBehavior": {
+          "Enabled": "True",
+          "AnalyticsLanguage": "en-US",
+          "AnalyticsRedactionBehavior": "Disabled",
+          "AnalyticsRedactionResults": "RedactedAndOriginal",
+          "ChannelConfiguration": {
+            "Chat": {
+              "AnalyticsModes": []
+            },
+            "Voice": {
+              "AnalyticsModes": [
+                "RealTime"
+              ]
+            }
+          },
+          "SentimentConfiguration": {
+            "Enabled": "False"
+          }
+        }
+      },
+      "Identifier": "c2a77b6b-1579-4870-abf1-bf45f7fa6197",
+      "Type": "UpdateContactRecordingBehavior",
+      "Transitions": {
+        "NextAction": "d5d8018a-a372-4556-9910-21128d0c0112"
+      }
+    },
+    {
+      "Parameters": {
+        "CallerId": {
+          "Number": "$.SystemEndpoint.Address"
+        }
+      },
+      "Identifier": "d5d8018a-a372-4556-9910-21128d0c0112",
+      "Type": "CompleteOutboundCall",
+      "Transitions": {
+        "NextAction": "7e89227a-8e96-459d-b243-379815f05ecc"
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "Text": "This call is being recorded."
+      },
+      "Identifier": "7e89227a-8e96-459d-b243-379815f05ecc",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "fe0cff31-99e2-4b4a-b1ec-ff7baa711d7b"
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "fe0cff31-99e2-4b4a-b1ec-ff7baa711d7b",
+      "Type": "EndFlowExecution",
+      "Transitions": {}
+    }
+  ]
+}

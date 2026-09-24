@@ -1,0 +1,249 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "86e95f6b-ce1c-4583-b512-8e143feea0f7",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": -408.8,
+      "y": 77.6
+    },
+    "ActionMetadata": {
+      "86e95f6b-ce1c-4583-b512-8e143feea0f7": {
+        "position": {
+          "x": -295.2,
+          "y": 39.2
+        }
+      },
+      "87988f5b-6da2-48f2-ac5c-d22966339c48": {
+        "position": {
+          "x": 469.6,
+          "y": 271.2
+        }
+      },
+      "77840db7-4e55-4f9f-adad-5b37928ba664": {
+        "position": {
+          "x": 189.6,
+          "y": 228.8
+        }
+      },
+      "4b1f698d-7a86-4529-bd26-2a6ce1ff324d": {
+        "position": {
+          "x": 1108,
+          "y": 19.2
+        }
+      },
+      "d38692ca-5706-456f-a699-f0047756378c": {
+        "position": {
+          "x": -64.8,
+          "y": 9.6
+        },
+        "parameters": {
+          "AgentId": {
+            "useDynamic": true
+          }
+        },
+        "useDynamic": true
+      },
+      "d4f417e3-00d9-4bec-91be-bfdb95de4082": {
+        "position": {
+          "x": 184,
+          "y": 24
+        }
+      },
+      "b1ea07c4-1981-4c86-b46b-855fc9d99482": {
+        "position": {
+          "x": 875.2,
+          "y": 211.2
+        }
+      },
+      "40841cdb-00c7-4af9-8810-7b4dd259a363": {
+        "position": {
+          "x": 871.2,
+          "y": 12.8
+        }
+      },
+      "3d2f3a2d-4bcb-400c-bb78-df10e5b6250f": {
+        "position": {
+          "x": 426.4,
+          "y": 19.2
+        },
+        "parameters": {
+          "AgentId": {
+            "useDynamic": true
+          }
+        },
+        "useDynamic": true
+      },
+      "e75b1f99-5228-4efd-921e-78b4858108af": {
+        "position": {
+          "x": 637.6,
+          "y": 18.4
+        },
+        "parameters": {
+          "EventHooks": {
+            "CustomerQueue": {
+              "displayName": "ABBVIE-US-SD-Transfer-To-Agent-CustomerQueueFlow"
+            }
+          }
+        },
+        "contactFlow": {
+          "text": "ABBVIE-US-SD-Transfer-To-Agent-CustomerQueueFlow",
+          "id": "__CUSTOMER_QUEUE_FLOW_ARN__"
+        },
+        "customerOrAgent": true
+      }
+    },
+    "Annotations": [],
+    "name": "ABBVIE-US-SD-AgentToAgentTransferFlow",
+    "description": "ABBVIE-US-SD-AgentToAgentTransferFlow",
+    "type": "agentTransfer",
+    "status": "PUBLISHED",
+    "hash": {}
+  },
+  "Actions": [
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "86e95f6b-ce1c-4583-b512-8e143feea0f7",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "d38692ca-5706-456f-a699-f0047756378c"
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "87988f5b-6da2-48f2-ac5c-d22966339c48",
+      "Type": "DisconnectParticipant",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "Text": "The Agent you are trying to transfer is currently not available."
+      },
+      "Identifier": "77840db7-4e55-4f9f-adad-5b37928ba664",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "87988f5b-6da2-48f2-ac5c-d22966339c48",
+        "Errors": [
+          {
+            "NextAction": "87988f5b-6da2-48f2-ac5c-d22966339c48",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "4b1f698d-7a86-4529-bd26-2a6ce1ff324d",
+      "Type": "DisconnectParticipant",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "MetricType": "NumberOfAgentsAvailable",
+        "AgentId": "$.Agent.ARN"
+      },
+      "Identifier": "d38692ca-5706-456f-a699-f0047756378c",
+      "Type": "CheckMetricData",
+      "Transitions": {
+        "NextAction": "b1ea07c4-1981-4c86-b46b-855fc9d99482",
+        "Conditions": [
+          {
+            "NextAction": "d4f417e3-00d9-4bec-91be-bfdb95de4082",
+            "Condition": {
+              "Operator": "NumberGreaterThan",
+              "Operands": [
+                "0"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "77840db7-4e55-4f9f-adad-5b37928ba664",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "b1ea07c4-1981-4c86-b46b-855fc9d99482",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "Text": "Transferring now..."
+      },
+      "Identifier": "d4f417e3-00d9-4bec-91be-bfdb95de4082",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "3d2f3a2d-4bcb-400c-bb78-df10e5b6250f"
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "Text": "Failed to transfer."
+      },
+      "Identifier": "b1ea07c4-1981-4c86-b46b-855fc9d99482",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "4b1f698d-7a86-4529-bd26-2a6ce1ff324d"
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "40841cdb-00c7-4af9-8810-7b4dd259a363",
+      "Type": "TransferContactToQueue",
+      "Transitions": {
+        "NextAction": "b1ea07c4-1981-4c86-b46b-855fc9d99482",
+        "Errors": [
+          {
+            "NextAction": "b1ea07c4-1981-4c86-b46b-855fc9d99482",
+            "ErrorType": "QueueAtCapacity"
+          },
+          {
+            "NextAction": "b1ea07c4-1981-4c86-b46b-855fc9d99482",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "AgentId": "$.Agent.ARN"
+      },
+      "Identifier": "3d2f3a2d-4bcb-400c-bb78-df10e5b6250f",
+      "Type": "UpdateContactTargetQueue",
+      "Transitions": {
+        "NextAction": "e75b1f99-5228-4efd-921e-78b4858108af",
+        "Errors": [
+          {
+            "NextAction": "b1ea07c4-1981-4c86-b46b-855fc9d99482",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "EventHooks": {
+          "CustomerQueue": "__CUSTOMER_QUEUE_FLOW_ARN__"
+        }
+      },
+      "Identifier": "e75b1f99-5228-4efd-921e-78b4858108af",
+      "Type": "UpdateContactEventHooks",
+      "Transitions": {
+        "NextAction": "40841cdb-00c7-4af9-8810-7b4dd259a363",
+        "Errors": [
+          {
+            "NextAction": "40841cdb-00c7-4af9-8810-7b4dd259a363",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    }
+  ]
+}

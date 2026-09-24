@@ -1,0 +1,192 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "72c47ba8-b7e6-4d75-8a0d-2d9fe5ad5904",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": -57.6,
+      "y": 222.4
+    },
+    "ActionMetadata": {
+      "5c4989cc-e048-494b-938e-896a70d61c8a": {
+        "position": {
+          "x": 846.4,
+          "y": 164.8
+        }
+      },
+      "f3418a89-acbc-4152-86e6-9375bd80bf76": {
+        "position": {
+          "x": 1104.8,
+          "y": 308.8
+        }
+      },
+      "d418fa7e-8183-46e5-8594-8ee7006dbb2e": {
+        "position": {
+          "x": 846.4,
+          "y": 300
+        }
+      },
+      "9ef3ea02-f8bd-4fc8-9f3a-e526e1e79f2c": {
+        "position": {
+          "x": 853.6,
+          "y": 501.6
+        }
+      },
+      "72c47ba8-b7e6-4d75-8a0d-2d9fe5ad5904": {
+        "position": {
+          "x": 54.4,
+          "y": 170.4
+        }
+      },
+      "66d13626-db79-44e5-83c8-cf60e6102dee": {
+        "position": {
+          "x": 535.2,
+          "y": 118.4
+        },
+        "parameters": {
+          "AgentId": {
+            "useDynamic": true
+          }
+        },
+        "useDynamic": true
+      },
+      "67c499d2-c3ae-4ad9-8a91-96cf32c4b7e0": {
+        "position": {
+          "x": 295.2,
+          "y": 164
+        },
+        "parameters": {
+          "InterruptFrequencySeconds": {
+            "unit": 1
+          }
+        },
+        "audio": [],
+        "timeoutUnit": {
+          "value": "sec"
+        }
+      }
+    },
+    "Annotations": [],
+    "name": "ABBVIE-US-SD-Transfer-To-Agent-CustomerQueueFlow",
+    "description": "ABBVIE-US-SD-Transfer-To-Agent-CustomerQueueFlow",
+    "type": "customerQueue",
+    "status": "SAVED",
+    "hash": {}
+  },
+  "Actions": [
+    {
+      "Parameters": {},
+      "Identifier": "5c4989cc-e048-494b-938e-896a70d61c8a",
+      "Type": "EndFlowExecution",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {},
+      "Identifier": "f3418a89-acbc-4152-86e6-9375bd80bf76",
+      "Type": "DisconnectParticipant",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "Text": "The Agent you are trying to transfer is currently not available."
+      },
+      "Identifier": "d418fa7e-8183-46e5-8594-8ee7006dbb2e",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "f3418a89-acbc-4152-86e6-9375bd80bf76",
+        "Errors": [
+          {
+            "NextAction": "9ef3ea02-f8bd-4fc8-9f3a-e526e1e79f2c",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "Text": "Failed to transfer."
+      },
+      "Identifier": "9ef3ea02-f8bd-4fc8-9f3a-e526e1e79f2c",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "f3418a89-acbc-4152-86e6-9375bd80bf76"
+      }
+    },
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "72c47ba8-b7e6-4d75-8a0d-2d9fe5ad5904",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "67c499d2-c3ae-4ad9-8a91-96cf32c4b7e0"
+      }
+    },
+    {
+      "Parameters": {
+        "MetricType": "NumberOfAgentsAvailable",
+        "AgentId": "$.Agent.ARN"
+      },
+      "Identifier": "66d13626-db79-44e5-83c8-cf60e6102dee",
+      "Type": "CheckMetricData",
+      "Transitions": {
+        "NextAction": "9ef3ea02-f8bd-4fc8-9f3a-e526e1e79f2c",
+        "Conditions": [
+          {
+            "NextAction": "5c4989cc-e048-494b-938e-896a70d61c8a",
+            "Condition": {
+              "Operator": "NumberGreaterThan",
+              "Operands": [
+                "0"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "d418fa7e-8183-46e5-8594-8ee7006dbb2e",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "9ef3ea02-f8bd-4fc8-9f3a-e526e1e79f2c",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "InterruptFrequencySeconds": "2",
+        "ContinueMessagingDuringInterrupt": "false",
+        "Messages": [
+          {
+            "SSML": "<speak> </speak>"
+          }
+        ]
+      },
+      "Identifier": "67c499d2-c3ae-4ad9-8a91-96cf32c4b7e0",
+      "Type": "MessageParticipantIteratively",
+      "Transitions": {
+        "NextAction": "9ef3ea02-f8bd-4fc8-9f3a-e526e1e79f2c",
+        "Conditions": [
+          {
+            "NextAction": "66d13626-db79-44e5-83c8-cf60e6102dee",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "MessagesInterrupted"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "9ef3ea02-f8bd-4fc8-9f3a-e526e1e79f2c",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    }
+  ]
+}
