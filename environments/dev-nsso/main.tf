@@ -28,6 +28,7 @@ module "connect_us_east_1" {
   region_code          = "us-east-1"
   common_tags          = local.common_tags
   contact_center_alias = var.contact_center_alias
+  instance_alias       = var.connect_instance_alias
   service_name_suffix  = var.connect_name_suffix
   admin_user_enabled   = var.connect_admin_user_enabled
   admin_user_first_name = var.connect_admin_first_name
@@ -49,6 +50,7 @@ module "lambda_us_east_1" {
   aws_region          = "us-east-1"
   region_code         = "us-east-1"
   common_tags         = local.common_tags
+  name_prefix         = local.name_prefix
   lambda_name_suffix = var.lambda_name_suffix
 }
 
@@ -82,7 +84,7 @@ moved {
 }
 
 locals {
-  name_prefix = lower(replace("${var.project_name}-${var.environment}-${var.app_name}", "_", "-"))
+  name_prefix = lower(replace(coalesce(var.resource_name_prefix, "${var.project_name}-${var.environment}-${var.app_name}"), "_", "-"))
 
   frontend_config = {
     backendRegion         = data.aws_region.current.name

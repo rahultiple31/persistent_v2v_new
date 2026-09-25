@@ -9,7 +9,7 @@ parameters:
     default: dev
     values:
       - dev
-      - uat
+      - dev-nsso
 
   - name: targetModule
     displayName: Target module
@@ -84,8 +84,8 @@ stages:
                 dev)
                   AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
                   ;;
-                uat)
-                  AWS_ROLE_ARN='$(AWS_UAT_OIDC_ROLE_ARN)'
+                dev-nsso)
+                  AWS_ROLE_ARN='$(AWS_DEV_NSSO_OIDC_ROLE_ARN)'
                   ;;
               esac
 
@@ -177,8 +177,8 @@ stages:
                       dev)
                         AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
                         ;;
-                      uat)
-                        AWS_ROLE_ARN='$(AWS_UAT_OIDC_ROLE_ARN)'
+                      dev-nsso)
+                        AWS_ROLE_ARN='$(AWS_DEV_NSSO_OIDC_ROLE_ARN)'
                         ;;
                     esac
 

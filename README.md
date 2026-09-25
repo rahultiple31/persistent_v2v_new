@@ -1,13 +1,13 @@
 # Azure DevOps CI/CD to AWS Amazon Connect Environments
 
-This repository contains Terraform for Amazon Connect in AWS Dev and UAT
+This repository contains Terraform for Amazon Connect in AWS Dev and Dev NSSO
 environments. Azure Repos and Azure Pipelines deploy both environments in
 `us-east-1`.
 
 ## Environments
 
 - Dev: `environments/dev`
-- UAT: `environments/uat`
+- Dev NSSO: `environments/dev-nsso`
 
 Each environment has its own Terraform root, variable values, backend state key,
 and Azure DevOps approval environment. Both environments use the shared Connect
@@ -67,7 +67,7 @@ Create the backend bucket before running the pipeline. The Azure pipeline uses:
 ```text
 bucket: bts-cloud-terraform-tfstate
 dev key: terraform-state/dev/us-east-1/connect/terraform.tfstate
-uat key: terraform-state/uat/us-east-1/connect/terraform.tfstate
+dev-nsso key: terraform-state/dev-nsso/us-east-1/connect/terraform.tfstate
 region: us-east-1
 encrypt: true
 use_lockfile: true
@@ -86,7 +86,7 @@ Examples:
 
 ```text
 terraform-state/dev/us-east-1/connect/terraform.tfstate
-terraform-state/uat/us-east-1/connect/terraform.tfstate
+terraform-state/dev-nsso/us-east-1/connect/terraform.tfstate
 terraform-state/dev/us-east-1/lambda/terraform.tfstate
 terraform-state/dev/us-east-1/v2v/terraform.tfstate
 ```
@@ -98,7 +98,7 @@ From either environment root:
 ```bash
 cd environments/dev
 # or
-cd environments/uat
+cd environments/dev-nsso
 
 terraform init -reconfigure \
   -backend-config="bucket=bts-cloud-terraform-state" \
@@ -111,10 +111,10 @@ terraform validate
 terraform plan
 ```
 
-Use the matching backend key for the selected environment. For UAT, use:
+Use the matching backend key for the selected environment. For Dev NSSO, use:
 
 ```text
-terraform-state/uat/us-east-1/connect/terraform.tfstate
+terraform-state/dev-nsso/us-east-1/connect/terraform.tfstate
 ```
 
 To target the application region:
@@ -145,7 +145,7 @@ terraform plan -var='enabled_modules=["v2v"]'
 
 The pipeline in `azure-pipelines.yml` supports these parameters:
 
-- `targetEnvironment`: `dev` or `uat`
+- `targetEnvironment`: `dev` or `dev-nsso`
 - `targetModule`: `connect`, `lambda`, or `v2v`
 - `terraformAction`: `plan` or `apply`
 
@@ -165,13 +165,13 @@ Code Commit -> Terraform Init -> Plan -> Approval -> Apply
 ```
 
 The apply stage is gated through the Azure DevOps environment selected by
-`targetEnvironment`. Configure the `dev` and `uat` Azure DevOps environments
+`targetEnvironment`. Configure the `dev` and `dev-nsso` Azure DevOps environments
 with the review and approval checks your team needs.
 
 Required Azure DevOps variables:
 
 - `AWS_DEV_OIDC_ROLE_ARN`: AWS IAM role ARN assumed for Dev
-- `AWS_UAT_OIDC_ROLE_ARN`: AWS IAM role ARN assumed for UAT
+- `AWS_DEV_NSSO_OIDC_ROLE_ARN`: AWS IAM role ARN assumed for Dev NSSO
 
 The pipeline uses Azure Pipelines OIDC and Terraform's AWS web identity
 authentication. It does not require static AWS access keys.

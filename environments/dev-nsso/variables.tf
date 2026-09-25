@@ -7,25 +7,42 @@ variable "aws_region" {
 variable "environment" {
   description = "Deployment environment name."
   type        = string
-  default     = "uat"
+  default     = "dev-nsso"
 }
 
 variable "project_name" {
   description = "Project prefix used for names and tags."
   type        = string
-  default     = "abbvie"
+  default     = "btsgsd"
+}
+
+variable "resource_name_prefix" {
+  description = "Optional prefix used for named Dev NSSO resources."
+  type        = string
+  default     = "btsgsd-dev-nsso-us-east-1"
+
+  validation {
+    condition     = var.resource_name_prefix == null || can(regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$", var.resource_name_prefix))
+    error_message = "resource_name_prefix must be 1-48 characters and contain only letters, numbers, hyphens, or underscores."
+  }
 }
 
 variable "contact_center_alias" {
-  description = "Alias prefix for the Amazon Connect UAT instances."
+  description = "Alias prefix for the Amazon Connect Dev NSSO instances."
   type        = string
-  default     = "connect"
+  default     = "btsgsd"
+}
+
+variable "connect_instance_alias" {
+  description = "Optional complete Amazon Connect instance alias override."
+  type        = string
+  default     = "btsgsd-dev-nsso-us-east-1"
 }
 
 variable "connect_name_suffix" {
   description = "Suffix used in the Amazon Connect instance alias."
   type        = string
-  default     = "connect"
+  default     = "connect-saml"
 }
 
 variable "enabled_modules" {
@@ -84,19 +101,19 @@ variable "connect_admin_email" {
 variable "app_name" {
   description = "Application name used for AWS resource names."
   type        = string
-  default     = "AmazonConnectV2V"
+  default     = "btsgsd-dev-nsso-us-east-1"
 }
 
 variable "frontend_client_name" {
   description = "Cognito User Pool app client name for the V2V application."
   type        = string
-  default     = "AmazonConnectV2VFrontend"
+  default     = "btsgsd-dev-nsso-us-east-1-frontend"
 }
 
 variable "ssm_hierarchy" {
   description = "SSM Parameter Store hierarchy used by the V2V solution."
   type        = string
-  default     = "/AmazonConnectV2V/"
+  default     = "/btsgsd-dev-nsso-us-east-1/"
 
   validation {
     condition     = startswith(var.ssm_hierarchy, "/") && length(regexall("//", var.ssm_hierarchy)) == 0
