@@ -81,11 +81,8 @@ stages:
               esac
 
               case '${{ parameters.targetEnvironment }}' in
-                dev)
+                dev|dev-nsso)
                   AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
-                  ;;
-                dev-nsso)
-                  AWS_ROLE_ARN='$(AWS_DEV_NSSO_OIDC_ROLE_ARN)'
                   ;;
               esac
 
@@ -174,11 +171,8 @@ stages:
                     set -euo pipefail
 
                     case '${{ parameters.targetEnvironment }}' in
-                      dev)
+                      dev|dev-nsso)
                         AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
-                        ;;
-                      dev-nsso)
-                        AWS_ROLE_ARN='$(AWS_DEV_NSSO_OIDC_ROLE_ARN)'
                         ;;
                     esac
 
