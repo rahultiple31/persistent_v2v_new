@@ -1,0 +1,8 @@
+.git
+.gitignore
+node_modules
+npm-debug.log*
+per.docx
+terraform
+CICD/*.yml
+CICD/*.md

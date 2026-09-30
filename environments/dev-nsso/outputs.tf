@@ -25,6 +25,24 @@ output "regional_lambda_functions" {
   }
 }
 
+output "regional_proxy" {
+  description = "V2V translation proxy deployment outputs by region."
+  value = {
+    "us-east-1" = {
+      region                       = "us-east-1"
+      ecr_repository_url       = try(module.ecr_proxy_us_east_1[0].ecr_repository_url, null)
+      ecs_cluster_name         = try(module.ecs_proxy_us_east_1[0].ecs_cluster_name, null)
+      ecs_service_name         = try(module.ecs_proxy_us_east_1[0].ecs_service_name, null)
+      internal_alb_dns_name    = try(module.alb_proxy_us_east_1[0].internal_alb_dns_name, null)
+      internal_alb_arn         = try(module.alb_proxy_us_east_1[0].internal_alb_arn, null)
+      target_group_arn         = try(module.alb_proxy_us_east_1[0].target_group_arn, null)
+      proxy_log_group_name     = try(module.logs_proxy_us_east_1[0].proxy_log_group_name, null)
+      vpc_flow_log_group_name  = try(module.logs_proxy_us_east_1[0].vpc_flow_log_group_name, null)
+      deployed_container_image = local.deploy_proxy ? local.proxy_container_image : null
+    }
+  }
+}
+
 output "connect_v2v_translation" {
   description = "Amazon Connect V2V translation solution outputs."
   value = {

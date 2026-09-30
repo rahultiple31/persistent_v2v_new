@@ -25,3 +25,14 @@ provider "aws" {
     tags = local.common_tags
   }
 }
+
+provider "aws" {
+  alias  = "proxy_us_east_1"
+  region = "us-east-1"
+
+  default_tags {
+    tags = merge(local.common_tags, {
+      Network = "Dedicated Proxy VPC"
+    })
+  }
+}

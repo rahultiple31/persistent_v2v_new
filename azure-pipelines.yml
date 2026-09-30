@@ -18,6 +18,7 @@ parameters:
     values:
       - connect
       - lambda
+      - proxy
       - v2v
 
   - name: terraformAction
@@ -70,6 +71,9 @@ stages:
                   ;;
                 lambda)
                   TF_TARGET_ARGS='-target=module.lambda_us_east_1[0]'
+                  ;;
+                proxy)
+                  TF_TARGET_ARGS='-target=module.networking_proxy_us_east_1[0] -target=module.security_groups_proxy_us_east_1[0] -target=module.logs_proxy_us_east_1[0] -target=module.iam_proxy_us_east_1[0] -target=module.ecr_proxy_us_east_1[0] -target=module.alb_proxy_us_east_1[0] -target=module.ecs_proxy_us_east_1[0] -target=module.autoscaling_proxy_us_east_1[0] -target=module.alarms_proxy_us_east_1[0] -target=module.parameters_proxy_us_east_1[0]'
                   ;;
                 v2v)
                   TF_TARGET_ARGS='-target=module.cognito_v2v[0] -target=module.iam_v2v[0] -target=module.s3_v2v[0] -target=module.cloudfront_v2v[0] -target=module.ssm_v2v[0]'
@@ -217,4 +221,4 @@ stages:
                     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
                     SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
 
- 
+

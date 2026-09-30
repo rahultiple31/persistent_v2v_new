@@ -46,13 +46,13 @@ variable "connect_name_suffix" {
 }
 
 variable "enabled_modules" {
-  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, v2v."
+  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v."
   type        = list(string)
   default     = ["connect"]
 
   validation {
-    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "v2v"]))) == 0
-    error_message = "enabled_modules supports: connect, lambda, v2v."
+    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v"]))) == 0
+    error_message = "enabled_modules supports: connect, lambda, proxy, v2v."
   }
 }
 
@@ -210,4 +210,177 @@ variable "v2v_dist_path" {
   description = "Path to the built Vite V2V app dist directory."
   type        = string
   default     = null
+}
+
+variable "proxy_availability_zones" {
+  description = "Optional pair of Availability Zones used by the proxy network."
+  type        = list(string)
+  default     = null
+
+  validation {
+    condition     = var.proxy_availability_zones == null ? true : (length(var.proxy_availability_zones) == 2 && length(toset(var.proxy_availability_zones)) == 2)
+    error_message = "proxy_availability_zones must be null or contain exactly two distinct Availability Zone names."
+  }
+}
+
+variable "proxy_vpc_cidr" {
+  description = "CIDR block for the dedicated proxy VPC."
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "proxy_public_subnet_cidrs" {
+  description = "CIDR blocks for the two proxy public subnets."
+  type        = list(string)
+  default     = ["10.0.0.0/24", "10.0.1.0/24"]
+
+  validation {
+    condition     = length(var.proxy_public_subnet_cidrs) == 2
+    error_message = "proxy_public_subnet_cidrs must contain exactly two CIDR blocks."
+  }
+}
+
+variable "proxy_private_subnet_cidrs" {
+  description = "CIDR blocks for the two proxy private subnets."
+  type        = list(string)
+  default     = ["10.0.4.0/22", "10.0.8.0/22"]
+
+  validation {
+    condition     = length(var.proxy_private_subnet_cidrs) == 2
+    error_message = "proxy_private_subnet_cidrs must contain exactly two CIDR blocks."
+  }
+}
+
+variable "proxy_enabled" {
+  description = "Value written to SSM Parameter Store as the proxy feature switch."
+  type        = bool
+  default     = true
+}
+
+variable "proxy_ecr_repository_name" {
+  description = "Optional ECR repository name override for the proxy."
+  type        = string
+  default     = null
+}
+
+variable "proxy_container_image" {
+  description = "Optional full image URI deployed to the proxy ECS service."
+  type        = string
+  default     = null
+}
+
+variable "proxy_container_port" {
+  description = "Proxy container HTTP and WebSocket port."
+  type        = number
+  default     = 8080
+
+  validation {
+    condition     = var.proxy_container_port >= 1 && var.proxy_container_port <= 65535
+    error_message = "proxy_container_port must be between 1 and 65535."
+  }
+}
+
+variable "proxy_desired_count" {
+  description = "Baseline number of proxy ECS tasks."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.proxy_desired_count >= 0
+    error_message = "proxy_desired_count must be zero or greater."
+  }
+}
+
+variable "proxy_min_capacity" {
+  description = "Minimum proxy ECS service task count."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.proxy_min_capacity >= 0
+    error_message = "proxy_min_capacity must be zero or greater."
+  }
+}
+
+variable "proxy_max_capacity" {
+  description = "Maximum proxy ECS service task count."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.proxy_max_capacity >= 1
+    error_message = "proxy_max_capacity must be one or greater."
+  }
+}
+
+variable "proxy_task_cpu" {
+  description = "Fargate CPU units allocated to the proxy task."
+  type        = number
+  default     = 512
+
+  validation {
+    condition     = var.proxy_task_cpu > 0
+    error_message = "proxy_task_cpu must be greater than zero."
+  }
+}
+
+variable "proxy_task_memory" {
+  description = "Memory in MiB allocated to the proxy task."
+  type        = number
+  default     = 1024
+
+  validation {
+    condition     = var.proxy_task_memory > 0
+    error_message = "proxy_task_memory must be greater than zero."
+  }
+}
+
+variable "proxy_health_check_path" {
+  description = "ALB and container health-check path for the proxy."
+  type        = string
+  default     = "/healthz"
+
+  validation {
+    condition     = startswith(var.proxy_health_check_path, "/")
+    error_message = "proxy_health_check_path must start with /."
+  }
+}
+
+variable "proxy_bedrock_model_id" {
+  description = "Bedrock model ID used by the proxy."
+  type        = string
+  default     = "amazon.nova-2-sonic-v1:0"
+}
+
+variable "proxy_fallback_rate_limit_per_minute" {
+  description = "Per-user fallback API request limit per minute."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.proxy_fallback_rate_limit_per_minute > 0
+    error_message = "proxy_fallback_rate_limit_per_minute must be greater than zero."
+  }
+}
+
+variable "proxy_max_connections_per_user" {
+  description = "Per-user WebSocket connection limit enforced by the proxy."
+  type        = number
+  default     = 12
+
+  validation {
+    condition     = var.proxy_max_connections_per_user > 0
+    error_message = "proxy_max_connections_per_user must be greater than zero."
+  }
+}
+
+variable "proxy_log_retention_days" {
+  description = "CloudWatch Logs retention period for proxy logs."
+  type        = number
+  default     = 90
+
+  validation {
+    condition     = var.proxy_log_retention_days > 0
+    error_message = "proxy_log_retention_days must be greater than zero."
+  }
 }

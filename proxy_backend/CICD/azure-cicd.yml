@@ -1,0 +1,211 @@
+name: v2v-proxy
+
+parameters:
+  - name: targetEnvironment
+    displayName: Target environment
+    type: string
+    default: dev
+    values:
+      - dev
+      - dev-nsso
+
+trigger:
+  batch: true
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - src/**
+      - package.json
+      - package-lock.json
+      - CICD/Dockerfile
+      - CICD/azure-cicd.yml
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  awsRegion: us-east-1
+  resourceNamePrefix: btsgsd-${{ parameters.targetEnvironment }}-us-east-1
+  ecrRepository: $(resourceNamePrefix)
+  ecsCluster: $(resourceNamePrefix)-cluster
+  ecsService: $(resourceNamePrefix)-service
+  ecsContainerName: proxy
+  imageTag: $(Build.SourceVersion)-$(Build.BuildId)
+
+steps:
+  - checkout: self
+    clean: true
+
+  - script: |
+        set -euo pipefail
+
+        for command in aws curl docker jq python3; do
+          if ! command -v "$command" >/dev/null 2>&1; then
+            echo "Required command is not installed: $command" >&2
+            exit 1
+          fi
+        done
+
+        case '${{ parameters.targetEnvironment }}' in
+          dev|dev-nsso)
+            AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
+            ;;
+        esac
+
+        if [ -z "$AWS_ROLE_ARN" ] || [[ "$AWS_ROLE_ARN" == \$\(* ]]; then
+          echo "AWS OIDC role ARN is not configured for ${{ parameters.targetEnvironment }}."
+          exit 1
+        fi
+
+        OIDC_RESPONSE="$(curl -sS \
+          -X POST \
+          -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+          -H "Content-Length: 0" \
+          "${SYSTEM_OIDCREQUESTURI}?api-version=7.1-preview.1")"
+        OIDC_TOKEN="$(printf '%s' "$OIDC_RESPONSE" | python3 -c 'import json, sys; print(json.load(sys.stdin)["oidcToken"])')"
+        AWS_WEB_IDENTITY_TOKEN_FILE="$(Agent.TempDirectory)/aws-oidc-token"
+        printf '%s' "$OIDC_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE"
+
+        export AWS_ROLE_ARN
+        export AWS_WEB_IDENTITY_TOKEN_FILE
+        export AWS_ROLE_SESSION_NAME="azure-pipelines-${{ parameters.targetEnvironment }}-$(Build.BuildId)"
+        export AWS_REGION='$(awsRegion)'
+        export AWS_DEFAULT_REGION='$(awsRegion)'
+
+        ACCOUNT_ID=`aws sts get-caller-identity --query Account --output text`
+        ECR_REGISTRY="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+        IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+        aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" >/dev/null
+        aws ecr get-login-password | docker login \
+          --username AWS \
+          --password-stdin "$ECR_REGISTRY"
+
+        docker run --privileged --rm tonistiigi/binfmt --install arm64
+        docker buildx create --name ado-arm64-builder --use
+        docker buildx inspect --bootstrap
+        docker buildx build \
+          --platform linux/arm64 \
+          --file CICD/Dockerfile \
+          --tag "$IMAGE_URI" \
+          --push \
+          .
+
+        echo "Pushed $IMAGE_URI"
+    displayName: Build and push ARM64 image to ECR
+    workingDirectory: $(Build.SourcesDirectory)
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+      ECR_REPOSITORY: $(ecrRepository)
+      IMAGE_TAG: $(imageTag)
+
+  - script: |
+        set -euo pipefail
+
+        for command in aws curl jq python3; do
+          if ! command -v "$command" >/dev/null 2>&1; then
+            echo "Required command is not installed: $command" >&2
+            exit 1
+          fi
+        done
+
+        case '${{ parameters.targetEnvironment }}' in
+          dev|dev-nsso)
+            AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
+            ;;
+        esac
+
+        if [ -z "$AWS_ROLE_ARN" ] || [[ "$AWS_ROLE_ARN" == \$\(* ]]; then
+          echo "AWS OIDC role ARN is not configured for ${{ parameters.targetEnvironment }}."
+          exit 1
+        fi
+
+        OIDC_RESPONSE="$(curl -sS \
+          -X POST \
+          -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+          -H "Content-Length: 0" \
+          "${SYSTEM_OIDCREQUESTURI}?api-version=7.1-preview.1")"
+        OIDC_TOKEN="$(printf '%s' "$OIDC_RESPONSE" | python3 -c 'import json, sys; print(json.load(sys.stdin)["oidcToken"])')"
+        AWS_WEB_IDENTITY_TOKEN_FILE="$(Agent.TempDirectory)/aws-oidc-token"
+        printf '%s' "$OIDC_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE"
+
+        export AWS_ROLE_ARN
+        export AWS_WEB_IDENTITY_TOKEN_FILE
+        export AWS_ROLE_SESSION_NAME="azure-pipelines-${{ parameters.targetEnvironment }}-$(Build.BuildId)"
+        export AWS_REGION='$(awsRegion)'
+        export AWS_DEFAULT_REGION='$(awsRegion)'
+
+        ACCOUNT_ID=`aws sts get-caller-identity --query Account --output text`
+        IMAGE_URI="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG"
+
+        TASK_DEFINITION_ARN=`aws ecs describe-services \
+          --cluster "$ECS_CLUSTER" \
+          --services "$ECS_SERVICE" \
+          --query 'services[0].taskDefinition' \
+          --output text`
+
+        if [[ -z "$TASK_DEFINITION_ARN" || "$TASK_DEFINITION_ARN" == "None" ]]; then
+          echo "No active task definition found for $ECS_CLUSTER/$ECS_SERVICE" >&2
+          exit 1
+        fi
+
+        aws ecs describe-task-definition \
+          --task-definition "$TASK_DEFINITION_ARN" \
+          --query taskDefinition \
+          > current-task-definition.json
+
+        if ! jq -e --arg container "$ECS_CONTAINER_NAME" \
+          'any(.containerDefinitions[]; .name == $container)' \
+          current-task-definition.json >/dev/null; then
+          echo "Container $ECS_CONTAINER_NAME was not found in $TASK_DEFINITION_ARN" >&2
+          exit 1
+        fi
+
+        jq --arg image "$IMAGE_URI" --arg container "$ECS_CONTAINER_NAME" '
+          .containerDefinitions |= map(
+            if .name == $container then .image = $image else . end
+          )
+          | del(
+              .taskDefinitionArn,
+              .revision,
+              .status,
+              .requiresAttributes,
+              .compatibilities,
+              .registeredAt,
+              .registeredBy,
+              .deregisteredAt
+            )
+        ' current-task-definition.json > deploy-task-definition.json
+
+        NEW_TASK_DEFINITION_ARN=`aws ecs register-task-definition \
+          --cli-input-json file://deploy-task-definition.json \
+          --query 'taskDefinition.taskDefinitionArn' \
+          --output text`
+
+        aws ecs update-service \
+          --cluster "$ECS_CLUSTER" \
+          --service "$ECS_SERVICE" \
+          --task-definition "$NEW_TASK_DEFINITION_ARN" \
+          >/dev/null
+
+        aws ecs wait services-stable \
+          --cluster "$ECS_CLUSTER" \
+          --services "$ECS_SERVICE"
+
+        echo "Deployed $IMAGE_URI using $NEW_TASK_DEFINITION_ARN"
+    displayName: Deploy image to the existing ECS service
+    workingDirectory: $(Build.SourcesDirectory)
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+      ECR_REPOSITORY: $(ecrRepository)
+      ECS_CLUSTER: $(ecsCluster)
+      ECS_SERVICE: $(ecsService)
+      ECS_CONTAINER_NAME: $(ecsContainerName)
+      IMAGE_TAG: $(imageTag)
+

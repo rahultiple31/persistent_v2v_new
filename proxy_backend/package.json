@@ -1,0 +1,14 @@
+{
+  "name": "v2v-translation-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Deployable runtime shell for the V2V translation proxy infrastructure.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/index.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
