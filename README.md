@@ -117,12 +117,6 @@ Use the matching backend key for the selected environment. For Dev NSSO, use:
 terraform-state/dev-nsso/us-east-1/connect/terraform.tfstate
 ```
 
-To target the application region:
-
-```bash
-terraform plan -target='module.connect_us_east_1[0]'
-```
-
 To activate only the Connect module in this state:
 
 ```bash
@@ -150,6 +144,12 @@ The pipeline in `azure-pipelines.yml` supports these parameters:
 - `terraformAction`: `plan` or `apply`
 
 The deployment region is fixed to `us-east-1` for both environments.
+
+The proxy stack is intentionally not exposed as a pipeline target because the
+current AWS Organizations service control policies deny the required EC2 network
+bootstrap actions for the Azure DevOps OIDC role, including `ec2:CreateVpc` and
+`ec2:AllocateAddress`. Enable it only after the SCPs allow those actions or
+after the stack is changed to consume approved existing network resources.
 
 When more modules are added later, add the module name to:
 

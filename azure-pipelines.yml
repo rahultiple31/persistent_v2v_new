@@ -18,7 +18,6 @@ parameters:
     values:
       - connect
       - lambda
-      - proxy
       - v2v
 
   - name: terraformAction
@@ -65,25 +64,6 @@ stages:
           - script: |
               set -euo pipefail
 
-              case '${{ parameters.targetModule }}' in
-                connect)
-                  TF_TARGET_ARGS='-target=module.connect_us_east_1[0]'
-                  ;;
-                lambda)
-                  TF_TARGET_ARGS='-target=module.lambda_us_east_1[0]'
-                  ;;
-                proxy)
-                  TF_TARGET_ARGS='-target=module.networking_proxy_us_east_1[0] -target=module.security_groups_proxy_us_east_1[0] -target=module.logs_proxy_us_east_1[0] -target=module.iam_proxy_us_east_1[0] -target=module.ecr_proxy_us_east_1[0] -target=module.alb_proxy_us_east_1[0] -target=module.ecs_proxy_us_east_1[0] -target=module.autoscaling_proxy_us_east_1[0] -target=module.alarms_proxy_us_east_1[0] -target=module.parameters_proxy_us_east_1[0]'
-                  ;;
-                v2v)
-                  TF_TARGET_ARGS='-target=module.cognito_v2v[0] -target=module.iam_v2v[0] -target=module.s3_v2v[0] -target=module.cloudfront_v2v[0] -target=module.ssm_v2v[0]'
-                  ;;
-                *)
-                  echo "Unsupported target module: ${{ parameters.targetModule }}"
-                  exit 1
-                  ;;
-              esac
-
               case '${{ parameters.targetEnvironment }}' in
                 dev|dev-nsso)
                   AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
@@ -126,7 +106,7 @@ stages:
               python3 -m pip install --upgrade pip
               python3 -m pip install checkov
               checkov -d ../.. --framework terraform --soft-fail
-              terraform plan -var='enabled_modules=["${{ parameters.targetModule }}"]' ${TF_TARGET_ARGS} -out=tfplan
+              terraform plan -var='enabled_modules=["${{ parameters.targetModule }}"]' -out=tfplan
 
               PLAN_ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)/terraform-plan"
               mkdir -p "$PLAN_ARTIFACT_DIR"
