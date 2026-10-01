@@ -18,6 +18,7 @@ parameters:
     values:
       - connect
       - lambda
+      - proxy
       - v2v
 
   - name: terraformAction
