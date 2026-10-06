@@ -201,5 +201,3 @@ stages:
                   env:
                     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
                     SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
-
-
