@@ -29,7 +29,7 @@ output "regional_proxy" {
   description = "V2V translation proxy deployment outputs by region."
   value = {
     "us-east-1" = {
-      region                       = "us-east-1"
+      region                   = "us-east-1"
       ecr_repository_url       = try(module.ecr_proxy_us_east_1[0].ecr_repository_url, null)
       ecs_cluster_name         = try(module.ecs_proxy_us_east_1[0].ecs_cluster_name, null)
       ecs_service_name         = try(module.ecs_proxy_us_east_1[0].ecs_service_name, null)
@@ -39,6 +39,7 @@ output "regional_proxy" {
       proxy_log_group_name     = try(module.logs_proxy_us_east_1[0].proxy_log_group_name, null)
       vpc_flow_log_group_name  = try(module.logs_proxy_us_east_1[0].vpc_flow_log_group_name, null)
       deployed_container_image = local.deploy_proxy ? local.proxy_container_image : null
+      runtime_enabled          = local.deploy_proxy && var.proxy_runtime_enabled
     }
   }
 }
@@ -58,6 +59,9 @@ output "connect_v2v_translation" {
     cloudfront_distribution_id          = try(module.cloudfront_v2v[0].cloudfront_distribution_id, null)
     cloudfront_distribution_domain_name = try(module.cloudfront_v2v[0].cloudfront_distribution_domain_name, null)
     v2v_url                             = try(module.cloudfront_v2v[0].v2v_url, null)
+    v2v_root_prefix                     = var.v2v_root_prefix
+    deploy_v2v_assets                   = var.deploy_v2v_assets
+    translation_mode                    = local.translation_mode
     ssm_parameter_names                 = try(module.ssm_v2v[0].parameter_names, {})
   }
 }

@@ -1,13 +1,13 @@
 locals {
-  service_name_prefix         = lower(replace("${var.contact_center_alias}-${var.environment}-${var.region_code}", "_", "-"))
-  instance_name               = lower(replace(coalesce(var.instance_alias, "${local.service_name_prefix}-${var.service_name_suffix}"), "_", "-"))
-  primary_queue_name          = "${local.service_name_prefix}-primary-queue"
-  agent_security_profile_name = "${local.service_name_prefix}-agent-security-profile"
+  service_name_prefix          = lower(replace("${var.contact_center_alias}-${var.environment}-${var.region_code}", "_", "-"))
+  instance_name                = lower(replace(coalesce(var.instance_alias, "${local.service_name_prefix}-${var.service_name_suffix}"), "_", "-"))
+  primary_queue_name           = "${local.service_name_prefix}-primary-queue"
+  agent_security_profile_name  = "${local.service_name_prefix}-agent-security-profile"
   primary_routing_profile_name = "${local.service_name_prefix}-primary-routing-profile"
-  placeholder_flow_name       = "${local.service_name_prefix}-placeholder-inbound-flow"
-  customer_queue_flow_name    = "${local.service_name_prefix}-transfer-to-agent-customer-queue-flow"
-  outbound_whisper_flow_name  = "${local.service_name_prefix}-outbound-whisper-flow"
-  agent_transfer_flow_name    = "${local.service_name_prefix}-agent-to-agent-transfer-flow"
+  placeholder_flow_name        = "${local.service_name_prefix}-placeholder-inbound-flow"
+  customer_queue_flow_name     = "${local.service_name_prefix}-transfer-to-agent-customer-queue-flow"
+  outbound_whisper_flow_name   = "${local.service_name_prefix}-outbound-whisper-flow"
+  agent_transfer_flow_name     = "${local.service_name_prefix}-agent-to-agent-transfer-flow"
   tags = merge(var.common_tags, {
     Name       = local.instance_name
     RegionCode = var.region_code

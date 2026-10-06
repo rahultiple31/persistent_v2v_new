@@ -43,14 +43,24 @@ variable "health_check_path" {
   type        = string
 }
 
-variable "cognito_domain_prefix" {
-  description = "Cognito hosted UI domain prefix."
+variable "cognito_user_pool_id" {
+  description = "Actual Cognito user pool ID from the V2V state."
   type        = string
 }
 
-variable "cognito_app_client_name" {
-  description = "Cognito app client name."
+variable "cognito_client_id" {
+  description = "Actual Cognito app client ID from the V2V state."
   type        = string
+}
+
+variable "allowed_origins" {
+  type = list(string)
+}
+variable "allowed_groups" {
+  type = list(string)
+}
+variable "force_backup_parameter" {
+  type = string
 }
 
 variable "bedrock_model_id" {

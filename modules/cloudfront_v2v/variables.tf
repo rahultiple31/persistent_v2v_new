@@ -63,6 +63,34 @@ variable "translate_proxy_enabled" {
   type        = bool
 }
 
+variable "proxy_enabled" {
+  type = bool
+}
+variable "proxy_alb_arn" {
+  type    = string
+  default = ""
+}
+variable "proxy_alb_dns_name" {
+  type    = string
+  default = ""
+}
+variable "translation_mode" {
+  type = string
+}
+variable "cognito_domain_url" {
+  type = string
+}
+variable "connect_instance_url" {
+  type = string
+}
+variable "connect_instance_region" {
+  type = string
+}
+variable "csp_enforced" {
+  type    = bool
+  default = false
+}
+
 variable "common_tags" {
   description = "Common tags applied to supported resources."
   type        = map(string)

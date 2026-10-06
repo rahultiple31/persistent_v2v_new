@@ -1,49 +1,23 @@
-# CICD Pipeline
+# Nova Proxy CI/CD
 
-This folder contains the Dockerfile and Azure DevOps pipeline for the proxy service.
+Use `proxy_backend/CICD/azure-cicd.yml` as the Azure pipeline path in this
+repository. Select `dev` or `dev-nsso`; both deploy in `us-east-1`.
 
-## Files
+Provision the proxy infrastructure and V2V stack first, as described in
+[DEPLOY-V2V.md](../../DEPLOY-V2V.md). Then select `terraformAction=apply`
+to activate the proxy after its plan and environment approval.
 
-- `Dockerfile` builds the Node.js proxy image for ECS Fargate ARM64.
-- `azure-pipelines.yml` builds and pushes the image, creates a new ECS task-definition revision, and updates the existing ECS service.
+The pipeline tests the real Nova proxy, builds an immutable ARM64 image with
+`proxy_backend` as the Docker context, and updates the existing proxy
+Terraform state. It reads ECR repository output from that state and Cognito
+IDs/application origin from the V2V state. Terraform owns the image and startup
+configuration; activation removes the health-only bootstrap command.
 
-The pipeline does not initialize, plan, or apply Terraform. Provision the ECR repository, ECS cluster, ECS service, and initial task definition manually with the files in `../terraform` before running it.
+The pipeline uses `AWS_DEV_OIDC_ROLE_ARN`, `System.AccessToken`, and
+`System.OidcRequestUri`. It requires backend state and lock access, ECR push,
+Terraform deployment permissions, and passing the ECS task roles. Both
+`dev` and `dev-nsso` Azure environments must be configured for approval.
 
-## Expected Repository Layout
-
-The workflow builds with repository root as the Docker context and this Dockerfile:
-
-```bash
-docker buildx build --platform linux/arm64 -f CICD/Dockerfile .
-```
-
-The application source is at:
-
-- `package.json`
-- `package-lock.json`
-- `src/index.js`
-
-The included `src/index.js` makes the image buildable and provides `/healthz`, but its application routes intentionally return HTTP 501. Replace it with the V2V translation implementation before production use.
-
-## Azure DevOps Setup
-
-1. Install the AWS Toolkit for Azure DevOps extension in the ADO organization.
-2. Create an AWS service connection named `aws-dev-service-connection`, or change the `awsServiceConnection` variable in `azure-pipelines.yml`.
-3. Create a YAML pipeline and select `CICD/azure-pipelines.yml` as its path.
-4. Confirm the service connection is authorized for the pipeline.
-
-The Azure pipeline defaults to the same ECR repository, ECS cluster, service, container name, and AWS Region as the Terraform configuration. Change its variables if the manually deployed resource names differ. Run the full manual Terraform deployment once before the first pipeline run; the Terraform bootstrap command keeps the initial ECS service healthy until this pipeline deploys the application image.
-
-Each deployment uses an immutable image tag containing the source commit and Azure build ID. The pipeline reads the task definition currently used by the service and changes only the `proxy` container image. Before later manual Terraform applies, set `container_image` to the image that should remain deployed so Terraform does not restore an older image.
-
-The AWS service connection needs permission to push to ECR plus:
-
-- `sts:GetCallerIdentity`
-- `ecr:DescribeRepositories`
-- `ecs:DescribeServices`
-- `ecs:DescribeTaskDefinition`
-- `ecs:RegisterTaskDefinition`
-- `ecs:UpdateService`
-- `iam:PassRole` for the ECS task execution role and task role
-
-The Microsoft-hosted agent also pulls `tonistiigi/binfmt` to enable the ARM64 Docker build. The Azure pipeline does not run Terraform.
+A subsequent infrastructure pipeline run preserves the activated image.
+Subsequent local proxy applies must keep `proxy_runtime_enabled=true`
+and the desired immutable `proxy_container_image`.

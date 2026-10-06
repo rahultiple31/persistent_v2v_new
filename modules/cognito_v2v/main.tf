@@ -76,7 +76,17 @@ resource "aws_cognito_user_pool_client" "web" {
   logout_urls                          = var.logout_urls
   generate_secret                      = false
   prevent_user_existence_errors        = "ENABLED"
-  supported_identity_providers         = ["COGNITO"]
+  supported_identity_providers         = var.sso_enabled ? [var.sso_provider_name] : ["COGNITO"]
+  refresh_token_validity               = 12
+  access_token_validity                = 20
+  id_token_validity                    = 20
+  enable_token_revocation              = true
+
+  token_validity_units {
+    refresh_token = "hours"
+    access_token  = "minutes"
+    id_token      = "minutes"
+  }
 }
 
 resource "aws_cognito_identity_pool" "this" {

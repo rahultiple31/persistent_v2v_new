@@ -11,7 +11,7 @@ locals {
   enabled_module_set = toset([for module_name in var.enabled_modules : lower(module_name)])
   deploy_connect     = contains(local.enabled_module_set, "connect")
   deploy_lambda      = contains(local.enabled_module_set, "lambda")
-  deploy_proxy       = contains(local.enabled_module_set, "proxy")
+  deploy_proxy       = contains(local.enabled_module_set, "proxy") && local.translation_mode == "proxy"
   deploy_v2v         = contains(local.enabled_module_set, "v2v")
 }
 
@@ -23,19 +23,19 @@ module "connect_us_east_1" {
     aws = aws.us_east_1
   }
 
-  project_name         = var.project_name
-  environment          = var.environment
-  aws_region           = "us-east-1"
-  region_code          = "us-east-1"
-  common_tags          = local.common_tags
-  contact_center_alias = var.contact_center_alias
-  instance_alias       = var.connect_instance_alias
-  service_name_suffix  = var.connect_name_suffix
-  admin_user_enabled   = var.connect_admin_user_enabled
+  project_name          = var.project_name
+  environment           = var.environment
+  aws_region            = "us-east-1"
+  region_code           = "us-east-1"
+  common_tags           = local.common_tags
+  contact_center_alias  = var.contact_center_alias
+  instance_alias        = var.connect_instance_alias
+  service_name_suffix   = var.connect_name_suffix
+  admin_user_enabled    = var.connect_admin_user_enabled
   admin_user_first_name = var.connect_admin_first_name
-  admin_user_last_name = var.connect_admin_last_name
-  admin_user_username  = var.connect_admin_username
-  admin_user_email     = var.connect_admin_email
+  admin_user_last_name  = var.connect_admin_last_name
+  admin_user_username   = var.connect_admin_username
+  admin_user_email      = var.connect_admin_email
   customer_queue_flow_content = file(
     "${path.module}/metadata/contact-flows/abbvie-us-sd-transfer-to-agent-customer-queue-flow.json"
   )
@@ -55,12 +55,12 @@ module "lambda_us_east_1" {
     aws = aws.us_east_1
   }
 
-  project_name        = var.project_name
-  environment         = var.environment
-  aws_region          = "us-east-1"
-  region_code         = "us-east-1"
-  common_tags         = local.common_tags
-  name_prefix         = local.name_prefix
+  project_name       = var.project_name
+  environment        = var.environment
+  aws_region         = "us-east-1"
+  region_code        = "us-east-1"
+  common_tags        = local.common_tags
+  name_prefix        = local.name_prefix
   lambda_name_suffix = var.lambda_name_suffix
 }
 
@@ -97,18 +97,22 @@ locals {
   name_prefix = lower(replace(coalesce(var.resource_name_prefix, "${var.project_name}-${var.environment}-${var.app_name}"), "_", "-"))
 
   frontend_config = {
-    backendRegion         = data.aws_region.current.name
-    identityPoolId        = try(module.cognito_v2v[0].identity_pool_id, "")
-    userPoolId            = try(module.cognito_v2v[0].user_pool_id, "")
-    userPoolWebClientId   = try(module.cognito_v2v[0].user_pool_web_client_id, "")
-    cognitoDomainURL      = try(module.cognito_v2v[0].cognito_domain_url, "")
-    connectInstanceURL    = var.connect_instance_url
-    connectInstanceRegion = var.connect_instance_region
-    transcribeRegion      = var.transcribe_region
-    translateRegion       = var.translate_region
-    translateProxyEnabled = tostring(var.translate_proxy_enabled)
-    pollyRegion           = var.polly_region
-    pollyProxyEnabled     = tostring(var.polly_proxy_enabled)
+    backendRegion             = data.aws_region.current.name
+    identityPoolId            = try(module.cognito_v2v[0].identity_pool_id, "")
+    userPoolId                = try(module.cognito_v2v[0].user_pool_id, "")
+    userPoolWebClientId       = try(module.cognito_v2v[0].user_pool_web_client_id, "")
+    cognitoDomainURL          = try(module.cognito_v2v[0].cognito_domain_url, "")
+    connectInstanceURL        = var.connect_instance_url
+    connectInstanceRegion     = var.connect_instance_region
+    transcribeRegion          = local.transcribe_region
+    translateRegion           = local.translate_region
+    pollyRegion               = local.polly_region
+    bedrockRegion             = var.bedrock_region
+    novaSonicModelId          = var.proxy_bedrock_model_id
+    translationEnabled        = tostring(local.translation_mode != "off")
+    proxyEnabled              = tostring(local.translation_mode == "proxy")
+    ssoProviderName           = var.sso_enabled ? var.sso_provider_name : "not-defined"
+    refreshTokenValidityHours = "12"
   }
 
   ssm_parameters = {
@@ -117,11 +121,16 @@ locals {
     cognitoLogoutUrls     = join(",", var.cognito_logout_urls)
     connectInstanceURL    = var.connect_instance_url
     connectInstanceRegion = var.connect_instance_region
-    transcribeRegion      = var.transcribe_region
-    translateRegion       = var.translate_region
-    translateProxyEnabled = tostring(var.translate_proxy_enabled)
-    pollyRegion           = var.polly_region
-    pollyProxyEnabled     = tostring(var.polly_proxy_enabled)
+    transcribeRegion      = local.transcribe_region
+    translateRegion       = local.translate_region
+    pollyRegion           = local.polly_region
+    bedrockRegion         = var.bedrock_region
+    novaSonicModelId      = var.proxy_bedrock_model_id
+    translationEnabled    = tostring(var.translation_enabled)
+    ssoEnabled            = tostring(var.sso_enabled)
+    ssoProviderName       = var.sso_provider_name
+    proxyAllowedGroups    = length(var.proxy_allowed_groups) == 0 ? "not-defined" : join(",", var.proxy_allowed_groups)
+    cspEnforced           = tostring(var.csp_enforced)
   }
 }
 
@@ -133,12 +142,12 @@ module "s3_v2v" {
     aws = aws.us_east_1
   }
 
-  app_name             = var.app_name
-  v2v_root_prefix      = var.v2v_root_prefix
-  deploy_v2v_assets    = var.deploy_v2v_assets
-  v2v_dist_path        = var.v2v_dist_path
-  frontend_config      = local.frontend_config
-  common_tags          = local.common_tags
+  app_name          = var.app_name
+  v2v_root_prefix   = var.v2v_root_prefix
+  deploy_v2v_assets = var.deploy_v2v_assets
+  v2v_dist_path     = var.v2v_dist_path
+  frontend_config   = local.frontend_config
+  common_tags       = local.common_tags
 }
 
 module "cloudfront_v2v" {
@@ -154,10 +163,18 @@ module "cloudfront_v2v" {
   v2v_root_prefix                 = var.v2v_root_prefix
   v2v_bucket_regional_domain_name = try(module.s3_v2v[0].v2v_bucket_regional_domain_name, "")
   v2v_log_bucket_domain_name      = try(module.s3_v2v[0].v2v_log_bucket_domain_name, "")
-  polly_region                    = var.polly_region
-  polly_proxy_enabled             = var.polly_proxy_enabled
-  translate_region                = var.translate_region
-  translate_proxy_enabled         = var.translate_proxy_enabled
+  polly_region                    = local.polly_region
+  polly_proxy_enabled             = false
+  translate_region                = local.translate_region
+  translate_proxy_enabled         = false
+  proxy_enabled                   = local.translation_mode == "proxy"
+  proxy_alb_arn                   = try(local.proxy_state.internal_alb_arn, "")
+  proxy_alb_dns_name              = try(local.proxy_state.internal_alb_dns_name, "")
+  translation_mode                = local.translation_mode
+  cognito_domain_url              = "https://${var.cognito_domain_prefix}.auth.us-east-1.amazoncognito.com"
+  connect_instance_url            = var.connect_instance_url
+  connect_instance_region         = var.connect_instance_region
+  csp_enforced                    = var.csp_enforced
   common_tags                     = local.common_tags
 }
 
@@ -171,6 +188,8 @@ module "cognito_v2v" {
 
   app_name              = var.app_name
   frontend_client_name  = var.frontend_client_name
+  sso_enabled           = var.sso_enabled
+  sso_provider_name     = var.sso_provider_name
   cognito_domain_prefix = var.cognito_domain_prefix
   callback_urls         = distinct(concat(var.cognito_callback_urls, [module.cloudfront_v2v[0].v2v_url]))
   logout_urls           = distinct(concat(var.cognito_logout_urls, [module.cloudfront_v2v[0].v2v_url]))
@@ -185,9 +204,15 @@ module "iam_v2v" {
     aws = aws.us_east_1
   }
 
-  name_prefix      = local.name_prefix
-  identity_pool_id = try(module.cognito_v2v[0].identity_pool_id, "")
-  common_tags      = local.common_tags
+  name_prefix       = local.name_prefix
+  identity_pool_id  = try(module.cognito_v2v[0].identity_pool_id, "")
+  translation_mode  = local.translation_mode
+  bedrock_region    = var.bedrock_region
+  bedrock_model_id  = var.proxy_bedrock_model_id
+  transcribe_region = local.transcribe_region
+  translate_region  = local.translate_region
+  polly_region      = local.polly_region
+  common_tags       = local.common_tags
 }
 
 module "ssm_v2v" {

@@ -28,6 +28,11 @@ export class AudioStreamManager {
     this.activeMicrophoneDeviceId;
 
     this.customFeedbackBuffer = null;
+
+    // Set by dispose(). Any callback still in flight (bufferSource.onended,
+    // a pending playAudioBuffer) checks this so it cannot resurrect audio on a
+    // manager the app has already let go of.
+    this.isDisposed = false;
   }
 
   async startMicrophone(microphoneConstraints) {
@@ -51,9 +56,17 @@ export class AudioStreamManager {
       // Create source from microphone
       const micSource = this.audioContext.createMediaStreamSource(stream);
 
-      // Create gain node for microphone volume control
+      // Create gain node for microphone volume control.
+      //
+      // Start SILENT, not at 1.0. This node mixes the raw microphone into
+      // mediaStreamDestination Ã¢â‚¬â€ the same destination whose track is sent to
+      // the customer over WebRTC Ã¢â‚¬â€ so any gain here is untranslated speech on
+      // the wire, and none of the translation safety checks can suppress it
+      // (they gate playAudioBuffer, not this connection). Opening at full gain
+      // meant a window of raw audio before setMicrophoneVolume() was applied,
+      // and full gain permanently if that call was ever skipped or passed NaN.
       this.microphoneGain = this.audioContext.createGain();
-      this.microphoneGain.gain.setValueAtTime(1.0, this.audioContext.currentTime);
+      this.microphoneGain.gain.setValueAtTime(0, this.audioContext.currentTime);
 
       // Connect microphone through gain to destination
       micSource.connect(this.microphoneGain);
@@ -90,9 +103,20 @@ export class AudioStreamManager {
   }
 
   setMicrophoneVolume(volume) {
-    if (this.microphoneGain && volume >= 0 && volume <= 1) {
-      this.microphoneGain.gain.setValueAtTime(volume, this.audioContext.currentTime);
+    if (!this.microphoneGain) return;
+    // NaN fails every comparison, so the old `volume >= 0 && volume <= 1` guard
+    // turned a bad value into a silent no-op that left the previous gain in
+    // place. Callers pass parseFloat(slider.value), which yields NaN whenever
+    // the slider is empty or non-numeric. Treat anything invalid as 0: for a
+    // node wired to the customer's outbound stream, the safe failure is silence,
+    // not whatever gain happened to be set.
+    const safeVolume = Number.isFinite(volume) ? Math.min(Math.max(volume, 0), 1) : 0;
+    if (safeVolume !== volume) {
+      console.warn(
+        `${LOGGER_PREFIX} - setMicrophoneVolume: invalid volume ${volume} Ã¢â‚¬â€ using ${safeVolume}`
+      );
     }
+    this.microphoneGain.gain.setValueAtTime(safeVolume, this.audioContext.currentTime);
   }
 
   isMicrophoneEnabled() {
@@ -163,6 +187,7 @@ export class AudioStreamManager {
 
   startAudioFeedback() {
     //console.info(`${LOGGER_PREFIX} - startAudioFeedback`);
+    if (this.isDisposed) return; // never resurrect audio after dispose()
     if (!this.audioFeedbackNode) {
       this.audioFeedbackNode = this.createAudioFeedback();
       this.audioFeedbackNode.start();
@@ -232,6 +257,9 @@ export class AudioStreamManager {
   }
 
   async playAudioBuffer(audioDataArray, volume = 1.0) {
+    // The Translate+Polly fallback can resolve after the call has ended;
+    // enqueueing then would play audio into a disposed manager.
+    if (this.isDisposed) return;
     return new Promise(async (resolve, reject) => {
       try {
         const audioBuffer = await this.audioContext.decodeAudioData(audioDataArray.buffer);
@@ -254,6 +282,11 @@ export class AudioStreamManager {
   }
 
   async processQueue() {
+    if (this.isDisposed) {
+      this.audioQueue = [];
+      this.isPlaying = false;
+      return;
+    }
     if (this.audioQueue.length === 0) {
       this.isPlaying = false;
       // Start audio feedback when queue is empty
@@ -320,12 +353,30 @@ export class AudioStreamManager {
   //Clean up resources
   async dispose() {
     console.info(`${LOGGER_PREFIX} - dispose - AudioStreamManager disposed`);
+    // Mark disposed BEFORE stopping anything.
+    //
+    // processQueue() re-arms the comfort noise whenever the queue drains:
+    //   if (this.audioQueue.length === 0) { ... if (this.shouldPlayAudioFeedback)
+    //   this.startAudioFeedback(); }
+    // A bufferSource.onended callback that fires after dispose() therefore
+    // restarted the looping white noise on a mediaStreamDestination that is
+    // deliberately left alive â€” and because the caller nulls its reference to
+    // this manager immediately afterwards, nothing could ever stop it again.
+    // That is why background noise kept playing after the call ended, until a
+    // page refresh. Clearing the flag and gating the restart fixes it.
+    this.isDisposed = true;
+    this.shouldPlayAudioFeedback = false;
     this.clearQueue();
     this.stopAudioFeedback();
     this.stopMicrophone();
-    if (this.audioTrack != null) {
-      this.audioTrack.stop();
-    }
+    // Do NOT stop audioTrack here.
+    // This track is the output of mediaStreamDestination and is wired to the
+    // WebRTC RTCRtpSender via RTCSessionTrackManager.replaceTrack().  Stopping
+    // it while the sender still holds a reference severs the Web Audio graph
+    // before the new track can be substituted, producing a window of silence
+    // (packetsCount=0) that persists even after the new track is wired.
+    // RTCSessionTrackManager.cleanupCurrentTrack() skips POLLY tracks for the
+    // same reason Ã¢â‚¬â€ the track lifecycle is managed by replaceTrack(), not here.
   }
 
   // Mute methods

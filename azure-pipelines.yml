@@ -30,8 +30,8 @@ parameters:
       - apply
 
 variables:
-  terraformVersion: '1.10.0'
-  nodeVersion: '20.x'
+  terraformVersion: '1.10.5'
+  nodeVersion: '22.x'
   deploymentRegion: 'us-east-1'
   workingDirectory: 'environments/${{ parameters.targetEnvironment }}'
   backendBucket: 'bts-cloud-terraform-tfstate'
@@ -102,7 +102,11 @@ stages:
                 -backend-config="region=$(backendRegion)" \
                 -backend-config="encrypt=true"
 
-              terraform fmt -recursive ../..
+              if [ '${{ parameters.targetModule }}' = 'proxy' ]; then
+                source "$(Build.SourcesDirectory)/scripts/preserve-proxy-runtime.sh"
+              fi
+
+              terraform fmt -check -recursive ../..
               terraform validate
               python3 -m pip install --upgrade pip
               python3 -m pip install checkov
@@ -112,6 +116,7 @@ stages:
               PLAN_ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)/terraform-plan"
               mkdir -p "$PLAN_ARTIFACT_DIR"
               cp tfplan "$PLAN_ARTIFACT_DIR/"
+              cp .terraform.lock.hcl "$PLAN_ARTIFACT_DIR/"
               find . -maxdepth 1 -name '*.zip' -exec cp {} "$PLAN_ARTIFACT_DIR/" \;
               if [ '${{ parameters.targetModule }}' = 'v2v' ]; then
                 mkdir -p "$PLAN_ARTIFACT_DIR/v2v-dist"
@@ -120,6 +125,7 @@ stages:
             displayName: Terraform Init, Validate, and Plan
             workingDirectory: $(workingDirectory)
             env:
+              TF_VAR_state_bucket: $(backendBucket)
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
               SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
 
@@ -188,6 +194,7 @@ stages:
                       cp -R "$(Pipeline.Workspace)/$(planArtifactName)/v2v-dist/." "$V2V_DIST_DIR/"
                     fi
 
+                    cp "$(Pipeline.Workspace)/$(planArtifactName)/.terraform.lock.hcl" .
                     terraform init -reconfigure \
                       -backend-config="bucket=$(backendBucket)" \
                       -backend-config="key=$(backendKey)" \
@@ -196,8 +203,13 @@ stages:
 
                     find "$(Pipeline.Workspace)/$(planArtifactName)" -maxdepth 1 -name '*.zip' -exec cp {} . \;
                     terraform apply -auto-approve "$(Pipeline.Workspace)/$(planArtifactName)/tfplan"
+
+                    if [ '${{ parameters.targetModule }}' = 'v2v' ]; then
+                      bash "$(Build.SourcesDirectory)/scripts/deploy-webapp.sh" "$(Build.SourcesDirectory)/webapp/dist"
+                    fi
                   displayName: Terraform Apply
                   workingDirectory: $(workingDirectory)
                   env:
+                    TF_VAR_state_bucket: $(backendBucket)
                     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
                     SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)

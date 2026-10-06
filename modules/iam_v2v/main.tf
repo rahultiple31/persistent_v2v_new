@@ -67,22 +67,28 @@ data "aws_iam_policy_document" "unauthenticated_permissions" {
   }
 }
 
+data "aws_partition" "current" {}
+
 data "aws_iam_policy_document" "authenticated_permissions" {
   statement {
-    effect = "Allow"
-    actions = [
-      "mobileanalytics:PutEvents",
-      "cognito-sync:*",
-      "cognito-identity:*",
-      "polly:SynthesizeSpeech",
-      "polly:DescribeVoices",
-      "transcribe:StartStreamTranscription",
-      "transcribe:StartStreamTranscriptionWebSocket",
-      "translate:ListLanguages",
-      "translate:TranslateText",
-      "cognito-identity:GetCredentialsForIdentity"
-    ]
-    resources = ["*"]
+    actions   = ["bedrock:InvokeModel"]
+    resources = ["arn:${data.aws_partition.current.partition}:bedrock:${var.bedrock_region}::foundation-model/${var.bedrock_model_id}"]
+  }
+  dynamic "statement" {
+    for_each = {
+      transcribe = { region = var.transcribe_region, actions = ["transcribe:StartStreamTranscription", "transcribe:StartStreamTranscriptionWebSocket"] }
+      translate  = { region = var.translate_region, actions = ["translate:TranslateText", "translate:ListLanguages"] }
+      polly      = { region = var.polly_region, actions = ["polly:SynthesizeSpeech", "polly:DescribeVoices"] }
+    }
+    content {
+      actions   = statement.value.actions
+      resources = ["*"]
+      condition {
+        test     = "StringEquals"
+        variable = "aws:RequestedRegion"
+        values   = [statement.value.region]
+      }
+    }
   }
 }
 
@@ -93,9 +99,15 @@ resource "aws_iam_role_policy" "unauthenticated" {
 }
 
 resource "aws_iam_role_policy" "authenticated" {
+  count  = var.translation_mode == "direct" ? 1 : 0
   name   = "${var.name_prefix}-authenticated"
   role   = aws_iam_role.authenticated.id
   policy = data.aws_iam_policy_document.authenticated_permissions.json
+}
+
+moved {
+  from = aws_iam_role_policy.authenticated
+  to   = aws_iam_role_policy.authenticated[0]
 }
 
 resource "aws_cognito_identity_pool_roles_attachment" "this" {

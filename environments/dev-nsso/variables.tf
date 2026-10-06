@@ -201,7 +201,7 @@ variable "polly_proxy_enabled" {
 }
 
 variable "deploy_v2v_assets" {
-  description = "Whether Terraform uploads files from v2v_dist_path to the hosting bucket."
+  description = "Whether the deployment pipeline uploads the built webapp without deleting prior assets."
   type        = bool
   default     = false
 }

@@ -78,31 +78,9 @@ moved {
 }
 
 locals {
-  app_name_lower       = lower(replace(var.app_name, "_", "-"))
-  v2v_root             = trimsuffix(var.v2v_root_prefix, "/")
-  v2v_object_prefix    = local.v2v_root == "" ? "" : "${local.v2v_root}/"
-  v2v_dist_path        = var.v2v_dist_path == null ? abspath("${path.root}/../../webapp/dist") : abspath(var.v2v_dist_path)
-  v2v_files            = var.deploy_v2v_assets ? try(fileset(local.v2v_dist_path, "**"), toset([])) : toset([])
-
-  content_types = {
-    css   = "text/css"
-    gif   = "image/gif"
-    html  = "text/html"
-    ico   = "image/x-icon"
-    jpeg  = "image/jpeg"
-    jpg   = "image/jpeg"
-    js    = "text/javascript"
-    json  = "application/json"
-    map   = "application/json"
-    mp3   = "audio/mpeg"
-    png   = "image/png"
-    svg   = "image/svg+xml"
-    txt   = "text/plain"
-    wav   = "audio/wav"
-    webp  = "image/webp"
-    woff  = "font/woff"
-    woff2 = "font/woff2"
-  }
+  app_name_lower    = lower(replace(var.app_name, "_", "-"))
+  v2v_root          = trimsuffix(var.v2v_root_prefix, "/")
+  v2v_object_prefix = local.v2v_root == "" ? "" : "${local.v2v_root}/"
 }
 
 resource "aws_s3_bucket" "v2v" {
@@ -299,24 +277,19 @@ resource "aws_s3_bucket_policy" "v2v_logs" {
 }
 
 resource "aws_s3_object" "frontend_config" {
-  bucket       = aws_s3_bucket.v2v.id
-  key          = "${local.v2v_object_prefix}frontend-config.js"
-  content      = "window.V2VConfig = ${jsonencode(var.frontend_config)}"
-  content_type = "text/javascript"
-  etag         = md5("window.V2VConfig = ${jsonencode(var.frontend_config)}")
-  tags         = var.common_tags
+  bucket        = aws_s3_bucket.v2v.id
+  key           = "${local.v2v_object_prefix}frontend-config.js"
+  content       = "window.WebappConfig = ${jsonencode(var.frontend_config)};"
+  content_type  = "text/javascript"
+  cache_control = "no-cache"
+  etag          = md5("window.WebappConfig = ${jsonencode(var.frontend_config)};")
+  tags          = var.common_tags
 }
 
-resource "aws_s3_object" "v2v_assets" {
-  for_each = {
-    for file_path in local.v2v_files : file_path => file_path
-    if !endswith(file_path, "/")
+// The pipeline uploads assets without pruning files still needed by open calls.
+removed {
+  from = aws_s3_object.v2v_assets
+  lifecycle {
+    destroy = false
   }
-
-  bucket       = aws_s3_bucket.v2v.id
-  key          = "${local.v2v_object_prefix}${each.value}"
-  source       = "${local.v2v_dist_path}/${each.value}"
-  content_type = lookup(local.content_types, lower(element(reverse(split(".", each.value)), 0)), "binary/octet-stream")
-  etag         = filemd5("${local.v2v_dist_path}/${each.value}")
-  tags         = var.common_tags
 }

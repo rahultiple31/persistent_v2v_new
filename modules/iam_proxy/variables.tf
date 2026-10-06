@@ -12,3 +12,8 @@ variable "bedrock_model_id" {
   description = "Bedrock model ID the proxy task may invoke."
   type        = string
 }
+
+variable "force_backup_parameter" {
+  description = "Full SSM parameter name used for the runtime backup translation switch."
+  type        = string
+}

@@ -19,7 +19,7 @@ variable "v2v_root_prefix" {
 }
 
 variable "deploy_v2v_assets" {
-  description = "Whether Terraform uploads files from v2v_dist_path to the hosting bucket."
+  description = "Whether the deployment pipeline uploads the built webapp; asset ownership belongs to the pipeline."
   type        = bool
   default     = false
 }

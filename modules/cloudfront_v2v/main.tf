@@ -1,6 +1,53 @@
 locals {
   v2v_root        = trimsuffix(var.v2v_root_prefix, "/")
   v2v_origin_path = local.v2v_root == "" ? null : "/${local.v2v_root}"
+  connect_origin  = join("/", slice(split("/", var.connect_instance_url), 0, 3))
+  csp = join("; ", concat([
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "media-src 'self' blob: data:",
+    "connect-src 'self' ${var.cognito_domain_url} ${local.connect_origin} wss://*.connect-telecom.${var.connect_instance_region}.amazonaws.com${var.translation_mode == "direct" ? " https://*.amazonaws.com wss://*.amazonaws.com:8443" : ""}",
+    "frame-src ${local.connect_origin}",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'"
+  ], var.csp_enforced ? ["upgrade-insecure-requests"] : []))
+}
+
+resource "aws_cloudfront_vpc_origin" "proxy" {
+  count = var.proxy_enabled ? 1 : 0
+  vpc_origin_endpoint_config {
+    name                   = "${var.name_prefix}-proxy"
+    arn                    = var.proxy_alb_arn
+    http_port              = 80
+    https_port             = 443
+    origin_protocol_policy = "http-only"
+    origin_ssl_protocols {
+      items    = ["TLSv1.2"]
+      quantity = 1
+    }
+  }
+  tags = var.common_tags
+  lifecycle {
+    precondition {
+      condition     = can(regex("^arn:aws:elasticloadbalancing:us-east-1:", var.proxy_alb_arn)) && var.proxy_alb_dns_name != ""
+      error_message = "Deploy this environment's proxy infrastructure before V2V; its us-east-1 ALB outputs are required."
+    }
+  }
+}
+
+data "aws_cloudfront_cache_policy" "proxy_disabled" {
+  count = var.proxy_enabled ? 1 : 0
+  name  = "Managed-CachingDisabled"
+}
+data "aws_cloudfront_origin_request_policy" "proxy" {
+  count = var.proxy_enabled ? 1 : 0
+  name  = "Managed-AllViewerExceptHostHeader"
 }
 
 moved {
@@ -118,6 +165,13 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
   comment = "Security headers for ${var.app_name} V2V application responses"
 
   security_headers_config {
+    dynamic "content_security_policy" {
+      for_each = var.csp_enforced ? [1] : []
+      content {
+        content_security_policy = local.csp
+        override                = true
+      }
+    }
     content_type_options {
       override = true
     }
@@ -143,6 +197,16 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
       mode_block = true
       override   = true
       protection = true
+    }
+  }
+  dynamic "custom_headers_config" {
+    for_each = var.csp_enforced ? [] : [1]
+    content {
+      items {
+        header   = "Content-Security-Policy-Report-Only"
+        value    = local.csp
+        override = true
+      }
     }
   }
 }
@@ -235,6 +299,19 @@ resource "aws_cloudfront_distribution" "v2v" {
   }
 
   dynamic "origin" {
+    for_each = var.proxy_enabled ? [1] : []
+    content {
+      domain_name = var.proxy_alb_dns_name
+      origin_id   = "nova-proxy"
+      vpc_origin_config {
+        vpc_origin_id            = aws_cloudfront_vpc_origin.proxy[0].id
+        origin_read_timeout      = 30
+        origin_keepalive_timeout = 60
+      }
+    }
+  }
+
+  dynamic "origin" {
     for_each = var.polly_proxy_enabled ? [1] : []
 
     content {
@@ -274,6 +351,20 @@ resource "aws_cloudfront_distribution" "v2v" {
     cache_policy_id            = aws_cloudfront_cache_policy.v2v_disabled.id
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
     compress                   = true
+  }
+
+  dynamic "ordered_cache_behavior" {
+    for_each = var.proxy_enabled ? ["/ws", "/api/*"] : []
+    content {
+      path_pattern             = ordered_cache_behavior.value
+      target_origin_id         = "nova-proxy"
+      viewer_protocol_policy   = "https-only"
+      allowed_methods          = ordered_cache_behavior.value == "/ws" ? ["GET", "HEAD"] : ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+      cached_methods           = ["GET", "HEAD"]
+      cache_policy_id          = data.aws_cloudfront_cache_policy.proxy_disabled[0].id
+      origin_request_policy_id = data.aws_cloudfront_origin_request_policy.proxy[0].id
+      compress                 = false
+    }
   }
 
   dynamic "ordered_cache_behavior" {
@@ -320,13 +411,6 @@ resource "aws_cloudfront_distribution" "v2v" {
 
   custom_error_response {
     error_code            = 403
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 60
-  }
-
-  custom_error_response {
-    error_code            = 404
     response_code         = 200
     response_page_path    = "/index.html"
     error_caching_min_ttl = 60

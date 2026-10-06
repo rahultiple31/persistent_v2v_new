@@ -43,6 +43,17 @@ variable "logout_urls" {
   }
 }
 
+variable "sso_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "sso_provider_name" {
+  description = "Name of an identity provider already configured on the user pool."
+  type        = string
+  default     = "EntraID"
+}
+
 variable "common_tags" {
   description = "Common tags applied to supported resources."
   type        = map(string)

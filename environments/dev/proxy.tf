@@ -1,7 +1,7 @@
 locals {
   proxy_bootstrap_container_image = "public.ecr.aws/docker/library/node:20-alpine"
   proxy_container_image           = coalesce(var.proxy_container_image, local.proxy_bootstrap_container_image)
-  proxy_use_bootstrap_container   = var.proxy_container_image == null || var.proxy_container_image == local.proxy_bootstrap_container_image
+  proxy_use_bootstrap_container   = !var.proxy_runtime_enabled
 
   proxy_name_prefix = lower(replace(
     coalesce(var.resource_name_prefix, "${var.project_name}-${var.environment}"),
@@ -49,7 +49,7 @@ module "logs_proxy_us_east_1" {
 
   name_prefix        = local.proxy_name_prefix
   log_retention_days = var.proxy_log_retention_days
-  vpc_id              = module.networking_proxy_us_east_1[0].vpc_id
+  vpc_id             = module.networking_proxy_us_east_1[0].vpc_id
 }
 
 module "iam_proxy_us_east_1" {
@@ -60,9 +60,10 @@ module "iam_proxy_us_east_1" {
     aws = aws.proxy_us_east_1
   }
 
-  name_prefix      = local.proxy_name_prefix
-  aws_region       = "us-east-1"
-  bedrock_model_id = var.proxy_bedrock_model_id
+  name_prefix            = local.proxy_name_prefix
+  aws_region             = "us-east-1"
+  bedrock_model_id       = var.proxy_bedrock_model_id
+  force_backup_parameter = local.force_backup_parameter
 }
 
 module "ecr_proxy_us_east_1" {
@@ -110,8 +111,11 @@ module "ecs_proxy_us_east_1" {
   task_cpu                       = var.proxy_task_cpu
   task_memory                    = var.proxy_task_memory
   health_check_path              = var.proxy_health_check_path
-  cognito_domain_prefix          = var.cognito_domain_prefix
-  cognito_app_client_name        = var.frontend_client_name
+  cognito_user_pool_id           = try(local.v2v_state.user_pool_id, "")
+  cognito_client_id              = try(local.v2v_state.user_pool_web_client_id, "")
+  allowed_origins                = var.proxy_runtime_enabled ? distinct(concat(var.cognito_callback_urls, [local.v2v_state.v2v_url])) : []
+  allowed_groups                 = var.proxy_allowed_groups
+  force_backup_parameter         = local.force_backup_parameter
   bedrock_model_id               = var.proxy_bedrock_model_id
   fallback_rate_limit_per_minute = var.proxy_fallback_rate_limit_per_minute
   max_connections_per_user       = var.proxy_max_connections_per_user
@@ -134,8 +138,8 @@ module "autoscaling_proxy_us_east_1" {
   name_prefix      = local.proxy_name_prefix
   ecs_cluster_name = module.ecs_proxy_us_east_1[0].ecs_cluster_name
   ecs_service_name = module.ecs_proxy_us_east_1[0].ecs_service_name
-  min_capacity      = var.proxy_min_capacity
-  max_capacity      = var.proxy_max_capacity
+  min_capacity     = var.proxy_min_capacity
+  max_capacity     = var.proxy_max_capacity
 }
 
 module "alarms_proxy_us_east_1" {

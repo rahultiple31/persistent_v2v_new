@@ -13,6 +13,25 @@ variable "identity_pool_id" {
   type        = string
 }
 
+variable "translation_mode" {
+  type = string
+}
+variable "bedrock_region" {
+  type = string
+}
+variable "bedrock_model_id" {
+  type = string
+}
+variable "transcribe_region" {
+  type = string
+}
+variable "translate_region" {
+  type = string
+}
+variable "polly_region" {
+  type = string
+}
+
 variable "common_tags" {
   description = "Common tags applied to supported resources."
   type        = map(string)

@@ -6,8 +6,8 @@ locals {
 resource "aws_ssm_parameter" "this" {
   for_each = var.parameters
 
-  name      = "${local.ssm_hierarchy}/${each.key}"
-  type      = "String"
-  value     = each.value
-  tags      = var.common_tags
+  name  = "${local.ssm_hierarchy}/${each.key}"
+  type  = "String"
+  value = each.value
+  tags  = var.common_tags
 }

@@ -31,6 +31,7 @@ resource "aws_ecs_task_definition" "proxy" {
         name                   = "proxy"
         image                  = var.container_image
         essential              = true
+        stopTimeout            = 120
         readonlyRootFilesystem = true
         linuxParameters = {
           initProcessEnabled = true
@@ -46,10 +47,19 @@ resource "aws_ecs_task_definition" "proxy" {
           { name = "AWS_REGION", value = var.aws_region },
           { name = "NODE_ENV", value = "production" },
           { name = "PORT", value = tostring(var.container_port) },
-          { name = "COGNITO_DOMAIN_PREFIX", value = var.cognito_domain_prefix },
-          { name = "COGNITO_APP_CLIENT_NAME", value = var.cognito_app_client_name },
-          { name = "BEDROCK_MODEL_ID", value = var.bedrock_model_id },
-          { name = "FALLBACK_RATE_LIMIT_PER_MINUTE", value = tostring(var.fallback_rate_limit_per_minute) },
+          { name = "COGNITO_USER_POOL_ID", value = var.cognito_user_pool_id },
+          { name = "COGNITO_CLIENT_ID", value = var.cognito_client_id },
+          { name = "ALLOWED_ORIGINS", value = join(",", var.allowed_origins) },
+          { name = "ALLOWED_GROUPS", value = join(",", var.allowed_groups) },
+          { name = "BEDROCK_REGION", value = var.aws_region },
+          { name = "NOVA_MODEL_ID", value = var.bedrock_model_id },
+          { name = "TRANSCRIBE_REGION", value = var.aws_region },
+          { name = "TRANSLATE_REGION", value = var.aws_region },
+          { name = "POLLY_REGION", value = var.aws_region },
+          { name = "SSM_REGION", value = var.aws_region },
+          { name = "FORCE_BACKUP_PARAMETER", value = var.force_backup_parameter },
+          { name = "DRAIN_TIMEOUT_MS", value = "100000" },
+          { name = "FALLBACK_REQUESTS_PER_MINUTE", value = tostring(var.fallback_rate_limit_per_minute) },
           { name = "MAX_CONNECTIONS_PER_USER", value = tostring(var.max_connections_per_user) }
         ]
         logConfiguration = {
@@ -84,6 +94,14 @@ resource "aws_ecs_task_definition" "proxy" {
   tags = {
     Name = "${var.name_prefix}-task"
   }
+  lifecycle {
+    precondition {
+      condition = var.use_bootstrap_container || (
+        var.cognito_user_pool_id != "" && var.cognito_client_id != "" && length(var.allowed_origins) > 0
+      )
+      error_message = "The Nova proxy requires Cognito IDs and allowed origins from the deployed V2V state."
+    }
+  }
 }
 
 resource "aws_ecs_service" "proxy" {
@@ -102,6 +120,7 @@ resource "aws_ecs_service" "proxy" {
     enable   = true
     rollback = true
   }
+  wait_for_steady_state = true
 
   network_configuration {
     assign_public_ip = false

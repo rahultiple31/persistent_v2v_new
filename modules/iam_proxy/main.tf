@@ -1,4 +1,5 @@
 data "aws_partition" "current" {}
+data "aws_caller_identity" "current" {}
 
 resource "aws_iam_role" "task_execution" {
   name = "${var.name_prefix}-task-execution-role"
@@ -82,15 +83,10 @@ resource "aws_iam_role_policy" "proxy_ai_calls" {
         }
       },
       {
-        Sid      = "DiscoverConfiguredCognitoClient"
+        Sid      = "ReadBackupTranslationSwitch"
         Effect   = "Allow"
-        Action   = ["cognito-idp:DescribeUserPoolDomain", "cognito-idp:ListUserPoolClients"]
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "aws:RequestedRegion" = var.aws_region
-          }
-        }
+        Action   = ["ssm:GetParameter"]
+        Resource = "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(var.force_backup_parameter, "/")}"
       }
     ]
   })

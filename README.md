@@ -42,13 +42,17 @@ testing. It creates:
 - One IAM execution role for the Lambda function
 - AWS managed Lambda basic execution policy attachment
 
-The V2V target deploys the frontend application support stack. It creates:
+The V2V target deploys the Nova frontend and authentication stack. It creates:
 
 - Amazon Cognito user pool, app client, domain, and identity pool
 - IAM roles and policies for Cognito identities
 - S3 buckets and objects for V2V application hosting and CloudFront logs
-- CloudFront distribution, cache policies, security headers, and URL rewrite functions
+- CloudFront distribution, security headers, and a proxy VPC origin with WebSocket/API routing
 - SSM Parameter Store configuration values
+
+The separate proxy target deploys the private ALB, ECS Fargate runtime, and
+supporting network. See [DEPLOY-V2V.md](DEPLOY-V2V.md) for the staged deployment
+of both environments, runtime activation, and verification.
 
 ## Backend
 
@@ -101,7 +105,7 @@ cd environments/dev
 cd environments/dev-nsso
 
 terraform init -reconfigure \
-  -backend-config="bucket=bts-cloud-terraform-state" \
+  -backend-config="bucket=bts-cloud-terraform-tfstate" \
   -backend-config="key=terraform-state/dev/us-east-1/connect/terraform.tfstate" \
   -backend-config="region=us-east-1" \
   -backend-config="encrypt=true"
@@ -140,16 +144,14 @@ terraform plan -var='enabled_modules=["v2v"]'
 The pipeline in `azure-pipelines.yml` supports these parameters:
 
 - `targetEnvironment`: `dev` or `dev-nsso`
-- `targetModule`: `connect`, `lambda`, or `v2v`
+- `targetModule`: `connect`, `lambda`, `proxy`, or `v2v`
 - `terraformAction`: `plan` or `apply`
 
 The deployment region is fixed to `us-east-1` for both environments.
 
-The proxy stack is intentionally not exposed as a pipeline target because the
-current AWS Organizations service control policies deny the required EC2 network
-bootstrap actions for the Azure DevOps OIDC role, including `ec2:CreateVpc` and
-`ec2:AllocateAddress`. Enable it only after the SCPs allow those actions or
-after the stack is changed to consume approved existing network resources.
+The proxy target requires EC2 network bootstrap permissions, including
+`ec2:CreateVpc` and `ec2:AllocateAddress`. Previously documented AWS Organizations
+SCP restrictions must be resolved before deploying it.
 
 When more modules are added later, add the module name to:
 
@@ -170,8 +172,7 @@ with the review and approval checks your team needs.
 
 Required Azure DevOps variables:
 
-- `AWS_DEV_OIDC_ROLE_ARN`: AWS IAM role ARN assumed for Dev
-- `AWS_DEV_NSSO_OIDC_ROLE_ARN`: AWS IAM role ARN assumed for Dev NSSO
+- `AWS_DEV_OIDC_ROLE_ARN`: shared AWS IAM role ARN assumed for Dev and Dev NSSO
 
 The pipeline uses Azure Pipelines OIDC and Terraform's AWS web identity
 authentication. It does not require static AWS access keys.
