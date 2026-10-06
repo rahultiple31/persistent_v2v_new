@@ -41,19 +41,27 @@ variable "proxy_runtime_enabled" {
   type        = bool
   default     = false
 }
+variable "proxy_integration_enabled" {
+  description = "Connect V2V to existing proxy infrastructure; false permits a standalone V2V deployment."
+  type        = bool
+  default     = false
+}
 
 locals {
-  translation_mode       = !var.translation_enabled ? "off" : var.proxy_enabled ? "proxy" : "direct"
-  transcribe_region      = coalesce(var.transcribe_region, var.bedrock_region)
-  translate_region       = coalesce(var.translate_region, var.bedrock_region)
-  polly_region           = coalesce(var.polly_region, var.bedrock_region)
-  force_backup_parameter = "${trimsuffix(var.ssm_hierarchy, "/")}/forceBackupTranslation"
-  proxy_state            = try(data.terraform_remote_state.proxy[0].outputs.regional_proxy["us-east-1"], {})
-  v2v_state              = try(data.terraform_remote_state.v2v[0].outputs.connect_v2v_translation, {})
+  translation_mode         = !var.translation_enabled ? "off" : var.proxy_enabled ? "proxy" : "direct"
+  proxy_integration_active = local.translation_mode == "proxy" && var.proxy_integration_enabled
+  v2v_translation_enabled  = local.translation_mode == "direct" || local.proxy_integration_active
+  v2v_translation_mode     = local.v2v_translation_enabled ? local.translation_mode : "off"
+  transcribe_region        = coalesce(var.transcribe_region, var.bedrock_region)
+  translate_region         = coalesce(var.translate_region, var.bedrock_region)
+  polly_region             = coalesce(var.polly_region, var.bedrock_region)
+  force_backup_parameter   = "${trimsuffix(var.ssm_hierarchy, "/")}/forceBackupTranslation"
+  proxy_state              = try(data.terraform_remote_state.proxy[0].outputs.regional_proxy["us-east-1"], {})
+  v2v_state                = try(data.terraform_remote_state.v2v[0].outputs.connect_v2v_translation, {})
 }
 
 data "terraform_remote_state" "proxy" {
-  count   = local.deploy_v2v && local.translation_mode == "proxy" ? 1 : 0
+  count   = local.deploy_v2v && local.proxy_integration_active ? 1 : 0
   backend = "s3"
   config = {
     bucket = var.state_bucket

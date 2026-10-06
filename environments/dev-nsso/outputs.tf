@@ -61,7 +61,8 @@ output "connect_v2v_translation" {
     v2v_url                             = try(module.cloudfront_v2v[0].v2v_url, null)
     v2v_root_prefix                     = var.v2v_root_prefix
     deploy_v2v_assets                   = var.deploy_v2v_assets
-    translation_mode                    = local.translation_mode
+    translation_mode                    = local.v2v_translation_mode
+    proxy_integration_enabled           = local.proxy_integration_active
     ssm_parameter_names                 = try(module.ssm_v2v[0].parameter_names, {})
   }
 }

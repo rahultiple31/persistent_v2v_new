@@ -50,8 +50,9 @@ proxy_fallback_rate_limit_per_minute = 150
 proxy_max_connections_per_user       = 12
 proxy_log_retention_days             = 90
 
-translation_enabled = true
-bedrock_region      = "us-east-1"
-sso_enabled         = false
-sso_provider_name   = "EntraID"
-csp_enforced        = false
+translation_enabled       = true
+proxy_integration_enabled = false
+bedrock_region            = "us-east-1"
+sso_enabled               = false
+sso_provider_name         = "EntraID"
+csp_enforced              = false

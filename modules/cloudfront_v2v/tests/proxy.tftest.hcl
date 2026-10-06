@@ -17,6 +17,23 @@ variables {
   connect_instance_url            = "https://test.my.connect.aws"
   connect_instance_region         = "us-east-1"
 }
+run "standalone_without_proxy_alb" {
+  command = plan
+  variables {
+    proxy_enabled      = false
+    proxy_alb_arn      = ""
+    proxy_alb_dns_name = ""
+    translation_mode   = "off"
+  }
+  assert {
+    condition     = length(aws_cloudfront_vpc_origin.proxy) == 0 && length(aws_cloudfront_distribution.v2v.ordered_cache_behavior) == 0
+    error_message = "Standalone V2V must plan without ALB values or proxy routes."
+  }
+  assert {
+    condition     = length(aws_cloudfront_distribution.v2v.origin) == 1 && one(aws_cloudfront_distribution.v2v.origin).origin_id == "v2v-s3"
+    error_message = "Standalone V2V must still serve the webapp from its S3 origin."
+  }
+}
 run "websocket_and_api_routes" {
   command = plan
   assert {
@@ -41,4 +58,12 @@ run "enforced_csp" {
     condition     = strcontains(aws_cloudfront_response_headers_policy.security_headers.security_headers_config[0].content_security_policy[0].content_security_policy, "upgrade-insecure-requests")
     error_message = "Enforced CSP must include the configured security directives."
   }
+}
+run "reject_integration_without_proxy_alb" {
+  command = plan
+  variables {
+    proxy_alb_arn      = ""
+    proxy_alb_dns_name = ""
+  }
+  expect_failures = [aws_cloudfront_vpc_origin.proxy]
 }

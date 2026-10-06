@@ -47,8 +47,12 @@ The V2V target deploys the Nova frontend and authentication stack. It creates:
 - Amazon Cognito user pool, app client, domain, and identity pool
 - IAM roles and policies for Cognito identities
 - S3 buckets and objects for V2V application hosting and CloudFront logs
-- CloudFront distribution, security headers, and a proxy VPC origin with WebSocket/API routing
+- CloudFront distribution and security headers, with optional proxy VPC origin and WebSocket/API routing
 - SSM Parameter Store configuration values
+
+Both environments default to `proxy_integration_enabled=false`, so V2V can
+deploy without proxy state or ALB values. With proxy translation selected,
+translation stays disabled until integration is explicitly enabled.
 
 The separate proxy target deploys the private ALB, ECS Fargate runtime, and
 supporting network. See [DEPLOY-V2V.md](DEPLOY-V2V.md) for the staged deployment

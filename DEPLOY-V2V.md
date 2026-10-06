@@ -5,22 +5,37 @@ separate `proxy` and `v2v` Terraform states, Cognito pools, buckets, ECR
 repositories, and proxy networks. The Connect instance URLs in each
 `terraform.tfvars` are preserved.
 
-## First deployment
+## Standalone V2V deployment
 
-Repeat these steps for each environment:
+Run `azure-pipelines.yml` from `main` with `targetEnvironment=dev` or
+`dev-nsso`, `targetModule=v2v`, and `terraformAction=apply`.
+Both environments set `proxy_integration_enabled=false`. V2V creates
+Cognito, S3 and CloudFront, writes `window.WebappConfig`, builds the webapp,
+and uploads its assets without reading proxy state or requiring an ALB ARN
+or DNS name. With the checked-in proxy translation settings, the app starts
+as a plain softphone; translation remains disabled until integration is enabled.
+
+## Optional proxy deployment
+
+After the standalone V2V deployment, repeat these steps for each environment
+that needs proxy translation:
 
 1. Run `azure-pipelines.yml` with `targetEnvironment=dev` or `dev-nsso`,
    `targetModule=proxy`, and `terraformAction=apply`. This provisions the
    network, internal ALB, ECR, and a health-only ECS bootstrap service.
-2. Run the same pipeline with `targetModule=v2v` and
-   `terraformAction=apply`. The V2V state reads the matching proxy state's ALB,
-   creates Cognito and CloudFront, writes `window.WebappConfig`, builds the
-   webapp, and uploads its assets. Translation is not operational until step 3.
-3. Run `proxy_backend/CICD/azure-cicd.yml` for the same environment with
+2. Run `proxy_backend/CICD/azure-cicd.yml` for the same environment with
    `terraformAction=apply`. It tests the proxy, builds an immutable ARM64 ECR
    image, and plans/applies the proxy state with `proxy_runtime_enabled=true`.
    The proxy reads Cognito IDs and the application origin from the V2V state.
    Terraform removes the bootstrap command and waits for healthy ECS tasks.
+3. Set `proxy_integration_enabled=true` in the environment's
+   `terraform.tfvars`, commit and push the change, then run the main pipeline
+   with `targetModule=v2v` and `terraformAction=apply`. V2V now reads the
+   matching proxy state's ALB outputs, creates the CloudFront VPC origin and
+   `/ws` and `/api/*` routes, and enables browser translation. Keep this setting
+   enabled for subsequent integrated V2V updates. Setting it back to false
+   removes the routes and disables browser translation without deleting proxy
+   infrastructure from its separate state.
 
 Both pipelines default to `plan`; select `apply` to deploy. Apply jobs use
 the matching Azure DevOps approval environment. Main infrastructure pipeline
@@ -39,15 +54,17 @@ terraform-state/<environment>/us-east-1/v2v/terraform.tfstate
 ```
 
 `state_bucket` must match the bucket passed to `terraform init`.
-Pipelines supply it automatically. Remote-state reads require access to
-the corresponding state objects; native locking requires access to the
+Pipelines supply it automatically. Standalone V2V does not read proxy state.
+Remote-state reads for explicit integration or proxy runtime activation
+require access to the corresponding state objects; native locking requires access to the
 `.tflock` objects. The pipelines use `AWS_DEV_OIDC_ROLE_ARN` for both
 environments, matching the existing shared OIDC role configuration.
 
-The deployment role and account policies must permit the existing proxy
+For standalone V2V, permit the frontend/authentication resources, asset
+uploads, and CloudFront invalidations. For optional proxy deployment and
+integration, the deployment role and account policies must also permit proxy
 network resources (including VPC, NAT and EIP creation), CloudFront VPC
-origins, ECR push, ECS updates, and passing the task roles. Also permit asset
-uploads and CloudFront invalidations. Previously documented SCP restrictions
+origins, ECR push, ECS updates, and passing the task roles. Previously documented SCP restrictions
 on network creation must be resolved in AWS before provisioning the proxy.
 No account permissions are changed by this repository update.
 
@@ -56,11 +73,15 @@ No account permissions are changed by this repository update.
 - `translation_enabled=false`: plain softphone, no browser translation policy.
 - `translation_enabled=true`, `proxy_enabled=false`: direct AWS calls;
   only authenticated browser identities receive translation permissions.
-- Both true: all translation goes through the authenticated proxy;
-  browser identities have no translation permissions.
+- Both true with `proxy_integration_enabled=false`: standalone softphone;
+  no proxy state lookup, CloudFront proxy origin, or browser translation permissions.
+- Both true with `proxy_integration_enabled=true`: all translation goes through
+  the authenticated proxy; browser identities have no translation permissions.
 
-The checked-in environments enable proxy translation. All service regions
-are validated as `us-east-1`. Nova uses `proxy_bedrock_model_id`;
+The checked-in environments select proxy translation but leave integration
+disabled for independent V2V deployment. Browser configuration, the V2V-owned
+SSM `translationEnabled` setting, and V2V outputs reflect the effective mode.
+All service regions are validated as `us-east-1`. Nova uses `proxy_bedrock_model_id`;
 Transcribe, Translate and Polly use their configured regions.
 Apply the proxy target too when disabling translation or switching to direct
 mode so the previously deployed proxy resources are removed.
@@ -108,10 +129,14 @@ Run `npm ci && npm test` in `proxy_backend` and
 `npm ci && npm run build` in `webapp`.
 Run `terraform init -backend=false` and `terraform validate` in both
 environment directories.
+Run `terraform test` in each environment directory
+to verify standalone V2V, separate proxy bootstrap, direct/off translation,
+and explicit proxy integration using mock providers and remote-state outputs.
 Run `terraform test` in `modules/cloudfront_v2v`, `modules/ecs_proxy`,
 and `modules/s3_v2v` to verify proxy routing, the container startup
 contract, and the generated browser configuration.
 
-After deployment, verify sign-in, Connect CCP initialization, an authenticated
+After standalone deployment, verify sign-in and Connect CCP initialization.
+After proxy integration, also verify an authenticated
 `/ws` connection, `/api/fallback`, and a live translated Connect call.
 CloudFront and ECS deployment success alone does not verify a live call.

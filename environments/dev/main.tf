@@ -109,8 +109,8 @@ locals {
     pollyRegion               = local.polly_region
     bedrockRegion             = var.bedrock_region
     novaSonicModelId          = var.proxy_bedrock_model_id
-    translationEnabled        = tostring(local.translation_mode != "off")
-    proxyEnabled              = tostring(local.translation_mode == "proxy")
+    translationEnabled        = tostring(local.v2v_translation_enabled)
+    proxyEnabled              = tostring(local.proxy_integration_active)
     ssoProviderName           = var.sso_enabled ? var.sso_provider_name : "not-defined"
     refreshTokenValidityHours = "12"
   }
@@ -126,7 +126,7 @@ locals {
     pollyRegion           = local.polly_region
     bedrockRegion         = var.bedrock_region
     novaSonicModelId      = var.proxy_bedrock_model_id
-    translationEnabled    = tostring(var.translation_enabled)
+    translationEnabled    = tostring(local.v2v_translation_enabled)
     ssoEnabled            = tostring(var.sso_enabled)
     ssoProviderName       = var.sso_provider_name
     proxyAllowedGroups    = length(var.proxy_allowed_groups) == 0 ? "not-defined" : join(",", var.proxy_allowed_groups)
@@ -167,10 +167,10 @@ module "cloudfront_v2v" {
   polly_proxy_enabled             = false
   translate_region                = local.translate_region
   translate_proxy_enabled         = false
-  proxy_enabled                   = local.translation_mode == "proxy"
+  proxy_enabled                   = local.proxy_integration_active
   proxy_alb_arn                   = try(local.proxy_state.internal_alb_arn, "")
   proxy_alb_dns_name              = try(local.proxy_state.internal_alb_dns_name, "")
-  translation_mode                = local.translation_mode
+  translation_mode                = local.v2v_translation_mode
   cognito_domain_url              = "https://${var.cognito_domain_prefix}.auth.us-east-1.amazoncognito.com"
   connect_instance_url            = var.connect_instance_url
   connect_instance_region         = var.connect_instance_region
@@ -206,7 +206,7 @@ module "iam_v2v" {
 
   name_prefix       = local.name_prefix
   identity_pool_id  = try(module.cognito_v2v[0].identity_pool_id, "")
-  translation_mode  = local.translation_mode
+  translation_mode  = local.v2v_translation_mode
   bedrock_region    = var.bedrock_region
   bedrock_model_id  = var.proxy_bedrock_model_id
   transcribe_region = local.transcribe_region
