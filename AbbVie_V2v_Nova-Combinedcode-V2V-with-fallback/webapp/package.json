@@ -1,0 +1,31 @@
+{
+  "name": "amazon-connect-v2v",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:gitbash": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.14",
+    "vite-plugin-mkcert": "^1.17.6",
+    "vite-plugin-node-polyfills": "^0.22.0",
+    "vite-plugin-static-copy": "^2.2.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1030.0",
+    "@aws-sdk/client-transcribe-streaming": "^3.797.0",
+    "@aws-sdk/credential-provider-node": "^3.699.0",
+    "@aws-sdk/protocol-http": "^3.370.0",
+    "@aws-sdk/client-translate": "^3.1030.0",
+    "@aws-sdk/client-polly": "^3.1030.0",
+    "amazon-connect-streams": "^2.18.0",
+    "bootstrap": "^5.3.3",
+    "bootstrap-icons": "^1.11.3",
+    "buffer": "^6.0.3",
+    "microphone-stream": "^6.0.1"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "v2v-proxy",
+  "version": "1.0.0",
+  "description": "Server-side proxy for the Amazon Connect V2V webapp. Holds the AWS permissions so no AWS credentials reach the browser.",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test",
+    "bench": "node bench/latency.mjs"
+  },
+  "license": "MIT-0",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "3.1141.0",
+    "@aws-sdk/client-polly": "3.1141.0",
+    "@aws-sdk/client-ssm": "3.1141.0",
+    "@aws-sdk/client-transcribe-streaming": "3.1141.0",
+    "@aws-sdk/client-translate": "3.1141.0",
+    "@smithy/node-http-handler": "4.12.1",
+    "aws-jwt-verify": "5.2.1",
+    "ws": "8.22.0"
+  }
+}

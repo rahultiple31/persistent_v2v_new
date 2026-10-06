@@ -1,0 +1,123 @@
+{
+  "CdkAppName": "AbbvieNovaSonicV2V",
+  "CdkBackendStack": "Abbvie-NovaSonic-Backend-Dev",
+  "CdkFrontendStack": "Abbvie-NovaSonic-Frontend-Dev",
+  "WebAppRootPrefix": "WebAppRoot/",
+  "WebAppStagingPrefix": "WebAppStaging/",
+  "hierarchy": "/Abbvie/NovaSonic/Dev/",
+  "_ssmPathHelp": "Change 'hierarchy' to your existing Parameter Store path (must end with /). Or set env SSM_PARAMETERS_HIERARCHY for configure + cdk without editing this file. Parameter names after the prefix must match: cognitoDomainPrefix, connectInstanceURL, bedrockRegion, novaSonicModelId, etc.",
+  "parameters": [
+    {
+      "name": "cognitoDomainPrefix",
+      "cliFormat": "cognito-domain-prefix",
+      "description": "Amazon Cognito hosted UI domain prefix, where users will be redirected during the login process. The domain prefix has to be unique, between 1 and 63 characters long, contains no special characters, and no keywords: aws, amazon, or cognito. You could put your Amazon Connect Instance Alias to it, for example: connect-v2v-instance-alias",
+      "required": true
+    },
+    {
+      "name": "cognitoCallbackUrls",
+      "cliFormat": "cognito-callback-urls",
+      "description": "Please provide a callback URL for the Amazon Cognito authorization server to call after users are authenticated. This should be set to your application root URL. For example: https://aaaabbbbcccc.cloudfront.net",
+      "required": true
+    },
+    {
+      "name": "cognitoLogoutUrls",
+      "cliFormat": "cognito-logout-urls",
+      "description": "Please provide a logout URL where user is to be redirected after logging out.",
+      "required": true
+    },
+    {
+      "name": "connectInstanceURL",
+      "cliFormat": "connect-instance-url",
+      "description": "Amazon Connect instance URL that solution will use. For example: https://connect-instance-alias.my.connect.aws (or https://connect-instance-alias.awsapps.com)",
+      "required": true
+    },
+    {
+      "name": "connectInstanceRegion",
+      "cliFormat": "connect-instance-region",
+      "description": "Amazon Connect instance Region that solution will use. For example: us-east-1",
+      "required": true
+    },
+    {
+      "name": "bedrockRegion",
+      "cliFormat": "bedrock-region",
+      "description": "AWS Region for Amazon Bedrock (Nova Sonic). Must match a Region where amazon.nova-2-sonic-v1:0 is available, for example: us-east-1",
+      "defaultValue": "us-east-1",
+      "required": true
+    },
+    {
+      "name": "novaSonicModelId",
+      "cliFormat": "nova-sonic-model-id",
+      "description": "Bedrock model ID for Nova Sonic bidirectional speech (default amazon.nova-2-sonic-v1:0)",
+      "defaultValue": "amazon.nova-2-sonic-v1:0",
+      "required": true
+    },
+    {
+      "name": "transcribeRegion",
+      "cliFormat": "transcribe-region",
+      "description": "AWS Region for Amazon Transcribe streaming, for example: us-east-1. Leave not-defined to use bedrockRegion.",
+      "required": false
+    },
+    {
+      "name": "translateRegion",
+      "cliFormat": "translate-region",
+      "description": "AWS Region for Amazon Translate (fallback translation), for example: us-east-1. Leave not-defined to use bedrockRegion.",
+      "required": false
+    },
+    {
+      "name": "pollyRegion",
+      "cliFormat": "polly-region",
+      "description": "AWS Region for Amazon Polly (fallback speech), for example: us-east-1. Leave not-defined to use bedrockRegion.",
+      "required": false
+    },
+    {
+      "name": "ssoEnabled",
+      "cliFormat": "sso-enabled",
+      "description": "true = the web app skips the Cognito sign-in page and goes straight to the SSO provider (ssoProviderName). false = show the Cognito sign-in page. The provider itself is configured in the Cognito console.",
+      "boolean": true,
+      "defaultValue": false,
+      "required": false
+    },
+    {
+      "name": "ssoProviderName",
+      "cliFormat": "sso-provider-name",
+      "description": "Cognito SAML identity provider name, exactly as shown in the Cognito console, for example: EntraID. Used only when ssoEnabled is true.",
+      "defaultValue": "EntraID",
+      "required": false
+    },
+    {
+      "name": "translationEnabled",
+      "cliFormat": "translation-enabled",
+      "description": "true = agents can use voice translation (Amazon Bedrock Nova Sonic, Transcribe, Translate, Polly). false = the webapp is a plain softphone: the Customer, Agent and Transcription panels are greyed out, no proxy is deployed and no role gets Bedrock, Transcribe, Translate or Polly permissions; the CCP, Customer Information and Audio Controls work as usual. Required, with no default: every environment must choose. Changing it takes a deploy (npm run build:deploy:all); open pages then ask agents to reload between calls.",
+      "boolean": true,
+      "required": true
+    },
+    {
+      "name": "proxyEnabled",
+      "cliFormat": "proxy-enabled",
+      "description": "Used only when translationEnabled is true. true = deploy the server-side proxy (ECS Fargate behind CloudFront) and route every Bedrock, Transcribe, Translate and Polly call through it, so no AWS credentials ever reach the browser; the Cognito identity pool role then gets no permissions. false = the browser calls AWS directly with identity pool credentials.",
+      "boolean": true,
+      "defaultValue": false,
+      "required": false
+    },
+    {
+      "name": "proxyAllowedGroups",
+      "cliFormat": "proxy-allowed-groups",
+      "description": "Optional comma-separated Cognito group names, for example V2V-Connect-Agents. When set, the proxy only serves users in at least one of these groups. Leave not-defined to serve every user of the user pool.",
+      "required": false
+    },
+    {
+      "name": "proxyAvailabilityZones",
+      "cliFormat": "proxy-availability-zones",
+      "description": "Optional comma-separated names of exactly 2 Availability Zones for the proxy, for example us-east-1a,us-east-1b. CloudFront VPC origins do not support every AZ (in us-east-1 not AZ ID use1-az3), and AZ names map to different AZ IDs in each account. Leave not-defined to use the first 2 AZs.",
+      "required": false
+    },
+    {
+      "name": "cspEnforced",
+      "cliFormat": "csp-enforced",
+      "description": "false = the webapp's Content Security Policy is sent report-only: the browser console lists what it would block, nothing is blocked. true = the policy is enforced. Run test calls in report-only mode first, and enforce once the console shows no Content Security Policy reports.",
+      "boolean": true,
+      "defaultValue": false,
+      "required": false
+    }
+  ]
+}

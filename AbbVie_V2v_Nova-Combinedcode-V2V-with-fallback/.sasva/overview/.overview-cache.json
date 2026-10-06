@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "createdAt": "2026-09-16T10:32:13.321Z",
+  "sections": [
+    "00-executive-summary",
+    "01-architecture",
+    "02-database",
+    "03-technical-flows",
+    "04-user-journeys",
+    "05-deployment"
+  ],
+  "workspacePath": "file:///c%3A/n2v/connect-v2v-translation-with-cx-options-nova-sonic"
+}

@@ -1,0 +1,191 @@
+/* ============================================================
+   conversationTranscript.css
+   Dedicated styles for the right-side Transcription chat panel.
+
+   All selectors use the "ct-" prefix so they never clash with
+   any existing class names in style.css.
+   ============================================================ */
+
+/* ── Row ──────────────────────────────────────────────────────
+   Each row holds one avatar + one bubble.
+   Customer rows are left-aligned; agent rows are right-aligned.
+   ─────────────────────────────────────────────────────────── */
+.ct-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 14px;
+  /* Start invisible and slightly below; animate in */
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+/* Animate-in class added by JS on next paint */
+.ct-row.ct-row--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Customer: avatar on left, bubble on right */
+.ct-row.ct-row--customer {
+  flex-direction: row;
+  justify-content: flex-start;
+}
+
+/* Agent: bubble on left side of the row, avatar on right */
+.ct-row.ct-row--agent {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
+/* ── Avatar ───────────────────────────────────────────────────
+   Small circular icon badge beside the bubble.
+   ─────────────────────────────────────────────────────────── */
+.ct-avatar {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  margin-top: 2px;
+}
+
+.ct-avatar--customer {
+  background: #eafaf1;
+  color: #27ae60;
+  border: 1.5px solid #27ae60;
+}
+
+.ct-avatar--agent {
+  background: #d6eaf8;
+  color: #2471a3;
+  border: 1.5px solid #2471a3;
+}
+
+/* ── Bubble ───────────────────────────────────────────────────
+   The speech bubble card that holds original + translation.
+   ─────────────────────────────────────────────────────────── */
+.ct-bubble {
+  max-width: 70%;
+  padding: 9px 12px 8px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  font-size: 0.84rem;
+  line-height: 1.48;
+  word-break: break-word;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.09);
+  position: relative;
+}
+
+/* Customer bubble — light grey background (left side) */
+.ct-bubble--customer {
+  background: #f2f3f4;
+  border-color: #dcdfe1;
+  color: #1c2833;
+  border-top-left-radius: 3px;   /* "tail" corner */
+}
+
+/* Agent bubble — blue background (right side) matching reference image */
+.ct-bubble--agent {
+  background: #2980b9;
+  border-color: #2471a3;
+  color: #ffffff;
+  border-top-right-radius: 3px;  /* "tail" corner */
+}
+
+/* Hover lift */
+.ct-bubble:hover {
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
+}
+
+/* ── Original text row ────────────────────────────────────────
+   Flex row: original text takes remaining space, timestamp right.
+   ─────────────────────────────────────────────────────────── */
+.ct-original-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.ct-original-text {
+  font-weight: 500;
+  flex: 1;
+}
+
+/* ── Timestamp ────────────────────────────────────────────────
+   Small muted time badge — top right of the original text.
+   ─────────────────────────────────────────────────────────── */
+.ct-time {
+  font-size: 0.68em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0.60;
+}
+
+.ct-bubble--agent .ct-time {
+  color: #d6eaf8;
+  opacity: 0.78;
+}
+
+/* ── Divider ──────────────────────────────────────────────────
+   Thin horizontal rule between original and translation.
+   ─────────────────────────────────────────────────────────── */
+.ct-divider {
+  height: 1px;
+  margin: 5px 0;
+}
+
+.ct-bubble--customer .ct-divider {
+  background: rgba(0, 0, 0, 0.10);
+}
+
+.ct-bubble--agent .ct-divider {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ── Translation label ────────────────────────────────────────
+   "TRANSLATION (TO ENGLISH)" etc.
+   ─────────────────────────────────────────────────────────── */
+.ct-trans-label {
+  font-size: 0.67em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.ct-bubble--customer .ct-trans-label {
+  color: #1e8449;
+}
+
+.ct-bubble--agent .ct-trans-label {
+  color: #aed6f1;
+}
+
+/* ── Translated text ──────────────────────────────────────────
+   Italicised translation shown below the divider.
+   ─────────────────────────────────────────────────────────── */
+.ct-translated {
+  font-style: italic;
+  font-size: 0.83em;
+  opacity: 0.93;
+}
+
+.ct-bubble--agent .ct-translated {
+  color: #eaf4fd;
+}
+
+/* ── Responsive tweak ─────────────────────────────────────────
+   On narrow screens allow bubbles to grow wider.
+   ─────────────────────────────────────────────────────────── */
+@media (max-width: 1200px) {
+  .ct-bubble {
+    max-width: 84%;
+  }
+}
