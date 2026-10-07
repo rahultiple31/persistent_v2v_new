@@ -374,6 +374,69 @@ variable "proxy_max_connections_per_user" {
   }
 }
 
+variable "dev_ai_agent_enabled" {
+  description = "Whether to provision and publish the Dev Connect orchestration agent."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.dev_ai_agent_enabled || contains([for name in var.enabled_modules : lower(name)], "connect")
+    error_message = "The Dev AI agent requires the connect module in enabled_modules."
+  }
+}
+
+variable "dev_ai_assistant_id" {
+  description = "Existing assistant ID already associated with the target Dev Connect instance."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = !var.dev_ai_agent_enabled || can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.dev_ai_assistant_id))
+    error_message = "Set dev_ai_assistant_id to the associated Dev assistant UUID before enabling the AI agent."
+  }
+}
+
+variable "dev_ai_prompt_file" {
+  description = "Environment-relative path to the complete UTF-8 orchestration prompt YAML."
+  type        = string
+  default     = "metadata/prompts/AgentAssistanceOrchestration.yaml"
+}
+
+variable "dev_ai_prompt_model_id" {
+  description = "Connect-supported orchestration model ID for us-east-1."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = !var.dev_ai_agent_enabled || can(regex("\\S", var.dev_ai_prompt_model_id))
+    error_message = "Set dev_ai_prompt_model_id to a supported Connect model before enabling the AI agent."
+  }
+}
+
+variable "dev_ai_template_bucket" {
+  description = "Existing private CloudFormation template bucket in us-east-1 accessible to the deployment identity."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = !var.dev_ai_agent_enabled || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.dev_ai_template_bucket))
+    error_message = "Set dev_ai_template_bucket to an existing Dev template bucket before enabling the AI agent."
+  }
+}
+
+variable "dev_ai_tools" {
+  description = "Complete CloudFormation-format tool configurations, including ToolName, ToolType and applicable ToolId and schema settings."
+  type        = any
+  default     = []
+
+  validation {
+    condition = !var.dev_ai_agent_enabled || try(length(var.dev_ai_tools) > 0 && alltrue([
+      for tool in var.dev_ai_tools : length(trimspace(tool.ToolName)) > 0 && contains(["MODEL_CONTEXT_PROTOCOL", "RETURN_TO_CONTROL", "CONSTANT"], tool.ToolType)
+    ]), false)
+    error_message = "Set dev_ai_tools to a nonempty list of complete CloudFormation tool configurations with valid ToolName and ToolType values."
+  }
+}
+
 variable "proxy_log_retention_days" {
   description = "CloudWatch Logs retention period for proxy logs."
   type        = number

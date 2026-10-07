@@ -56,3 +56,12 @@ bedrock_region            = "us-east-1"
 sso_enabled               = false
 sso_provider_name         = "EntraID"
 csp_enforced              = false
+
+# Enable after verifying the assistant is associated with btsgsd-dev-us-east-1
+# and supplying the model, private template bucket and complete tool definitions.
+dev_ai_agent_enabled   = false
+dev_ai_assistant_id    = "160889f7-d564-47fb-97db-94549fc55993"
+dev_ai_prompt_file     = "metadata/prompts/AgentAssistanceOrchestration.yaml"
+dev_ai_prompt_model_id = null
+dev_ai_template_bucket = null
+dev_ai_tools           = []

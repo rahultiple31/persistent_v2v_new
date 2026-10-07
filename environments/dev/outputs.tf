@@ -1,3 +1,8 @@
+output "dev_ai_agent" {
+  description = "Published Dev AI agent and prompt identifiers, or null when AI deployment is disabled."
+  value       = try(aws_cloudformation_stack.dev_ai_agent[0].outputs, null)
+}
+
 output "regional_connect_instances" {
   description = "Amazon Connect deployment outputs by region."
   value = {
