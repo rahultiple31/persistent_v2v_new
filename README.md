@@ -216,13 +216,24 @@ aws qconnect list-models \
 If the configured ID is absent, use an exact returned model ID instead, preferring
 an ACTIVE model compatible with the prompt. Do not assume Bedrock availability
 implies QConnect availability. Model discovery requires `wisdom:ListModels`.
+Terraform also performs this read-only model check at apply time, after the Dev
+assistant is available and before creating the custom-agent stack. It runs when
+the assistant/model changes; it is not a continuous availability monitor. A
+missing or unavailable model stops deployment and prints available orchestration
+IDs instead of attempting `DevPrompt` creation. Authentication/API errors also
+stop the check; Terraform never silently selects a fallback model. The runner
+needs Bash, AWS CLI v2 with `qconnect list-models`, and the same AWS account/session
+as the provider. The existing Azure OIDC environment is inherited; no pipeline
+update or preparation script is added. For manual runs using provider-specific
+profiles/assume-role settings, configure the CLI to use the same identity first.
 No mock tool IDs or fabricated knowledge are configured. Retrieval, note
 generation and external actions are unavailable with `dev_ai_tools=[]`.
 
 Run from `main` with `targetEnvironment=dev`, `targetModule=connect`, and
 `terraformAction=plan`. Review the plan for
 `aws_cloudformation_stack.dev_ai_domain[0]`, the private S3 template bucket/object,
-and `aws_cloudformation_stack.dev_ai_agent[0]`, then run with
+`terraform_data.dev_ai_model_validation[0]`, and
+`aws_cloudformation_stack.dev_ai_agent[0]`, then run with
 `terraformAction=apply` and approve the Dev deployment. This stack creates the
 `btsgsd-dev-us-east-1-ai-domain` assistant in `us-east-1` and associates it with the
 instance returned by `module.connect_us_east_1`. The domain uses default AWS-owned

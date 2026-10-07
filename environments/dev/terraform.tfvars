@@ -64,7 +64,7 @@ dev_ai_agent_enabled   = true
 dev_ai_agent_test_mode = true
 dev_ai_assistant_id    = null
 dev_ai_prompt_file     = "metadata/prompts/AgentAssistanceOrchestration.yaml"
-# Documented QConnect model; verify availability against the Dev assistant.
+# Terraform checks this model against the Dev assistant before creating the agent.
 dev_ai_prompt_model_id = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
 dev_ai_template_bucket = "atsgsd-dev-us-east-1-ai-agent"
 dev_ai_tools           = []

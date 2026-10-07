@@ -191,6 +191,56 @@ resource "aws_s3_object" "dev_ai_template" {
   }
 }
 
+resource "terraform_data" "dev_ai_model_validation" {
+  count = local.dev_ai_enabled ? 1 : 0
+
+  triggers_replace = {
+    assistant_id = local.dev_ai_assistant_id
+    model_id     = var.dev_ai_prompt_model_id
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    environment = {
+      DEV_AI_ASSISTANT_ID = local.dev_ai_assistant_id
+      DEV_AI_MODEL_ID     = var.dev_ai_prompt_model_id
+      AWS_REGION          = "us-east-1"
+      AWS_DEFAULT_REGION  = "us-east-1"
+      AWS_PAGER           = ""
+    }
+    command = <<-BASH
+      set -euo pipefail
+      set -f
+
+      if ! command -v aws >/dev/null 2>&1; then
+        echo "Dev AI model validation requires AWS CLI v2 on the Terraform runner." >&2
+        exit 1
+      fi
+
+      available_models=$(aws qconnect list-models \
+        --assistant-id "$DEV_AI_ASSISTANT_ID" \
+        --ai-prompt-type ORCHESTRATION \
+        --region us-east-1 \
+        --query 'modelSummaries[].modelId' \
+        --output text \
+        --no-cli-pager)
+
+      for model in $available_models; do
+        if [ "$model" = "$DEV_AI_MODEL_ID" ]; then
+          echo "Verified Dev orchestration model: $DEV_AI_MODEL_ID"
+          exit 0
+        fi
+      done
+
+      echo "Model '$DEV_AI_MODEL_ID' is not available for the Dev assistant in us-east-1." >&2
+      echo "Available orchestration model IDs:" >&2
+      printf '%s\n' "$available_models" >&2
+      echo "Set dev_ai_prompt_model_id to an exact available ID and generate a fresh plan." >&2
+      exit 1
+    BASH
+  }
+}
+
 resource "aws_cloudformation_stack" "dev_ai_agent" {
   count    = local.dev_ai_enabled ? 1 : 0
   provider = aws.us_east_1
@@ -198,4 +248,6 @@ resource "aws_cloudformation_stack" "dev_ai_agent" {
   tags     = local.dev_ai_tags
 
   template_url = "https://s3.us-east-1.amazonaws.com/${aws_s3_bucket.dev_ai_template[count.index].id}/${aws_s3_object.dev_ai_template[count.index].key}"
+
+  depends_on = [terraform_data.dev_ai_model_validation]
 }
