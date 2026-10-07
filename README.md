@@ -190,10 +190,32 @@ required. The fresh `btsgsd-dev-us-east-1` instance is configured with
 `dev_ai_domain_enabled=true`, `dev_ai_agent_enabled=true`, and
 `dev_ai_agent_test_mode=true` in `environments/dev/terraform.tfvars`.
 This deploys the supplied `AgentAssistanceOrchestration.yaml` as a prompt-only
-smoke-test agent. The model is `us.anthropic.claude-4-5-sonnet-20250929-v1:0`,
-listed for agent assistance in `us-east-1` by
-[AWS prompt documentation](https://docs.aws.amazon.com/connect/latest/adminguide/create-ai-prompts.html).
-Account-specific model availability must still be checked during AWS deployment.
+smoke-test agent. The model is `us.anthropic.claude-3-7-sonnet-20250219-v1:0`,
+listed in the [QConnect prompt API](https://docs.aws.amazon.com/connect/latest/APIReference/API_amazon-q-connect_AIPromptData.html)
+and used in an [AWS orchestration example](https://docs.aws.amazon.com/connect/latest/adminguide/monitor-ai-agents.html).
+This replaces the model ID rejected by the Dev deployment. Documentation alone
+does not verify availability or lifecycle for this assistant; before retrying,
+confirm that the configured ID appears in its orchestration model list. Run in
+AWS CloudShell using the same Dev AWS account:
+
+```bash
+ASSISTANT_ID=$(aws cloudformation describe-stacks \
+  --stack-name btsgsd-dev-us-east-1-ai-domain \
+  --region us-east-1 \
+  --query "Stacks[0].Outputs[?OutputKey=='AssistantId'].OutputValue | [0]" \
+  --output text)
+
+aws qconnect list-models \
+  --assistant-id "$ASSISTANT_ID" \
+  --ai-prompt-type ORCHESTRATION \
+  --region us-east-1 \
+  --query 'modelSummaries[].{ModelId:modelId,Lifecycle:modelLifecycle}' \
+  --output table
+```
+
+If the configured ID is absent, use an exact returned model ID instead, preferring
+an ACTIVE model compatible with the prompt. Do not assume Bedrock availability
+implies QConnect availability. Model discovery requires `wisdom:ListModels`.
 No mock tool IDs or fabricated knowledge are configured. Retrieval, note
 generation and external actions are unavailable with `dev_ai_tools=[]`.
 
@@ -212,6 +234,16 @@ managed there, otherwise Terraform will attempt to create it.
 The domain stack uses [AWS::Wisdom::Assistant](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-wisdom-assistant.html)
 and [AWS::Connect::IntegrationAssociation](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-connect-integrationassociation.html).
 The instance must not already have a domain associated with it.
+
+For a retry after `DevPrompt` failed, generate a fresh plan using the same Dev
+Connect backend. Review whether Terraform proposes replacing the failed
+`btsgsd-dev-us-east-1-ai-agent` stack. A stack in `ROLLBACK_COMPLETE` cannot be
+updated. If the plan proposes an update rather than replacement, delete only
+that failed stack in the CloudFormation console, wait for deletion, and rerun
+the pipeline so Terraform refreshes state and generates a new plan. Keep the
+domain stack, Connect instance and template bucket. Do not manually remove state
+entries or reuse the failed run's saved plan. See
+[AWS stack statuses](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/view-stack-events.html).
 
 For tool-enabled testing, set `dev_ai_agent_test_mode=false` and supply:
 
