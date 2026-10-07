@@ -428,6 +428,7 @@ variable "dev_ai_tools" {
   description = "Complete CloudFormation-format tool configurations, including ToolName, ToolType and applicable ToolId and schema settings."
   type        = any
   default     = []
+  sensitive   = true
 
   validation {
     condition = !var.dev_ai_agent_enabled || try(length(var.dev_ai_tools) > 0 && alltrue([

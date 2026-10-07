@@ -150,6 +150,7 @@ The pipeline in `azure-pipelines.yml` supports these parameters:
 - `targetEnvironment`: `dev` or `dev-nsso`
 - `targetModule`: `connect`, `lambda`, `proxy`, or `v2v`
 - `terraformAction`: `plan` or `apply`
+- `deployAiAgent`: enable the Dev AI agent with the `dev` / `connect` target
 
 The deployment region is fixed to `us-east-1` for both environments.
 
@@ -180,6 +181,48 @@ Required Azure DevOps variables:
 
 The pipeline uses Azure Pipelines OIDC and Terraform's AWS web identity
 authentication. It does not require static AWS access keys.
+
+### Dev Connect AI Agent
+
+Configure these Azure pipeline variables before selecting `deployAiAgent=true`:
+
+- `AWS_DEV_AI_ASSISTANT_ID`: existing assistant UUID associated with `btsgsd-dev-us-east-1`.
+- `AWS_DEV_AI_PROMPT_MODEL_ID`: Connect-supported orchestration model ID in `us-east-1`.
+- `AWS_DEV_AI_TEMPLATE_BUCKET`: existing private S3 template bucket in `us-east-1`.
+- `AWS_DEV_AI_TOOLS_JSON`: complete CloudFormation-format JSON array for the
+  `Retrieve` and `GenerateNotes` tools, including their actual tool IDs and any
+  applicable schemas, overrides, and instructions. Use a secret pipeline variable
+  if the configuration contains sensitive data. Tool names alone are insufficient.
+
+Run from `main` with `targetEnvironment=dev`, `targetModule=connect`,
+`deployAiAgent=true`, and `terraformAction=plan`. Review the plan for
+`aws_s3_object.dev_ai_template[0]` and `aws_cloudformation_stack.dev_ai_agent[0]`,
+then run with `terraformAction=apply` and approve the Dev deployment.
+
+The pipeline passes the Azure AI inputs directly to `terraform plan` using
+explicit `-var` arguments; no Python helper or generated variable file is needed.
+These arguments override the disabled local defaults in
+`environments/dev/terraform.tfvars`; setting `TF_VAR_*` alone would not override
+those defaults. See [Terraform variable precedence](https://developer.hashicorp.com/terraform/language/values/variables#variable-definition-precedence).
+The apply stage uses the saved plan, so it does not rebuild the AI configuration.
+
+Subsequent Dev Connect runs detect AI resources in state and require the same
+pipeline inputs even if the checkbox is not selected. Missing inputs fail the
+run instead of planning deletion of an existing or partially deployed agent.
+Dev NSSO and the other module targets remain unchanged.
+
+The OIDC deployment role needs CloudFormation stack management, the applicable
+`wisdom` AI prompt/agent/version permissions, and S3 template upload/read/delete
+permissions in addition to its existing Connect and state backend access. The
+template bucket must be readable by the deployment identity; keep public access
+blocked. The AI assistant, knowledge access, and tools must already be configured
+for the target Dev instance. Do not reuse an assistant ID from another instance.
+
+This deploys the custom orchestration prompt and publishes an agent version. It
+does not change assistant defaults or contact flows to activate the new version.
+Associate the published agent version with the intended Dev use case/flow before
+testing live interactions. Restrict access to plan artifacts and Terraform state,
+which contain deployment inputs even when Azure variables are marked secret.
 
 Optional Amazon Connect administrator variables for the plan stage:
 
