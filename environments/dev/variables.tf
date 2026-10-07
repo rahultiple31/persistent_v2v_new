@@ -374,20 +374,37 @@ variable "proxy_max_connections_per_user" {
   }
 }
 
+variable "dev_ai_domain_enabled" {
+  description = "Whether to create and associate a new AI domain with the Dev Connect target; independent of custom agent deployment."
+  type        = bool
+  default     = false
+}
+
 variable "dev_ai_agent_enabled" {
   description = "Whether to provision and publish the Dev AI agent with the Connect target; ignored for other targets."
   type        = bool
   default     = false
 }
 
+variable "dev_ai_agent_test_mode" {
+  description = "Allow a prompt-only Dev smoke-test agent without tools; does not configure knowledge retrieval, note generation or live flow activation."
+  type        = bool
+  default     = false
+}
+
 variable "dev_ai_assistant_id" {
-  description = "Existing assistant ID already associated with the target Dev Connect instance."
+  description = "Existing assistant UUID associated with the Dev Connect instance; leave null when Terraform creates the domain."
   type        = string
   default     = null
 
   validation {
-    condition     = !local.dev_ai_enabled || can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.dev_ai_assistant_id))
-    error_message = "Set dev_ai_assistant_id in Dev Terraform values to the assistant UUID associated with the Dev Connect instance."
+    condition     = !local.dev_ai_enabled || local.dev_ai_domain_enabled || can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.dev_ai_assistant_id))
+    error_message = "Enable dev_ai_domain_enabled to create a Dev assistant, or supply an existing assistant UUID associated with the Dev Connect instance."
+  }
+
+  validation {
+    condition     = !local.dev_ai_domain_enabled || var.dev_ai_assistant_id == null
+    error_message = "Leave dev_ai_assistant_id null when creating the Dev AI domain. To reuse an existing assistant, disable dev_ai_domain_enabled."
   }
 }
 
@@ -409,13 +426,13 @@ variable "dev_ai_prompt_model_id" {
 }
 
 variable "dev_ai_template_bucket" {
-  description = "Existing private CloudFormation template bucket in us-east-1 accessible to the deployment identity."
+  description = "Name of the private CloudFormation template bucket Terraform creates in us-east-1."
   type        = string
   default     = null
 
   validation {
     condition     = !local.dev_ai_enabled || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.dev_ai_template_bucket))
-    error_message = "Set dev_ai_template_bucket in Dev Terraform values to an existing private us-east-1 template bucket."
+    error_message = "Set dev_ai_template_bucket in Dev Terraform values to a valid S3 bucket name without underscores."
   }
 }
 
@@ -426,12 +443,12 @@ variable "dev_ai_tools" {
   sensitive   = true
 
   validation {
-    condition = !local.dev_ai_enabled || try(length(var.dev_ai_tools) > 0 && alltrue([
+    condition = !local.dev_ai_enabled || try((var.dev_ai_agent_test_mode && length(var.dev_ai_tools) == 0) || (length(var.dev_ai_tools) > 0 && alltrue([
       for tool in var.dev_ai_tools : length(trimspace(tool.ToolName)) > 0 && contains(["MODEL_CONTEXT_PROTOCOL", "RETURN_TO_CONTROL", "CONSTANT"], tool.ToolType)
       ]) && alltrue([
       for required_tool in ["Retrieve", "GenerateNotes"] : contains([for tool in var.dev_ai_tools : tool.ToolName], required_tool)
-    ]), false)
-    error_message = "Set dev_ai_tools in Dev Terraform values to complete Retrieve and GenerateNotes configurations with valid CloudFormation ToolName and ToolType fields."
+    ])), false)
+    error_message = "Supply complete Retrieve and GenerateNotes configurations with valid ToolName and ToolType fields, or explicitly enable dev_ai_agent_test_mode with an empty tool list for prompt-only testing."
   }
 }
 

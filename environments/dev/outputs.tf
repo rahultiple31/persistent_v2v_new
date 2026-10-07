@@ -1,3 +1,8 @@
+output "dev_ai_domain" {
+  description = "Dev AI domain name, assistant identifiers and associated Connect instance ARN, or null when domain creation is disabled."
+  value       = try(aws_cloudformation_stack.dev_ai_domain[0].outputs, null)
+}
+
 output "dev_ai_agent" {
   description = "Published Dev AI agent and prompt identifiers, or null when AI deployment is disabled."
   value       = try(aws_cloudformation_stack.dev_ai_agent[0].outputs, null)

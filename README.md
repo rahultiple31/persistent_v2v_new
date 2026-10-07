@@ -183,44 +183,90 @@ authentication. It does not require static AWS access keys.
 
 ### Dev Connect AI Agent
 
-The original pipeline deploys the AI agent as part of the Dev `connect` target.
+The original pipeline deploys the AI domain and optional custom agent as part of
+the Dev `connect` target.
 No AI pipeline parameter, AI-specific Azure variables, or preparation script is
-required. `dev_ai_agent_enabled=true` is set in `environments/dev/terraform.tfvars`.
-Before running Connect, supply these verified values in that file:
+required. The fresh `btsgsd-dev-us-east-1` instance is configured with
+`dev_ai_domain_enabled=true`, `dev_ai_agent_enabled=true`, and
+`dev_ai_agent_test_mode=true` in `environments/dev/terraform.tfvars`.
+This deploys the supplied `AgentAssistanceOrchestration.yaml` as a prompt-only
+smoke-test agent. The model is `us.anthropic.claude-4-5-sonnet-20250929-v1:0`,
+listed for agent assistance in `us-east-1` by
+[AWS prompt documentation](https://docs.aws.amazon.com/connect/latest/adminguide/create-ai-prompts.html).
+Account-specific model availability must still be checked during AWS deployment.
+No mock tool IDs or fabricated knowledge are configured. Retrieval, note
+generation and external actions are unavailable with `dev_ai_tools=[]`.
 
-- `dev_ai_assistant_id`: existing assistant UUID associated with `btsgsd-dev-us-east-1`.
+Run from `main` with `targetEnvironment=dev`, `targetModule=connect`, and
+`terraformAction=plan`. Review the plan for
+`aws_cloudformation_stack.dev_ai_domain[0]`, the private S3 template bucket/object,
+and `aws_cloudformation_stack.dev_ai_agent[0]`, then run with
+`terraformAction=apply` and approve the Dev deployment. This stack creates the
+`btsgsd-dev-us-east-1-ai-domain` assistant in `us-east-1` and associates it with the
+instance returned by `module.connect_us_east_1`. The domain uses default AWS-owned
+encryption. For domain-only bootstrap, set `dev_ai_agent_enabled=false`; the
+domain itself does not require a template bucket, prompt, model, or tool inputs.
+The `dev_ai_domain` output returns its name, assistant UUID/ARN and instance ARN.
+Use the existing Connect backend state; an existing instance must already be
+managed there, otherwise Terraform will attempt to create it.
+The domain stack uses [AWS::Wisdom::Assistant](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-wisdom-assistant.html)
+and [AWS::Connect::IntegrationAssociation](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-connect-integrationassociation.html).
+The instance must not already have a domain associated with it.
+
+For tool-enabled testing, set `dev_ai_agent_test_mode=false` and supply:
+
+- `dev_ai_assistant_id`: leave null to use the Terraform-created domain. To reuse
+  a different existing Dev assistant instead, disable `dev_ai_domain_enabled`
+  and supply that assistant UUID. Do not switch off an already-managed domain
+  without reviewing its planned deletion.
 - `dev_ai_prompt_model_id`: Connect-supported orchestration model ID in `us-east-1`.
-- `dev_ai_template_bucket`: existing private S3 template bucket in `us-east-1`.
+- `dev_ai_template_bucket`: `atsgsd-dev-us-east-1-ai-agent`; Terraform creates this
+  private, AES256-encrypted template bucket in `us-east-1` with public access
+  blocked. The name must be available. Import it first if it already exists and
+  is owned by this account rather than attempting to create it again.
 - `dev_ai_tools`: complete CloudFormation-format tool configurations for
   `Retrieve` and `GenerateNotes`, including actual tool IDs and applicable
   schemas, overrides, and instructions. Tool names alone are insufficient.
 
-The repository still has null/empty values for these inputs. A Dev Connect plan
-will fail validation until they are supplied; it will not silently skip AI.
+The model ID and bucket name are configured. The empty tool list is allowed only
+for explicit prompt-only test mode; non-test deployment still validates the
+required Retrieve and GenerateNotes configurations. Provided nonempty tool lists
+must satisfy that validation even in test mode. AWS makes tool configuration
+optional for [orchestration agents](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-properties-wisdom-aiagent-orchestrationaiagentconfiguration.html);
+Terraform omits the property entirely for the tool-free smoke test.
 Do not commit credentials or sensitive tool settings to the repository.
 
-Run from `main` with `targetEnvironment=dev`, `targetModule=connect`, and
-`terraformAction=plan`. Review the plan for
-`aws_s3_object.dev_ai_template[0]` and `aws_cloudformation_stack.dev_ai_agent[0]`,
+For the custom agent, review the plan for
+`aws_s3_bucket.dev_ai_template[0]`, `aws_s3_object.dev_ai_template[0]`, and
+`aws_cloudformation_stack.dev_ai_agent[0]`,
 then run with `terraformAction=apply` and approve the Dev deployment.
 
-AI resources and required-input validation apply only when both AI is enabled
-and the Connect target is selected. Other Dev module runs ignore the AI inputs,
-and Dev NSSO is unchanged. Keep AI enabled and retain its values on subsequent
-Connect runs: disabling it intentionally plans removal of the managed AI stack.
+Domain and custom-agent resources are enabled independently and only with the
+Connect target. Other Dev module runs ignore the AI inputs, and Dev NSSO is
+unchanged. Keep their flags enabled on subsequent Connect runs: disabling a flag
+intentionally plans removal of the corresponding managed stack.
 The apply stage uses the saved plan.
 
-The OIDC deployment role needs CloudFormation stack management, the applicable
-`wisdom` AI prompt/agent/version permissions, and S3 template upload/read/delete
-permissions in addition to its existing Connect and state backend access. The
+The OIDC deployment role needs CloudFormation stack management, `wisdom`
+assistant create/get/delete/tag permissions, and Connect integration association
+create/list/delete permissions in addition to its existing Connect and state
+backend access. Custom-agent deployment additionally needs the applicable
+`wisdom` AI prompt/agent/version permissions, S3 bucket creation/configuration,
+and template upload/read/delete permissions. The
 template bucket must be readable by the deployment identity; keep public access
-blocked. The AI assistant, knowledge access, and tools must already be configured
-for the target Dev instance. Do not reuse an assistant ID from another instance.
+blocked. Domain creation does not create a knowledge base or configure retrieval
+tools. Configure knowledge access and tools before tool-enabled testing.
+Do not reuse an assistant ID from another instance.
 
-This deploys the custom orchestration prompt and publishes an agent version. It
-does not change assistant defaults or contact flows to activate the new version.
-Associate the published agent version with the intended Dev use case/flow before
-testing live interactions. Restrict access to plan artifacts and Terraform state,
+Enabling the custom agent deploys its orchestration prompt and publishes an agent
+version. It does not change assistant defaults or contact flows to activate the
+new version.
+Use only synthetic conversations in Agent Builder/testing. The supplied prompt
+is for human-agent assistance, not autonomous customer self-service. Do not
+assign this tool-free test agent to live default use cases/contact flows.
+For full integration testing, first configure knowledge access and real tools,
+disable test mode, and associate the published version with a test use case/flow.
+Restrict access to plan artifacts and Terraform state,
 which contain deployment inputs even when Terraform variables are sensitive.
 
 Optional Amazon Connect administrator variables for the plan stage:

@@ -57,11 +57,13 @@ sso_enabled               = false
 sso_provider_name         = "EntraID"
 csp_enforced              = false
 
-# AI deploys with the Connect target. Supply verified Dev inputs before running it.
-# Other module targets ignore these settings; incomplete Connect inputs fail plan.
+# Deploy a prompt-only smoke-test agent and its domain with the Connect target.
+# Supply real tools and disable test mode before testing retrieval/actions.
+dev_ai_domain_enabled  = true
 dev_ai_agent_enabled   = true
+dev_ai_agent_test_mode = true
 dev_ai_assistant_id    = null
 dev_ai_prompt_file     = "metadata/prompts/AgentAssistanceOrchestration.yaml"
-dev_ai_prompt_model_id = null
-dev_ai_template_bucket = null
+dev_ai_prompt_model_id = "us.anthropic.claude-4-5-sonnet-20250929-v1:0"
+dev_ai_template_bucket = "atsgsd-dev-us-east-1-ai-agent"
 dev_ai_tools           = []
