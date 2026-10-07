@@ -29,11 +29,6 @@ parameters:
       - plan
       - apply
 
-  - name: deployAiAgent
-    displayName: Deploy Dev Connect AI agent
-    type: boolean
-    default: false
-
 variables:
   terraformVersion: '1.10.5'
   nodeVersion: '22.x'
@@ -69,12 +64,6 @@ stages:
 
           - script: |
               set -euo pipefail
-
-              DEPLOY_AI_AGENT='${{ parameters.deployAiAgent }}'
-              if [ "${DEPLOY_AI_AGENT,,}" = 'true' ] && { [ '${{ parameters.targetEnvironment }}' != 'dev' ] || [ '${{ parameters.targetModule }}' != 'connect' ]; }; then
-                echo "AI agent deployment requires targetEnvironment=dev and targetModule=connect."
-                exit 1
-              fi
 
               case '${{ parameters.targetEnvironment }}' in
                 dev|dev-nsso)
@@ -117,37 +106,12 @@ stages:
                 source "$(Build.SourcesDirectory)/scripts/preserve-proxy-runtime.sh"
               fi
 
-              AI_PLAN_ARGS=()
-              if [ '${{ parameters.targetEnvironment }}' = 'dev' ] && [ '${{ parameters.targetModule }}' = 'connect' ]; then
-                AI_RESOURCE_COUNT="$(terraform show -json | jq '[.values.root_module.resources[]? | select(.mode == "managed" and ((.type == "aws_cloudformation_stack" and .name == "dev_ai_agent") or (.type == "aws_s3_object" and .name == "dev_ai_template")))] | length')"
-                if [ "${DEPLOY_AI_AGENT,,}" = 'true' ] || [ "$AI_RESOURCE_COUNT" -gt 0 ]; then
-                  for ai_input in AWS_DEV_AI_ASSISTANT_ID AWS_DEV_AI_PROMPT_MODEL_ID AWS_DEV_AI_TEMPLATE_BUCKET AWS_DEV_AI_TOOLS_JSON; do
-                    ai_value="${!ai_input:-}"
-                    if [[ "$ai_value" =~ ^[[:space:]]*$ || "$ai_value" == '$('* ]]; then
-                      echo "Configure Azure pipeline variable: $ai_input"
-                      exit 1
-                    fi
-                  done
-                  if ! printf '%s' "$AWS_DEV_AI_TOOLS_JSON" | jq -e 'type == "array" and length > 0 and ([.[].ToolName] | index("Retrieve") != null and index("GenerateNotes") != null)' > /dev/null 2>&1; then
-                    echo "AWS_DEV_AI_TOOLS_JSON must be a JSON array containing complete Retrieve and GenerateNotes configurations."
-                    exit 1
-                  fi
-                  AI_PLAN_ARGS=(
-                    '-var=dev_ai_agent_enabled=true'
-                    "-var=dev_ai_assistant_id=$AWS_DEV_AI_ASSISTANT_ID"
-                    "-var=dev_ai_prompt_model_id=$AWS_DEV_AI_PROMPT_MODEL_ID"
-                    "-var=dev_ai_template_bucket=$AWS_DEV_AI_TEMPLATE_BUCKET"
-                    "-var=dev_ai_tools=$AWS_DEV_AI_TOOLS_JSON"
-                  )
-                fi
-              fi
-
               terraform fmt -check -recursive ../..
               terraform validate
               python3 -m pip install --upgrade pip
               python3 -m pip install checkov
               checkov -d ../.. --framework terraform --soft-fail
-              terraform plan "${AI_PLAN_ARGS[@]}" -var='enabled_modules=["${{ parameters.targetModule }}"]' -out=tfplan
+              terraform plan -var='enabled_modules=["${{ parameters.targetModule }}"]' -out=tfplan
 
               PLAN_ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)/terraform-plan"
               mkdir -p "$PLAN_ARTIFACT_DIR"
@@ -164,10 +128,6 @@ stages:
               TF_VAR_state_bucket: $(backendBucket)
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
               SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
-              AWS_DEV_AI_ASSISTANT_ID: $(AWS_DEV_AI_ASSISTANT_ID)
-              AWS_DEV_AI_PROMPT_MODEL_ID: $(AWS_DEV_AI_PROMPT_MODEL_ID)
-              AWS_DEV_AI_TEMPLATE_BUCKET: $(AWS_DEV_AI_TEMPLATE_BUCKET)
-              AWS_DEV_AI_TOOLS_JSON: $(AWS_DEV_AI_TOOLS_JSON)
 
           - publish: $(Build.ArtifactStagingDirectory)/terraform-plan
             displayName: Publish Plan

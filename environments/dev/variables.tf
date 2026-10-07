@@ -375,14 +375,9 @@ variable "proxy_max_connections_per_user" {
 }
 
 variable "dev_ai_agent_enabled" {
-  description = "Whether to provision and publish the Dev Connect orchestration agent."
+  description = "Whether to provision and publish the Dev AI agent with the Connect target; ignored for other targets."
   type        = bool
   default     = false
-
-  validation {
-    condition     = !var.dev_ai_agent_enabled || contains([for name in var.enabled_modules : lower(name)], "connect")
-    error_message = "The Dev AI agent requires the connect module in enabled_modules."
-  }
 }
 
 variable "dev_ai_assistant_id" {
@@ -391,8 +386,8 @@ variable "dev_ai_assistant_id" {
   default     = null
 
   validation {
-    condition     = !var.dev_ai_agent_enabled || can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.dev_ai_assistant_id))
-    error_message = "Set dev_ai_assistant_id to the associated Dev assistant UUID before enabling the AI agent."
+    condition     = !local.dev_ai_enabled || can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.dev_ai_assistant_id))
+    error_message = "Set dev_ai_assistant_id in Dev Terraform values to the assistant UUID associated with the Dev Connect instance."
   }
 }
 
@@ -408,8 +403,8 @@ variable "dev_ai_prompt_model_id" {
   default     = null
 
   validation {
-    condition     = !var.dev_ai_agent_enabled || can(regex("\\S", var.dev_ai_prompt_model_id))
-    error_message = "Set dev_ai_prompt_model_id to a supported Connect model before enabling the AI agent."
+    condition     = !local.dev_ai_enabled || can(regex("\\S", var.dev_ai_prompt_model_id))
+    error_message = "Set dev_ai_prompt_model_id in Dev Terraform values to a supported Connect orchestration model."
   }
 }
 
@@ -419,8 +414,8 @@ variable "dev_ai_template_bucket" {
   default     = null
 
   validation {
-    condition     = !var.dev_ai_agent_enabled || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.dev_ai_template_bucket))
-    error_message = "Set dev_ai_template_bucket to an existing Dev template bucket before enabling the AI agent."
+    condition     = !local.dev_ai_enabled || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.dev_ai_template_bucket))
+    error_message = "Set dev_ai_template_bucket in Dev Terraform values to an existing private us-east-1 template bucket."
   }
 }
 
@@ -431,10 +426,12 @@ variable "dev_ai_tools" {
   sensitive   = true
 
   validation {
-    condition = !var.dev_ai_agent_enabled || try(length(var.dev_ai_tools) > 0 && alltrue([
+    condition = !local.dev_ai_enabled || try(length(var.dev_ai_tools) > 0 && alltrue([
       for tool in var.dev_ai_tools : length(trimspace(tool.ToolName)) > 0 && contains(["MODEL_CONTEXT_PROTOCOL", "RETURN_TO_CONTROL", "CONSTANT"], tool.ToolType)
+      ]) && alltrue([
+      for required_tool in ["Retrieve", "GenerateNotes"] : contains([for tool in var.dev_ai_tools : tool.ToolName], required_tool)
     ]), false)
-    error_message = "Set dev_ai_tools to a nonempty list of complete CloudFormation tool configurations with valid ToolName and ToolType values."
+    error_message = "Set dev_ai_tools in Dev Terraform values to complete Retrieve and GenerateNotes configurations with valid CloudFormation ToolName and ToolType fields."
   }
 }
 

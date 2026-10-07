@@ -57,9 +57,9 @@ sso_enabled               = false
 sso_provider_name         = "EntraID"
 csp_enforced              = false
 
-# Local deployment defaults. The Azure pipeline's deployAiAgent option supplies
-# explicit Terraform arguments with Dev pipeline inputs, overriding these values.
-dev_ai_agent_enabled   = false
+# AI deploys with the Connect target. Supply verified Dev inputs before running it.
+# Other module targets ignore these settings; incomplete Connect inputs fail plan.
+dev_ai_agent_enabled   = true
 dev_ai_assistant_id    = null
 dev_ai_prompt_file     = "metadata/prompts/AgentAssistanceOrchestration.yaml"
 dev_ai_prompt_model_id = null

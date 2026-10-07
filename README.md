@@ -150,7 +150,6 @@ The pipeline in `azure-pipelines.yml` supports these parameters:
 - `targetEnvironment`: `dev` or `dev-nsso`
 - `targetModule`: `connect`, `lambda`, `proxy`, or `v2v`
 - `terraformAction`: `plan` or `apply`
-- `deployAiAgent`: enable the Dev AI agent with the `dev` / `connect` target
 
 The deployment region is fixed to `us-east-1` for both environments.
 
@@ -184,32 +183,32 @@ authentication. It does not require static AWS access keys.
 
 ### Dev Connect AI Agent
 
-Configure these Azure pipeline variables before selecting `deployAiAgent=true`:
+The original pipeline deploys the AI agent as part of the Dev `connect` target.
+No AI pipeline parameter, AI-specific Azure variables, or preparation script is
+required. `dev_ai_agent_enabled=true` is set in `environments/dev/terraform.tfvars`.
+Before running Connect, supply these verified values in that file:
 
-- `AWS_DEV_AI_ASSISTANT_ID`: existing assistant UUID associated with `btsgsd-dev-us-east-1`.
-- `AWS_DEV_AI_PROMPT_MODEL_ID`: Connect-supported orchestration model ID in `us-east-1`.
-- `AWS_DEV_AI_TEMPLATE_BUCKET`: existing private S3 template bucket in `us-east-1`.
-- `AWS_DEV_AI_TOOLS_JSON`: complete CloudFormation-format JSON array for the
-  `Retrieve` and `GenerateNotes` tools, including their actual tool IDs and any
-  applicable schemas, overrides, and instructions. Use a secret pipeline variable
-  if the configuration contains sensitive data. Tool names alone are insufficient.
+- `dev_ai_assistant_id`: existing assistant UUID associated with `btsgsd-dev-us-east-1`.
+- `dev_ai_prompt_model_id`: Connect-supported orchestration model ID in `us-east-1`.
+- `dev_ai_template_bucket`: existing private S3 template bucket in `us-east-1`.
+- `dev_ai_tools`: complete CloudFormation-format tool configurations for
+  `Retrieve` and `GenerateNotes`, including actual tool IDs and applicable
+  schemas, overrides, and instructions. Tool names alone are insufficient.
 
-Run from `main` with `targetEnvironment=dev`, `targetModule=connect`,
-`deployAiAgent=true`, and `terraformAction=plan`. Review the plan for
+The repository still has null/empty values for these inputs. A Dev Connect plan
+will fail validation until they are supplied; it will not silently skip AI.
+Do not commit credentials or sensitive tool settings to the repository.
+
+Run from `main` with `targetEnvironment=dev`, `targetModule=connect`, and
+`terraformAction=plan`. Review the plan for
 `aws_s3_object.dev_ai_template[0]` and `aws_cloudformation_stack.dev_ai_agent[0]`,
 then run with `terraformAction=apply` and approve the Dev deployment.
 
-The pipeline passes the Azure AI inputs directly to `terraform plan` using
-explicit `-var` arguments; no Python helper or generated variable file is needed.
-These arguments override the disabled local defaults in
-`environments/dev/terraform.tfvars`; setting `TF_VAR_*` alone would not override
-those defaults. See [Terraform variable precedence](https://developer.hashicorp.com/terraform/language/values/variables#variable-definition-precedence).
-The apply stage uses the saved plan, so it does not rebuild the AI configuration.
-
-Subsequent Dev Connect runs detect AI resources in state and require the same
-pipeline inputs even if the checkbox is not selected. Missing inputs fail the
-run instead of planning deletion of an existing or partially deployed agent.
-Dev NSSO and the other module targets remain unchanged.
+AI resources and required-input validation apply only when both AI is enabled
+and the Connect target is selected. Other Dev module runs ignore the AI inputs,
+and Dev NSSO is unchanged. Keep AI enabled and retain its values on subsequent
+Connect runs: disabling it intentionally plans removal of the managed AI stack.
+The apply stage uses the saved plan.
 
 The OIDC deployment role needs CloudFormation stack management, the applicable
 `wisdom` AI prompt/agent/version permissions, and S3 template upload/read/delete
@@ -222,7 +221,7 @@ This deploys the custom orchestration prompt and publishes an agent version. It
 does not change assistant defaults or contact flows to activate the new version.
 Associate the published agent version with the intended Dev use case/flow before
 testing live interactions. Restrict access to plan artifacts and Terraform state,
-which contain deployment inputs even when Azure variables are marked secret.
+which contain deployment inputs even when Terraform variables are sensitive.
 
 Optional Amazon Connect administrator variables for the plan stage:
 
