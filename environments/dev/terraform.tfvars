@@ -57,14 +57,12 @@ sso_enabled               = false
 sso_provider_name         = "EntraID"
 csp_enforced              = false
 
-# Deploy a prompt-only smoke-test agent and its domain with the Connect target.
-# Supply real tools and disable test mode before testing retrieval/actions.
+# Remove the custom agent and prompt while retaining the domain and template bucket.
 dev_ai_domain_enabled  = true
-dev_ai_agent_enabled   = true
-dev_ai_agent_test_mode = true
+dev_ai_agent_enabled   = false
+dev_ai_agent_test_mode = false
 dev_ai_assistant_id    = null
 dev_ai_prompt_file     = "metadata/prompts/AgentAssistanceOrchestration.yaml"
-# Terraform checks this model against the Dev assistant before creating the agent.
-dev_ai_prompt_model_id = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+dev_ai_prompt_model_id = null
 dev_ai_template_bucket = "atsgsd-dev-us-east-1-ai-agent"
 dev_ai_tools           = []

@@ -426,12 +426,12 @@ variable "dev_ai_prompt_model_id" {
 }
 
 variable "dev_ai_template_bucket" {
-  description = "Name of the private CloudFormation template bucket Terraform creates in us-east-1."
+  description = "Name of the private CloudFormation template bucket Terraform manages in us-east-1; retained while configured even when the custom agent is disabled."
   type        = string
   default     = null
 
   validation {
-    condition     = !local.dev_ai_enabled || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.dev_ai_template_bucket))
+    condition     = !local.deploy_connect || (var.dev_ai_template_bucket == null && !local.dev_ai_enabled) || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.dev_ai_template_bucket))
     error_message = "Set dev_ai_template_bucket in Dev Terraform values to a valid S3 bucket name without underscores."
   }
 }

@@ -1,8 +1,10 @@
 locals {
   dev_ai_domain_enabled = var.dev_ai_domain_enabled && local.deploy_connect
   dev_ai_enabled        = var.dev_ai_agent_enabled && local.deploy_connect
-  dev_ai_assistant_id   = local.dev_ai_domain_enabled ? aws_cloudformation_stack.dev_ai_domain[0].outputs["AssistantId"] : var.dev_ai_assistant_id
-  dev_ai_name_prefix    = lower(replace(coalesce(var.connect_instance_alias, local.name_prefix), "_", "-"))
+  # Retain the private bucket while its name is configured, even without an agent.
+  dev_ai_template_bucket_enabled = var.dev_ai_template_bucket != null && local.deploy_connect
+  dev_ai_assistant_id            = local.dev_ai_domain_enabled ? aws_cloudformation_stack.dev_ai_domain[0].outputs["AssistantId"] : var.dev_ai_assistant_id
+  dev_ai_name_prefix             = lower(replace(coalesce(var.connect_instance_alias, local.name_prefix), "_", "-"))
   dev_ai_tags = merge(local.common_tags, {
     Platform             = "Amazon Connect AI Agent"
     AmazonConnectEnabled = "True"
@@ -141,7 +143,7 @@ resource "aws_cloudformation_stack" "dev_ai_domain" {
 }
 
 resource "aws_s3_bucket" "dev_ai_template" {
-  count         = local.dev_ai_enabled ? 1 : 0
+  count         = local.dev_ai_template_bucket_enabled ? 1 : 0
   provider      = aws.us_east_1
   bucket        = var.dev_ai_template_bucket
   force_destroy = false
@@ -149,7 +151,7 @@ resource "aws_s3_bucket" "dev_ai_template" {
 }
 
 resource "aws_s3_bucket_public_access_block" "dev_ai_template" {
-  count    = local.dev_ai_enabled ? 1 : 0
+  count    = local.dev_ai_template_bucket_enabled ? 1 : 0
   provider = aws.us_east_1
   bucket   = aws_s3_bucket.dev_ai_template[count.index].id
 
@@ -160,7 +162,7 @@ resource "aws_s3_bucket_public_access_block" "dev_ai_template" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "dev_ai_template" {
-  count    = local.dev_ai_enabled ? 1 : 0
+  count    = local.dev_ai_template_bucket_enabled ? 1 : 0
   provider = aws.us_east_1
   bucket   = aws_s3_bucket.dev_ai_template[count.index].id
 

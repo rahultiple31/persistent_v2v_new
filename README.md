@@ -186,17 +186,24 @@ authentication. It does not require static AWS access keys.
 The original pipeline deploys the AI domain and optional custom agent as part of
 the Dev `connect` target.
 No AI pipeline parameter, AI-specific Azure variables, or preparation script is
-required. The fresh `btsgsd-dev-us-east-1` instance is configured with
-`dev_ai_domain_enabled=true`, `dev_ai_agent_enabled=true`, and
-`dev_ai_agent_test_mode=true` in `environments/dev/terraform.tfvars`.
-This deploys the supplied `AgentAssistanceOrchestration.yaml` as a prompt-only
-smoke-test agent. The model is `us.anthropic.claude-3-7-sonnet-20250219-v1:0`,
-listed in the [QConnect prompt API](https://docs.aws.amazon.com/connect/latest/APIReference/API_amazon-q-connect_AIPromptData.html)
-and used in an [AWS orchestration example](https://docs.aws.amazon.com/connect/latest/adminguide/monitor-ai-agents.html).
-This replaces the model ID rejected by the Dev deployment. Documentation alone
-does not verify availability or lifecycle for this assistant; before retrying,
-confirm that the configured ID appears in its orchestration model list. Run in
-AWS CloudShell using the same Dev AWS account:
+required. The `btsgsd-dev-us-east-1` instance is configured with
+`dev_ai_domain_enabled=true` and `dev_ai_agent_enabled=false` in
+`environments/dev/terraform.tfvars`. The custom agent is disabled and its model
+ID is unset. From `main`, run `targetEnvironment=dev`, `targetModule=connect`,
+and `terraformAction=plan`. Review deletion of the managed custom-agent stack,
+its template object, and model-validation resource, then run a fresh pipeline
+with `terraformAction=apply` and approve the Dev deployment. The stack deletion
+removes its custom prompt, agent, and versions. The Connect instance, domain,
+and private template bucket (including public-access blocking and encryption)
+remain managed. No model check runs during removal. Do not use a full destroy.
+If the failed stack is absent from Terraform state, it will not appear in the
+deletion plan; delete only `btsgsd-dev-us-east-1-ai-agent` in CloudFormation.
+
+To re-enable a custom agent later, set `dev_ai_agent_enabled=true` and supply
+a currently supported orchestration model. The previously configured Claude 3.7
+model was rejected as no longer supported. Confirm an ACTIVE model for this
+assistant before enabling deployment. Run in AWS CloudShell using the same Dev
+AWS account:
 
 ```bash
 ASSISTANT_ID=$(aws cloudformation describe-stacks \
@@ -208,6 +215,7 @@ ASSISTANT_ID=$(aws cloudformation describe-stacks \
 aws qconnect list-models \
   --assistant-id "$ASSISTANT_ID" \
   --ai-prompt-type ORCHESTRATION \
+  --model-lifecycle ACTIVE \
   --region us-east-1 \
   --query 'modelSummaries[].{ModelId:modelId,Lifecycle:modelLifecycle}' \
   --output table
@@ -256,7 +264,7 @@ domain stack, Connect instance and template bucket. Do not manually remove state
 entries or reuse the failed run's saved plan. See
 [AWS stack statuses](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/view-stack-events.html).
 
-For tool-enabled testing, set `dev_ai_agent_test_mode=false` and supply:
+For tool-enabled testing, enable the custom agent, keep `dev_ai_agent_test_mode=false`, and supply:
 
 - `dev_ai_assistant_id`: leave null to use the Terraform-created domain. To reuse
   a different existing Dev assistant instead, disable `dev_ai_domain_enabled`
@@ -271,7 +279,8 @@ For tool-enabled testing, set `dev_ai_agent_test_mode=false` and supply:
   `Retrieve` and `GenerateNotes`, including actual tool IDs and applicable
   schemas, overrides, and instructions. Tool names alone are insufficient.
 
-The model ID and bucket name are configured. The empty tool list is allowed only
+The bucket name is configured; the model ID must be supplied before re-enabling
+the custom agent. The empty tool list is allowed only
 for explicit prompt-only test mode; non-test deployment still validates the
 required Retrieve and GenerateNotes configurations. Provided nonempty tool lists
 must satisfy that validation even in test mode. AWS makes tool configuration
@@ -286,8 +295,11 @@ then run with `terraformAction=apply` and approve the Dev deployment.
 
 Domain and custom-agent resources are enabled independently and only with the
 Connect target. Other Dev module runs ignore the AI inputs, and Dev NSSO is
-unchanged. Keep their flags enabled on subsequent Connect runs: disabling a flag
-intentionally plans removal of the corresponding managed stack.
+unchanged. Keep the domain flag enabled to retain its managed stack, and leave
+the custom-agent flag disabled to prevent recreation. Disabling either flag
+intentionally plans removal of the corresponding managed stack. The template
+bucket and its security settings remain while its name is configured; setting
+the bucket name to null with the agent disabled schedules their deletion.
 The apply stage uses the saved plan.
 
 The OIDC deployment role needs CloudFormation stack management, `wisdom`
