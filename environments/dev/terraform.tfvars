@@ -57,7 +57,7 @@ sso_enabled               = false
 sso_provider_name         = "EntraID"
 csp_enforced              = false
 
-# Remove the custom agent and prompt while retaining the domain and template bucket.
+# Retain the domain and bucket; keep the legacy agent disabled.
 dev_ai_domain_enabled  = true
 dev_ai_agent_enabled   = false
 dev_ai_agent_test_mode = false
@@ -66,3 +66,6 @@ dev_ai_prompt_file     = "metadata/prompts/AgentAssistanceOrchestration.yaml"
 dev_ai_prompt_model_id = null
 dev_ai_template_bucket = "atsgsd-dev-us-east-1-ai-agent"
 dev_ai_tools           = []
+
+# Publish the support agent copied from SelfServiceOrchestrationVoice.
+dev_support_ai_agent_enabled = true

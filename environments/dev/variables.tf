@@ -392,13 +392,31 @@ variable "dev_ai_agent_test_mode" {
   default     = false
 }
 
+variable "dev_support_ai_agent_enabled" {
+  description = "Publish the support voice orchestration agent with the Dev Connect target, independently of the legacy agent."
+  type        = bool
+  default     = false
+}
+
+variable "dev_support_ai_prompt_file" {
+  description = "Environment-relative path to the support prompt instructions and test metadata YAML."
+  type        = string
+  default     = "metadata/prompts/btsgsd-support_prompts.yaml"
+}
+
+variable "dev_support_ai_python_executable" {
+  description = "Python 3 executable for read-only source discovery; use python for local Windows runs."
+  type        = string
+  default     = "python3"
+}
+
 variable "dev_ai_assistant_id" {
   description = "Existing assistant UUID associated with the Dev Connect instance; leave null when Terraform creates the domain."
   type        = string
   default     = null
 
   validation {
-    condition     = !local.dev_ai_enabled || local.dev_ai_domain_enabled || can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.dev_ai_assistant_id))
+    condition     = !(local.dev_ai_enabled || local.dev_support_ai_enabled) || local.dev_ai_domain_enabled || can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.dev_ai_assistant_id))
     error_message = "Enable dev_ai_domain_enabled to create a Dev assistant, or supply an existing assistant UUID associated with the Dev Connect instance."
   }
 
@@ -431,7 +449,7 @@ variable "dev_ai_template_bucket" {
   default     = null
 
   validation {
-    condition     = !local.deploy_connect || (var.dev_ai_template_bucket == null && !local.dev_ai_enabled) || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.dev_ai_template_bucket))
+    condition     = !local.deploy_connect || (var.dev_ai_template_bucket == null && !(local.dev_ai_enabled || local.dev_support_ai_enabled)) || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.dev_ai_template_bucket))
     error_message = "Set dev_ai_template_bucket in Dev Terraform values to a valid S3 bucket name without underscores."
   }
 }

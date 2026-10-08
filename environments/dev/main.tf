@@ -47,6 +47,28 @@ module "connect_us_east_1" {
   )
 }
 
+module "btsgsd_support_agent" {
+  count  = local.dev_support_ai_enabled ? 1 : 0
+  source = "../../modules/connect_ai_agent"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  assistant_id         = local.dev_ai_assistant_id
+  connect_instance_arn = module.connect_us_east_1[0].instance_arn
+  template_bucket_name = aws_s3_bucket.dev_ai_template[0].id
+  prompt_yaml_file     = abspath("${path.module}/${var.dev_support_ai_prompt_file}")
+  python_executable    = var.dev_support_ai_python_executable
+  tags                 = local.dev_ai_tags
+
+  depends_on = [
+    aws_cloudformation_stack.dev_ai_domain,
+    aws_s3_bucket_public_access_block.dev_ai_template,
+    aws_s3_bucket_server_side_encryption_configuration.dev_ai_template
+  ]
+}
+
 module "lambda_us_east_1" {
   count  = local.deploy_lambda ? 1 : 0
   source = "../../modules/lambda"
