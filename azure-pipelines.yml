@@ -30,6 +30,11 @@ parameters:
       - plan
       - apply
 
+  - name: connectReportingLambdaRoleNames
+    displayName: Existing reporting Lambda execution role names (three required for s3_connect_reporting)
+    type: object
+    default: []
+
 variables:
   terraformVersion: '1.10.5'
   nodeVersion: '22.x'
@@ -135,6 +140,7 @@ stages:
             workingDirectory: $(workingDirectory)
             env:
               TF_VAR_state_bucket: $(backendBucket)
+              TF_VAR_connect_reporting_lambda_role_names: ${{ convertToJson(parameters.connectReportingLambdaRoleNames) }}
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
               SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
 

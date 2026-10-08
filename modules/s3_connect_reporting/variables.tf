@@ -12,10 +12,11 @@ variable "lambda_role_names" {
       length(var.lambda_role_names) == 3 &&
       alltrue([
         for name in var.lambda_role_names :
-        can(regex("^[A-Za-z0-9_+=,.@-]{1,64}$", name))
+        can(regex("^[A-Za-z0-9_+=,.@-]{1,64}$", name)) &&
+        !startswith(upper(name), "REPLACE_WITH_")
       ])
     )
-    error_message = "Provide three distinct IAM role names, not role ARNs."
+    error_message = "Set connect_reporting_lambda_role_names to three distinct existing Lambda execution role names in the deployment account. Placeholder values and role ARNs are not allowed."
   }
 }
 

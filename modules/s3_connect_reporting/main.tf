@@ -64,11 +64,17 @@ resource "aws_s3_bucket_policy" "reporting" {
   })
 }
 
+data "aws_iam_role" "reporting" {
+  for_each = var.lambda_role_names
+
+  name = each.value
+}
+
 resource "aws_iam_role_policy" "reporting" {
   for_each = var.lambda_role_names
 
   name = "connect-reporting-survey-csv-access"
-  role = each.value
+  role = data.aws_iam_role.reporting[each.key].name
 
   policy = jsonencode({
     Version = "2012-10-17"
