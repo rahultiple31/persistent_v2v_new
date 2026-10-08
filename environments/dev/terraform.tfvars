@@ -74,4 +74,4 @@ dev_support_ai_agent_enabled = true
 dev_survey_ai_agent_enabled = true
 
 # Reporting Lambda execution role names are supplied by the pipeline variable
-# CONNECT_REPORTING_LAMBDA_ROLE_NAMES via TF_VAR_connect_reporting_lambda_role_names.
+# CONNECT_REPORTING_LAMBDA_FUNCTION_ROLE_NAMES via TF_VAR_connect_reporting_lambda_role_names.
