@@ -20,6 +20,7 @@ parameters:
       - lambda
       - proxy
       - v2v
+      - s3_connect_reporting
 
   - name: terraformAction
     displayName: Terraform action
@@ -64,6 +65,11 @@ stages:
 
           - script: |
               set -euo pipefail
+
+              if [ '${{ parameters.targetModule }}' = 's3_connect_reporting' ] && [ '${{ parameters.targetEnvironment }}' != 'dev' ]; then
+                echo "s3_connect_reporting is configured only for the dev environment."
+                exit 1
+              fi
 
               echo "Checked-out source commit: $(git rev-parse HEAD)"
               echo "Pipeline source commit: $BUILD_SOURCEVERSION"

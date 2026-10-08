@@ -72,3 +72,10 @@ dev_support_ai_agent_enabled = true
 
 # Publish the survey agent independently alongside the support agent.
 dev_survey_ai_agent_enabled = true
+
+# Replace these placeholders with the existing Lambda execution role names.
+connect_reporting_lambda_role_names = [
+  "REPLACE_WITH_LAMBDA_1_ROLE_NAME",
+  "REPLACE_WITH_LAMBDA_2_ROLE_NAME",
+  "REPLACE_WITH_LAMBDA_3_ROLE_NAME"
+]

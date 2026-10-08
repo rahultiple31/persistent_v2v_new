@@ -114,6 +114,33 @@ module "lambda_us_east_1" {
   lambda_name_suffix = var.lambda_name_suffix
 }
 
+variable "connect_reporting_lambda_role_names" {
+  description = "Existing execution role names for the three reporting Lambdas."
+  type        = set(string)
+  default     = []
+}
+
+module "s3_connect_reporting" {
+  count  = contains(local.enabled_module_set, "s3_connect_reporting") ? 1 : 0
+  source = "../../modules/s3_connect_reporting"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  bucket_name       = "btsgsd-dev-us-east-1-connect-reporting-bucket"
+  lambda_role_names = var.connect_reporting_lambda_role_names
+  common_tags       = local.common_tags
+}
+
+output "connect_reporting_bucket_name" {
+  value = try(module.s3_connect_reporting[0].bucket_name, null)
+}
+
+output "connect_reporting_bucket_arn" {
+  value = try(module.s3_connect_reporting[0].bucket_arn, null)
+}
+
 data "aws_region" "current" {
   provider = aws.us_east_1
 }
