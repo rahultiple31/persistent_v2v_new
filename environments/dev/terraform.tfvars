@@ -73,5 +73,5 @@ dev_support_ai_agent_enabled = true
 # Publish the survey agent independently alongside the support agent.
 dev_survey_ai_agent_enabled = true
 
-# Reporting Lambda execution role names are supplied by the pipeline parameter
-# connectReportingLambdaRoleNames via TF_VAR_connect_reporting_lambda_role_names.
+# Reporting Lambda execution role names are supplied by the pipeline variable
+# CONNECT_REPORTING_LAMBDA_ROLE_NAMES via TF_VAR_connect_reporting_lambda_role_names.

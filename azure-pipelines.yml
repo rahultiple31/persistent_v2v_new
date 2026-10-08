@@ -30,11 +30,6 @@ parameters:
       - plan
       - apply
 
-  - name: connectReportingLambdaRoleNames
-    displayName: Existing reporting Lambda execution role names (three required for s3_connect_reporting)
-    type: object
-    default: []
-
 variables:
   terraformVersion: '1.10.5'
   nodeVersion: '22.x'
@@ -74,6 +69,13 @@ stages:
               if [ '${{ parameters.targetModule }}' = 's3_connect_reporting' ] && [ '${{ parameters.targetEnvironment }}' != 'dev' ]; then
                 echo "s3_connect_reporting is configured only for the dev environment."
                 exit 1
+              fi
+
+              if [ '${{ parameters.targetModule }}' = 's3_connect_reporting' ]; then
+                if [ -z "${TF_VAR_connect_reporting_lambda_role_names:-}" ] || [[ "${TF_VAR_connect_reporting_lambda_role_names}" == \$\(* ]]; then
+                  echo "Set pipeline variable CONNECT_REPORTING_LAMBDA_ROLE_NAMES to a JSON array of three existing IAM role names."
+                  exit 1
+                fi
               fi
 
               echo "Checked-out source commit: $(git rev-parse HEAD)"
@@ -140,7 +142,8 @@ stages:
             workingDirectory: $(workingDirectory)
             env:
               TF_VAR_state_bucket: $(backendBucket)
-              TF_VAR_connect_reporting_lambda_role_names: ${{ convertToJson(parameters.connectReportingLambdaRoleNames) }}
+              ${{ if eq(parameters.targetModule, 's3_connect_reporting') }}:
+                TF_VAR_connect_reporting_lambda_role_names: $(CONNECT_REPORTING_LAMBDA_ROLE_NAMES)
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
               SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
 
