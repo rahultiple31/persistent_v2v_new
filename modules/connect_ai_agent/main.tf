@@ -35,6 +35,15 @@ locals {
   custom_prompt        = yamldecode(file(var.prompt_yaml_file))
   source_configuration = jsondecode(data.external.source.result.configuration)
   source_prompt        = yamldecode(data.external.source.result.prompt_text)
+  # Version IDs are strings; extracting their suffix keeps CloudFormation outputs string-valued.
+  agent_version_id = { "Fn::GetAtt" = ["SupportAgentVersion", "AIAgentVersionId"] }
+  agent_version_number = {
+    "Fn::Select" = [1, { "Fn::Split" = [":", local.agent_version_id] }]
+  }
+  prompt_version_id = { "Fn::GetAtt" = ["SupportPromptVersion", "AIPromptVersionId"] }
+  prompt_version_number = {
+    "Fn::Select" = [1, { "Fn::Split" = [":", local.prompt_version_id] }]
+  }
   tags = merge(var.tags, {
     Platform   = "Amazon Connect AI Agent"
     CopiedFrom = var.source_agent_name
@@ -96,13 +105,8 @@ locals {
           Tags        = local.tags
           Configuration = {
             OrchestrationAIAgentConfiguration = merge(local.source_configuration, {
-              ConnectInstanceArn = var.connect_instance_arn
-              OrchestrationAIPromptId = {
-                "Fn::Join" = [":", [
-                  { "Fn::GetAtt" = ["SupportPrompt", "AIPromptId"] },
-                  { "Fn::GetAtt" = ["SupportPromptVersion", "VersionNumber"] }
-                ]]
-              }
+              ConnectInstanceArn      = var.connect_instance_arn
+              OrchestrationAIPromptId = local.prompt_version_id
             })
           }
         }
@@ -122,25 +126,18 @@ locals {
       SourceAgentId      = { Value = data.external.source.result.source_agent_id }
       AgentId            = { Value = { "Fn::GetAtt" = ["SupportAgent", "AIAgentId"] } }
       AgentArn           = { Value = { "Fn::GetAtt" = ["SupportAgent", "AIAgentArn"] } }
-      AgentVersion       = { Value = { "Fn::GetAtt" = ["SupportAgentVersion", "VersionNumber"] } }
-      AgentVersionId = {
-        Value = {
-          "Fn::Join" = [":", [
-            { "Fn::GetAtt" = ["SupportAgent", "AIAgentId"] },
-            { "Fn::GetAtt" = ["SupportAgentVersion", "VersionNumber"] }
-          ]]
-        }
-      }
+      AgentVersion       = { Value = local.agent_version_number }
+      AgentVersionId     = { Value = local.agent_version_id }
       AgentVersionArn = {
         Value = {
-          "Fn::Join" = [":", [
-            { "Fn::GetAtt" = ["SupportAgent", "AIAgentArn"] },
-            { "Fn::GetAtt" = ["SupportAgentVersion", "VersionNumber"] }
-          ]]
+          "Fn::Sub" = ["$${AgentArn}:$${AgentVersion}", {
+            AgentArn     = { "Fn::GetAtt" = ["SupportAgent", "AIAgentArn"] }
+            AgentVersion = local.agent_version_number
+          }]
         }
       }
       PromptId      = { Value = { "Fn::GetAtt" = ["SupportPrompt", "AIPromptId"] } }
-      PromptVersion = { Value = { "Fn::GetAtt" = ["SupportPromptVersion", "VersionNumber"] } }
+      PromptVersion = { Value = local.prompt_version_number }
     }
   })
 }

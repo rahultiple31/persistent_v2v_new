@@ -84,9 +84,27 @@ run "voice_agent_template" {
   assert {
     condition = (
       aws_s3_object.template.server_side_encryption == "AES256" &&
-      jsondecode(aws_s3_object.template.content).Outputs.AgentVersionArn.Value["Fn::Join"][1][0]["Fn::GetAtt"][1] == "AIAgentArn"
+      jsondecode(aws_s3_object.template.content).Outputs.AgentVersionArn.Value["Fn::Sub"][0] == "$${AgentArn}:$${AgentVersion}" &&
+      jsondecode(aws_s3_object.template.content).Outputs.AgentVersionArn.Value["Fn::Sub"][1].AgentArn["Fn::GetAtt"] == ["SupportAgent", "AIAgentArn"] &&
+      jsondecode(aws_s3_object.template.content).Outputs.AgentVersionArn.Value["Fn::Sub"][1].AgentVersion["Fn::Select"] == [1, { "Fn::Split" = [":", { "Fn::GetAtt" = ["SupportAgentVersion", "AIAgentVersionId"] }] }]
     )
     error_message = "Encrypt the template and expose a version-qualified agent ARN for voice routing."
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.OrchestrationAIPromptId["Fn::GetAtt"] == ["SupportPromptVersion", "AIPromptVersionId"] &&
+      jsondecode(aws_s3_object.template.content).Outputs.AgentVersionId.Value["Fn::GetAtt"] == ["SupportAgentVersion", "AIAgentVersionId"]
+    )
+    error_message = "Use the string-valued version IDs directly for the agent's prompt and the published agent version."
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_s3_object.template.content).Outputs.AgentVersion.Value["Fn::Select"] == [1, { "Fn::Split" = [":", { "Fn::GetAtt" = ["SupportAgentVersion", "AIAgentVersionId"] }] }] &&
+      jsondecode(aws_s3_object.template.content).Outputs.PromptVersion.Value["Fn::Select"] == [1, { "Fn::Split" = [":", { "Fn::GetAtt" = ["SupportPromptVersion", "AIPromptVersionId"] }] }]
+    )
+    error_message = "Version-number outputs must extract string suffixes instead of exposing numeric GetAtt attributes."
   }
 }
 
