@@ -20,7 +20,7 @@ class SourceDiscoveryTest(unittest.TestCase):
             "account_id": "123456789012",
             "region": "us-east-1",
             "aws_profile": "",
-            "source_name": "SelfServiceOrchestrationVoice",
+            "source_name": "SelfServiceOrchestratorVoice",
             "model_id": "global.anthropic.claude-sonnet-5",
         }
         self.configuration = {
@@ -55,7 +55,7 @@ class SourceDiscoveryTest(unittest.TestCase):
                 "modelLifecycle": "ACTIVE", "supportedAIPromptTypes": ["ORCHESTRATION"],
             }]},
             "list-ai-agents": {"aiAgentSummaries": [{
-                "name": self.query["source_name"], "type": "ORCHESTRATION", "aiAgentId": "source-agent",
+                "name": "SelfServiceOrchestratorVoice", "type": "ORCHESTRATION", "aiAgentId": "source-agent",
             }]},
             "get-ai-agent": {"aiAgent": {
                 "aiAgentId": "source-agent",
@@ -129,6 +129,12 @@ class SourceDiscoveryTest(unittest.TestCase):
     def test_accepts_system_prefixed_source_name(self):
         self.responses["list-ai-agents"]["aiAgentSummaries"][0]["name"] = "system:" + self.query["source_name"]
         self.assertEqual(self.discover()["source_agent_id"], "source-agent")
+
+    def test_rejects_prompt_name_as_source_agent_name(self):
+        self.query["source_name"] = "SelfServiceOrchestrationVoice"
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            self.discover()
+        self.assertFalse(any(operation == "get-ai-agent" for _, operation, _ in self.calls))
 
     def test_rejects_unsupported_source_fields_instead_of_losing_configuration(self):
         self.configuration["multiAgentConfigurations"] = [{"delegateAgentConfiguration": {}}]

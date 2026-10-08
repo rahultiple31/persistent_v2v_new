@@ -43,7 +43,7 @@ variable "prompt_name" {
 variable "source_agent_name" {
   description = "System orchestration agent whose voice template, tools, locale, and guardrail are copied."
   type        = string
-  default     = "SelfServiceOrchestrationVoice"
+  default     = "SelfServiceOrchestratorVoice"
 }
 
 variable "prompt_model_id" {
