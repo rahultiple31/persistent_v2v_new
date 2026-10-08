@@ -18,6 +18,11 @@ output "btsgsd_support_agent_test" {
   value       = try(module.btsgsd_support_agent[0].test_question, null)
 }
 
+output "btsgsd_ai_survey_agent" {
+  description = "Published survey prompt and agent identifiers, including the versioned ARN for a voice flow."
+  value       = try(module.btsgsd_ai_survey_agent[0].deployment, null)
+}
+
 output "regional_connect_instances" {
   description = "Amazon Connect deployment outputs by region."
   value = {

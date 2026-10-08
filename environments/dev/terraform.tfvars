@@ -69,3 +69,6 @@ dev_ai_tools           = []
 
 # Publish the support agent copied from SelfServiceOrchestratorVoice.
 dev_support_ai_agent_enabled = true
+
+# Publish the survey agent independently alongside the support agent.
+dev_survey_ai_agent_enabled = true

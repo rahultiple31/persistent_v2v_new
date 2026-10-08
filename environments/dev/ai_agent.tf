@@ -2,6 +2,7 @@ locals {
   dev_ai_domain_enabled  = var.dev_ai_domain_enabled && local.deploy_connect
   dev_ai_enabled         = var.dev_ai_agent_enabled && local.deploy_connect
   dev_support_ai_enabled = var.dev_support_ai_agent_enabled && local.deploy_connect
+  dev_survey_ai_enabled  = var.dev_survey_ai_agent_enabled && local.deploy_connect
   # Retain the private bucket while its name is configured, even without an agent.
   dev_ai_template_bucket_enabled = var.dev_ai_template_bucket != null && local.deploy_connect
   dev_ai_assistant_id            = local.dev_ai_domain_enabled ? aws_cloudformation_stack.dev_ai_domain[0].outputs["AssistantId"] : var.dev_ai_assistant_id
