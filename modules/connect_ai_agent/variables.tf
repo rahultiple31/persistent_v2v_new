@@ -23,10 +23,16 @@ variable "template_bucket_name" {
 variable "prompt_yaml_file" {
   description = "YAML file containing prompt instructions, description, and optional test_question metadata."
   type        = string
+  nullable    = false
 
   validation {
-    condition     = try(length(trimspace(yamldecode(file(var.prompt_yaml_file)).prompt)) > 0, false)
-    error_message = "prompt_yaml_file must contain valid YAML with a nonempty prompt string."
+    condition     = fileexists(var.prompt_yaml_file)
+    error_message = "Prompt file does not exist: ${var.prompt_yaml_file}. Commit the file to the pipeline source branch and verify the path and filename case."
+  }
+
+  validation {
+    condition     = fileexists(var.prompt_yaml_file) ? length(trimspace(yamldecode(file(var.prompt_yaml_file)).prompt)) > 0 : true
+    error_message = "Prompt file ${var.prompt_yaml_file} must contain a nonempty top-level prompt string. Use prompt: | followed by indented instructions."
   }
 }
 

@@ -89,3 +89,23 @@ run "voice_agent_template" {
     error_message = "Encrypt the template and expose a version-qualified agent ARN for voice routing."
   }
 }
+
+run "missing_prompt_file" {
+  command = plan
+
+  variables {
+    prompt_yaml_file = "tests/fixtures/missing.yaml"
+  }
+
+  expect_failures = [var.prompt_yaml_file]
+}
+
+run "blank_prompt" {
+  command = plan
+
+  variables {
+    prompt_yaml_file = "tests/fixtures/blank_prompt.yaml"
+  }
+
+  expect_failures = [var.prompt_yaml_file]
+}

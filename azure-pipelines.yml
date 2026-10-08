@@ -65,6 +65,9 @@ stages:
           - script: |
               set -euo pipefail
 
+              echo "Checked-out source commit: $(git rev-parse HEAD)"
+              echo "Pipeline source commit: $BUILD_SOURCEVERSION"
+
               case '${{ parameters.targetEnvironment }}' in
                 dev|dev-nsso)
                   AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
