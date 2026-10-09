@@ -16,7 +16,7 @@ variable "lambda_role_names" {
         !startswith(upper(name), "REPLACE_WITH_")
       ])
     )
-    error_message = "Set connect_reporting_lambda_role_names to three distinct existing Lambda execution role names in the deployment account. Placeholder values and role ARNs are not allowed."
+    error_message = "Set connect_reporting_lambda_fuction_role_names to three distinct existing Lambda execution role names in the deployment account. Placeholder values and role ARNs are not allowed."
   }
 }
 

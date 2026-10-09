@@ -73,4 +73,4 @@ dev_support_ai_agent_enabled = true
 # Publish the survey agent independently alongside the support agent.
 dev_survey_ai_agent_enabled = true
 
-connect_reporting_lambda_role_names = ["btsgsd-dev-lambda-role-1", "btsgsd-dev-lambda-role-2", "btsgsd-dev-lambda-role-3"]
+connect_reporting_lambda_fuction_role_names = ["btsgsd-dev-lambda-role-1", "btsgsd-dev-lambda-role-2", "btsgsd-dev-lambda-role-3"]

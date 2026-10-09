@@ -123,7 +123,7 @@ module "s3_connect_reporting" {
   }
 
   bucket_name       = "btsgsd-dev-us-east-1-connect-reporting-bucket"
-  lambda_role_names = var.connect_reporting_lambda_role_names
+  lambda_role_names = var.connect_reporting_lambda_fuction_role_names
   common_tags       = local.common_tags
 }
 

@@ -56,7 +56,7 @@ variable "enabled_modules" {
   }
 }
 
-variable "connect_reporting_lambda_role_names" {
+variable "connect_reporting_lambda_fuction_role_names" {
   description = "Existing execution role names for the three reporting Lambdas."
   type        = set(string)
   default     = []
