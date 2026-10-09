@@ -32,7 +32,7 @@ run "daily_export_uses_resolved_dev_instance" {
   command = plan
 
   module {
-    source = "../../modules/lambda-connect-daily-ctr-export"
+    source = "../../modules"
   }
 
   variables {

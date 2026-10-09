@@ -59,7 +59,7 @@ variable "environment_variables" {
 
 variable "log_group_name" {
   type    = string
-  default = "/aws/lambda/BTSGSD-connect-daily-ctr-export"
+  default = "/aws/lambda/btsgsd-connect-inatnces-daily-ctr-export"
 }
 
 variable "log_retention_days" {
