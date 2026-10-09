@@ -23,6 +23,7 @@ parameters:
       - s3_connect_reporting
       - lambda-ctr-survey
       - lambda-connect-daily-ctr-export
+      - lambda-ctr-raw
 
   - name: terraformAction
     displayName: Terraform action

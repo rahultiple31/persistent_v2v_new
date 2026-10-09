@@ -135,6 +135,19 @@ module "lambda-connect-daily-ctr-export" {
     aws = aws.us_east_1
   }
 
+  source_file = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_export.py")
+  common_tags = local.common_tags
+}
+
+module "lambda-ctr-raw" {
+  count  = contains(local.enabled_module_set, "lambda-ctr-raw") ? 1 : 0
+  source = "../../modules/lambda-ctr-raw"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  source_file = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_raw.py")
   common_tags = local.common_tags
 }
 

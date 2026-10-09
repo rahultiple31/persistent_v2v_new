@@ -14,9 +14,8 @@ variable "handler" {
 }
 
 variable "source_file" {
-  description = "Absolute Python source path, or null to use the module's source file."
+  description = "Absolute path to the Python source file."
   type        = string
-  default     = null
 }
 
 variable "architectures" {
