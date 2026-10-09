@@ -71,13 +71,6 @@ stages:
                 exit 1
               fi
 
-              if [ '${{ parameters.targetModule }}' = 's3_connect_reporting' ]; then
-                if [ -z "${TF_VAR_connect_reporting_lambda_role_names:-}" ] || [[ "${TF_VAR_connect_reporting_lambda_role_names}" == \$\(* ]]; then
-                  echo "Set pipeline variable CONNECT_REPORTING_LAMBDA_FUNCTION_ROLE_NAMES to a JSON array of three existing IAM role names."
-                  exit 1
-                fi
-              fi
-
               echo "Checked-out source commit: $(git rev-parse HEAD)"
               echo "Pipeline source commit: $BUILD_SOURCEVERSION"
 
@@ -142,8 +135,6 @@ stages:
             workingDirectory: $(workingDirectory)
             env:
               TF_VAR_state_bucket: $(backendBucket)
-              ${{ if eq(parameters.targetModule, 's3_connect_reporting') }}:
-                TF_VAR_connect_reporting_lambda_role_names: $(CONNECT_REPORTING_LAMBDA_FUNCTION_ROLE_NAMES)
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
               SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
 
