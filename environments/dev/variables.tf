@@ -56,6 +56,12 @@ variable "enabled_modules" {
   }
 }
 
+variable "connect_reporting_lambda_role_names" {
+  description = "Existing execution role names for the three reporting Lambdas."
+  type        = set(string)
+  default     = []
+}
+
 variable "common_tags" {
   description = "Additional tags applied to all resources."
   type        = map(string)
