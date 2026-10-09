@@ -115,16 +115,15 @@ module "lambda_us_east_1" {
 }
 
 module "s3_connect_reporting" {
-  count  = contains(local.enabled_module_set, "s3_connect_reporting") ? 1 : 0
+  count  = local.deploy_connect ? 1 : 0
   source = "../../modules/s3_connect_reporting"
 
   providers = {
     aws = aws.us_east_1
   }
 
-  bucket_name       = "btsgsd-dev-us-east-1-connect-reporting-bucket"
-  lambda_role_names = var.connect_reporting_lambda_fuction_role_names
-  common_tags       = local.common_tags
+  bucket_name = "btsgsd-dev-us-east-1-connect-reporting-bucket"
+  common_tags = local.common_tags
 }
 
 data "aws_region" "current" {

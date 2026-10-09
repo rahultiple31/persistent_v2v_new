@@ -1,13 +1,3 @@
-output "connect_reporting_bucket_name" {
-  description = "Amazon Connect reporting bucket name, or null when reporting deployment is disabled."
-  value       = try(module.s3_connect_reporting[0].bucket_name, null)
-}
-
-output "connect_reporting_bucket_arn" {
-  description = "Amazon Connect reporting bucket ARN, or null when reporting deployment is disabled."
-  value       = try(module.s3_connect_reporting[0].bucket_arn, null)
-}
-
 output "dev_ai_domain" {
   description = "Dev AI domain name, assistant identifiers and associated Connect instance ARN, or null when domain creation is disabled."
   value       = try(aws_cloudformation_stack.dev_ai_domain[0].outputs, null)

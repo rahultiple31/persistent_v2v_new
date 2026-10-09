@@ -46,20 +46,14 @@ variable "connect_name_suffix" {
 }
 
 variable "enabled_modules" {
-  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v, s3_connect_reporting."
+  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v."
   type        = list(string)
   default     = ["connect"]
 
   validation {
-    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v", "s3_connect_reporting"]))) == 0
-    error_message = "enabled_modules supports: connect, lambda, proxy, v2v, s3_connect_reporting."
+    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v"]))) == 0
+    error_message = "enabled_modules supports: connect, lambda, proxy, v2v."
   }
-}
-
-variable "connect_reporting_lambda_fuction_role_names" {
-  description = "Existing execution role names for the three reporting Lambdas."
-  type        = set(string)
-  default     = []
 }
 
 variable "common_tags" {
