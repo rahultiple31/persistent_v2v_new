@@ -122,9 +122,10 @@ module "lambda-ctr-survey" {
     aws = aws.us_east_1
   }
 
-  source_file = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_.py")
-  handler     = "lambda_function_ctr_.lambda_handler"
-  common_tags = local.common_tags
+  source_file            = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_.py")
+  handler                = "lambda_function_ctr_.lambda_handler"
+  connect_instance_alias = var.connect_instance_alias
+  common_tags            = local.common_tags
 }
 
 module "lambda-connect-daily-ctr-export" {
@@ -135,8 +136,9 @@ module "lambda-connect-daily-ctr-export" {
     aws = aws.us_east_1
   }
 
-  source_file = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_export.py")
-  common_tags = local.common_tags
+  source_file            = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_export.py")
+  connect_instance_alias = var.connect_instance_alias
+  common_tags            = local.common_tags
 }
 
 module "lambda-ctr-raw" {
@@ -147,8 +149,9 @@ module "lambda-ctr-raw" {
     aws = aws.us_east_1
   }
 
-  source_file = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_raw.py")
-  common_tags = local.common_tags
+  source_file            = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_raw.py")
+  connect_instance_alias = var.connect_instance_alias
+  common_tags            = local.common_tags
 }
 
 module "s3_connect_reporting" {

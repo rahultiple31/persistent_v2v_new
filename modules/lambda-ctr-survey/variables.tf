@@ -34,14 +34,19 @@ variable "timeout" {
   default = 183
 }
 
+variable "connect_instance_alias" {
+  description = "Existing Amazon Connect instance alias."
+  type        = string
+  default     = "btsgsd-dev-us-east-1"
+}
+
 variable "environment_variables" {
   type = map(string)
   default = {
-    S3_BUCKET           = "btsgsd-dev-us-east-1-connect-reporting-bucket"
-    BUSINESS_TIMEZONE   = "America/Chicago"
-    S3_PREFIX           = "connect/daily-interactions"
-    CONNECT_INSTANCE_ID = "0cc3e955-8cdd-4a82-b6fe-7593e1674ffa"
-    LOG_LEVEL           = "INFO"
+    S3_BUCKET         = "btsgsd-dev-us-east-1-connect-reporting-bucket"
+    BUSINESS_TIMEZONE = "America/Chicago"
+    S3_PREFIX         = "connect/daily-interactions"
+    LOG_LEVEL         = "INFO"
   }
 }
 

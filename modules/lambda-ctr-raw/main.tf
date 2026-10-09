@@ -24,7 +24,9 @@ resource "aws_lambda_function" "raw" {
   }
 
   environment {
-    variables = var.environment_variables
+    variables = merge(var.environment_variables, {
+      CONNECT_INSTANCE_ID = data.aws_connect_instance.selected.id
+    })
   }
 
   logging_config {
