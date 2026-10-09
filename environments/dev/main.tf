@@ -154,6 +154,24 @@ module "lambda-ctr-raw" {
   common_tags            = local.common_tags
 }
 
+module "iam-ctr" {
+  count  = contains(local.enabled_module_set, "iam-ctr") ? 1 : 0
+  source = "../../modules/iam-ctr"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  policy_name   = "btsgsd-dev-us-east-1-ctr-reporting-policy"
+  s3_object_arn = "arn:aws:s3:::btsgsd-dev-us-east-1-connect-reporting-bucket/connect/daily-interactions/*"
+
+  role_names = [
+    "btsgsd-dev-us-east-1-CTR-Survey-lambda-role",
+    "btsgsd-dev-us-east-1-connect-daily-ctr-export-lambda-role",
+    "btsgsd-dev-us-east-1-CTR-Raw-lambda-role"
+  ]
+}
+
 module "s3_connect_reporting" {
   count  = contains(local.enabled_module_set, "s3_connect_reporting") ? 1 : 0
   source = "../../modules/s3_connect_reporting"
