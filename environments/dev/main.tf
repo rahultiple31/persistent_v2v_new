@@ -114,6 +114,17 @@ module "lambda_us_east_1" {
   lambda_name_suffix = var.lambda_name_suffix
 }
 
+module "lambda-ctr-survey" {
+  count  = contains(local.enabled_module_set, "lambda-ctr-survey") ? 1 : 0
+  source = "../../modules/lambda-ctr-survey"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  common_tags = local.common_tags
+}
+
 module "s3_connect_reporting" {
   count  = contains(local.enabled_module_set, "s3_connect_reporting") ? 1 : 0
   source = "../../modules/s3_connect_reporting"
