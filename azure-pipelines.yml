@@ -24,6 +24,7 @@ parameters:
       - lambda-ctr-survey
       - lambda-connect-daily-ctr-export
       - lambda-ctr-raw
+      - iam-ctr
 
   - name: terraformAction
     displayName: Terraform action
