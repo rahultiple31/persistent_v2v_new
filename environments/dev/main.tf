@@ -122,6 +122,8 @@ module "lambda-ctr-survey" {
     aws = aws.us_east_1
   }
 
+  source_file = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_.py")
+  handler     = "lambda_function_ctr_.lambda_handler"
   common_tags = local.common_tags
 }
 

@@ -1,7 +1,6 @@
-# The source file must define lambda_handler; imports alone are insufficient.
 data "archive_file" "survey" {
   type        = "zip"
-  source_file = "${path.module}/${var.source_file}"
+  source_file = var.source_file == null ? "${path.module}/src/lambda_function.py" : var.source_file
   output_path = "${path.root}/${var.function_name}.zip"
 }
 

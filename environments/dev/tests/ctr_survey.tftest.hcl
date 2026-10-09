@@ -13,14 +13,6 @@ mock_provider "external" {}
 run "survey_target_is_isolated" {
   command = plan
 
-  override_data {
-    target = module.lambda-ctr-survey[0].data.archive_file.survey
-    values = {
-      output_path         = "ctr-survey-test.zip"
-      output_base64sha256 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
-    }
-  }
-
   variables {
     enabled_modules = ["lambda-ctr-survey"]
   }

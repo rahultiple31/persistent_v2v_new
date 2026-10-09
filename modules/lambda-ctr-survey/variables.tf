@@ -14,9 +14,9 @@ variable "handler" {
 }
 
 variable "source_file" {
-  description = "Python source file relative to this module directory."
+  description = "Absolute source path, or null to use the module's src/lambda_function.py."
   type        = string
-  default     = "./src/lambda_function.py"
+  default     = null
 }
 
 variable "architectures" {
