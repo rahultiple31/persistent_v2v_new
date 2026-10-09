@@ -36,10 +36,7 @@ variables:
   nodeVersion: '22.x'
   deploymentRegion: 'us-east-1'
   workingDirectory: 'environments/${{ parameters.targetEnvironment }}'
-  ${{ if eq(parameters.targetModule, 'lambda-ctr-survey') }}:
-    backendBucket: 'btsgsd-dev-us-easr-1-connect-reporting-bucket'
-  ${{ else }}:
-    backendBucket: 'bts-cloud-terraform-tfstate'
+  backendBucket: 'bts-cloud-terraform-tfstate'
   backendKey: 'terraform-state/${{ parameters.targetEnvironment }}/us-east-1/${{ parameters.targetModule }}/terraform.tfstate'
   backendRegion: 'us-east-1'
   planArtifactName: 'terraform-plan-${{ parameters.targetEnvironment }}-us-east-1-${{ parameters.targetModule }}'
