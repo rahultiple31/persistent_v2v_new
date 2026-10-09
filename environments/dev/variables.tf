@@ -46,13 +46,13 @@ variable "connect_name_suffix" {
 }
 
 variable "enabled_modules" {
-  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey."
+  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export."
   type        = list(string)
   default     = ["connect"]
 
   validation {
-    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v", "s3_connect_reporting", "lambda-ctr-survey"]))) == 0
-    error_message = "enabled_modules supports: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey."
+    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v", "s3_connect_reporting", "lambda-ctr-survey", "lambda-connect-daily-ctr-export"]))) == 0
+    error_message = "enabled_modules supports: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export."
   }
 }
 

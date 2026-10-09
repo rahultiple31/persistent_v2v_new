@@ -22,6 +22,7 @@ parameters:
       - v2v
       - s3_connect_reporting
       - lambda-ctr-survey
+      - lambda-connect-daily-ctr-export
 
   - name: terraformAction
     displayName: Terraform action

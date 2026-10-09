@@ -127,6 +127,17 @@ module "lambda-ctr-survey" {
   common_tags = local.common_tags
 }
 
+module "lambda-connect-daily-ctr-export" {
+  count  = contains(local.enabled_module_set, "lambda-connect-daily-ctr-export") ? 1 : 0
+  source = "../../modules/lambda-connect-daily-ctr-export"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  common_tags = local.common_tags
+}
+
 module "s3_connect_reporting" {
   count  = contains(local.enabled_module_set, "s3_connect_reporting") ? 1 : 0
   source = "../../modules/s3_connect_reporting"
