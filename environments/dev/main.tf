@@ -115,7 +115,7 @@ module "lambda_us_east_1" {
 }
 
 module "s3_connect_reporting" {
-  count  = local.deploy_connect ? 1 : 0
+  count  = contains(local.enabled_module_set, "s3_connect_reporting") ? 1 : 0
   source = "../../modules/s3_connect_reporting"
 
   providers = {

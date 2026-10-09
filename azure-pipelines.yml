@@ -20,6 +20,7 @@ parameters:
       - lambda
       - proxy
       - v2v
+      - s3_connect_reporting
 
   - name: terraformAction
     displayName: Terraform action
