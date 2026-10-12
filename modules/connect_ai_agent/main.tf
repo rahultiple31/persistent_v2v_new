@@ -49,50 +49,6 @@ locals {
     CopiedFrom = var.source_agent_name
   })
 
-  user_lookup_tool_name = "target_quick_start_2b1f35___UserLookUp___UserLookUp"
-  user_lookup_tool_id   = "gateway_gateway-quick-start-f6c77a-d2qmdvfad2__target-quick-start-2b1f35___UserLookUp___UserLookUp"
-
-  user_lookup_existing = try([
-    for tool in try(local.source_configuration.ToolConfigurations, []) : tool
-    if(
-      tool.ToolName == local.user_lookup_tool_name ||
-      try(tool.ToolId, "") == local.user_lookup_tool_id
-    )
-  ][0], {})
-
-  # Gateway metadata comes from the MCP server; provide usage guidance on the agent.
-  user_lookup_tool = merge(
-    {
-      for key, value in local.user_lookup_existing : key => value
-      if !contains(["Title", "Description", "InputSchema", "OutputSchema", "Annotations"], key)
-    },
-    {
-      ToolName = local.user_lookup_tool_name
-      ToolType = "MODEL_CONTEXT_PROTOCOL"
-      ToolId   = local.user_lookup_tool_id
-      Instruction = merge(
-        try(local.user_lookup_existing.Instruction, {}),
-        {
-          Instruction = trimspace(<<-INSTRUCTIONS
-            Verify a caller's identity against the ServiceNow sys_user table for the AbbVie Service Desk IVA. Pass 'phone' ALONE, nonempty, on the first lookup of the conversation to check the live ANI; make that phone call only once and never repeat it, even after Retrieve or an empty turn. Call again with 'upi' ALONE only when the phone lookup returned RegisteredCaller="No" with Error="UserNotRegistered" or "MissingIdentifier", the caller's supported need is classified, and the caller confirmed they have their UPI; or when the caller explicitly corrected a UPI. At most three UPI submissions per conversation. A first-name mismatch alone never triggers another UPI call. Never combine phone and upi, and never send an empty or partial value. The 'upi' value is matched against sys_user.employee_number. UserNotRegistered and a phone-path MissingIdentifier are normal no-match results, not failures. Returns Status ("Authenticated"/"Unauthenticated"), AuthResult ("Success" when sys_user returned the record, "Failure" when it did not), RegisteredCaller ("Yes"/"No"), and on success the caller's sys_user record, including FirstName, LastName, UPI, UserId, Email, FieldForce ("true"/"false"), Active, StartDate, UserStatus ("pre-hired"/"new-hired"/"existing-user") and Phone. On failure: Error and Message. Does NOT create or update any ServiceNow record.
-          INSTRUCTIONS
-          )
-        }
-      )
-    }
-  )
-
-  support_agent_tools = concat(
-    [
-      for tool in try(local.source_configuration.ToolConfigurations, []) : tool
-      if(
-        tool.ToolName != local.user_lookup_tool_name &&
-        try(tool.ToolId, "") != local.user_lookup_tool_id
-      )
-    ],
-    [local.user_lookup_tool]
-  )
-
   # A system field supplies a complete prompt; a prompt field extends the source policy.
   # Keep runtime tool definitions available without duplicating a full source system prompt.
   custom_instructions = trimspace(try(local.custom_prompt.system, local.custom_prompt.prompt))
@@ -157,16 +113,10 @@ locals {
           Type        = "ORCHESTRATION"
           Tags        = local.tags
           Configuration = {
-            OrchestrationAIAgentConfiguration = merge(
-              local.source_configuration,
-              {
-                ConnectInstanceArn      = var.connect_instance_arn
-                OrchestrationAIPromptId = local.prompt_version_id
-              },
-              var.agent_name == "btsgsd-support-agent" ? {
-                ToolConfigurations = local.support_agent_tools
-              } : {}
-            )
+            OrchestrationAIAgentConfiguration = merge(local.source_configuration, {
+              ConnectInstanceArn      = var.connect_instance_arn
+              OrchestrationAIPromptId = local.prompt_version_id
+            })
           }
         }
       }

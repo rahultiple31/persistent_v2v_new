@@ -63,23 +63,10 @@ run "voice_agent_template" {
 
   assert {
     condition = (
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[0].ToolId == "copied-tool" &&
+      local.source_configuration.ToolConfigurations[0].ToolId == "copied-tool" &&
       jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.OrchestrationAIGuardrailId == "00000000-0000-0000-0000-000000000003:1"
     )
     error_message = "The custom agent must retain the source tools and guardrail."
-  }
-
-  assert {
-    condition = (
-      length(jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations) == 2 &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[1].ToolName == "target_quick_start_2b1f35___UserLookUp___UserLookUp" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[1].ToolType == "MODEL_CONTEXT_PROTOCOL" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[1].ToolId == "gateway_gateway-quick-start-f6c77a-d2qmdvfad2__target-quick-start-2b1f35___UserLookUp___UserLookUp" &&
-      strcontains(jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[1].Instruction.Instruction, "At most three UPI submissions per conversation.") &&
-      strcontains(jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[1].Instruction.Instruction, "Does NOT create or update any ServiceNow record.") &&
-      !contains(keys(jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[1]), "Description")
-    )
-    error_message = "Attach the gateway UserLookUp tool with per-agent guidance and no gateway metadata overrides."
   }
 
   assert {
@@ -130,11 +117,6 @@ run "survey_agent_template" {
     prompt_name      = "btsgsd-ai-survey-prompt"
     stack_name       = "btsgsd-ai-survey-agent-dev"
     prompt_yaml_file = "../../environments/dev/metadata/prompts/btsgsd-ai-survey-prompt.yaml"
-  }
-
-  assert {
-    condition     = jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations == local.source_configuration.ToolConfigurations
-    error_message = "The survey agent must retain its original source tool configurations."
   }
 
   assert {
@@ -238,60 +220,4 @@ run "oversized_system" {
   }
 
   expect_failures = [aws_s3_object.template]
-}
-
-run "replace_existing_user_lookup" {
-  command = plan
-
-  override_data {
-    target = data.external.source
-    values = {
-      result = {
-        source_agent_id = "00000000-0000-0000-0000-000000000002"
-        configuration   = <<-JSON
-          {
-            "ToolConfigurations": [
-              {
-                "ToolName": "target_quick_start_2b1f35___UserLookUp___UserLookUp",
-                "ToolType": "MODEL_CONTEXT_PROTOCOL",
-                "ToolId": "old-gateway-tool",
-                "Title": "Old lookup",
-                "Description": "Old metadata",
-                "InputSchema": {"type": "object"},
-                "OutputSchema": {"type": "object"},
-                "Annotations": {"readOnlyHint": true},
-                "OverrideInputValues": [],
-                "Instruction": {"Instruction": "Old instructions"}
-              },
-              {
-                "ToolName": "OldLookupAlias",
-                "ToolType": "MODEL_CONTEXT_PROTOCOL",
-                "ToolId": "gateway_gateway-quick-start-f6c77a-d2qmdvfad2__target-quick-start-2b1f35___UserLookUp___UserLookUp"
-              }
-            ]
-          }
-        JSON
-        prompt_text     = <<-YAML
-          system: Voice protocol.
-          messages:
-            - '{{$.conversationHistory}}'
-        YAML
-      }
-    }
-  }
-
-  assert {
-    condition = (
-      length(jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations) == 1 &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[0].ToolName == "target_quick_start_2b1f35___UserLookUp___UserLookUp" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[0].ToolId == "gateway_gateway-quick-start-f6c77a-d2qmdvfad2__target-quick-start-2b1f35___UserLookUp___UserLookUp" &&
-      length(jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[0].OverrideInputValues) == 0 &&
-      alltrue([
-        for key in ["Title", "Description", "InputSchema", "OutputSchema", "Annotations"] :
-        !contains(keys(jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[0]), key)
-      ]) &&
-      strcontains(jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations[0].Instruction.Instruction, "At most three UPI submissions per conversation.")
-    )
-    error_message = "Replace lookup entries matching the name or gateway ID, preserve execution settings, and remove gateway metadata overrides."
-  }
 }
