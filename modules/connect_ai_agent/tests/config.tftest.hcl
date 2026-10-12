@@ -221,3 +221,20 @@ run "oversized_system" {
 
   expect_failures = [aws_s3_object.template]
 }
+
+run "retrieval_security_profile" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_connect_security_profile.retrieval.permissions == toset(["Wisdom.View"]) &&
+      aws_connect_security_profile.retrieval.instance_id == "00000000-0000-0000-0000-000000000005" &&
+      aws_connect_security_profile.retrieval.name == "btsgsd-support-agent-retrieval" &&
+      terraform_data.retrieval_security_profile.input.instance_id == "00000000-0000-0000-0000-000000000005" &&
+      terraform_data.retrieval_security_profile.input.account_id == "123456789012" &&
+      terraform_data.retrieval_security_profile.input.region == "us-east-1" &&
+      length(terraform_data.retrieval_security_profile.input.agent_arns) == 2
+    )
+    error_message = "Grant only Wisdom.View and associate the profile with both the draft and published version in the Connect instance."
+  }
+}
