@@ -71,14 +71,15 @@ run "voice_agent_template" {
 
   assert {
     condition = (
-      strcontains(yamldecode(local.prompt_text).system, "Voice orchestration protocol.") &&
+      !strcontains(yamldecode(local.prompt_text).system, "Voice orchestration protocol.") &&
       strcontains(yamldecode(local.prompt_text).system, "{{$.toolConfigurationList}}") &&
       strcontains(yamldecode(local.prompt_text).system, trimspace(local.custom_prompt.system)) &&
+      length(yamldecode(local.prompt_text).system) <= 100000 &&
       length(yamldecode(local.prompt_text).messages) == 1 &&
       yamldecode(local.prompt_text).messages[0] == "{{$.conversationHistory}}" &&
       !contains(keys(yamldecode(local.prompt_text)), "test_question")
     )
-    error_message = "Preserve voice protocol/runtime context, add custom instructions, and exclude metadata/prefill."
+    error_message = "Use the complete custom system without duplicating the source, preserve runtime tools/messages, and stay within the system length limit."
   }
 
   assert {
@@ -180,4 +181,43 @@ run "missing_instruction_key" {
   }
 
   expect_failures = [var.prompt_yaml_file]
+}
+
+run "complete_system_with_large_source" {
+  command = plan
+
+  override_data {
+    target = data.external.source
+    values = {
+      result = {
+        source_agent_id = "00000000-0000-0000-0000-000000000002"
+        configuration   = "{}"
+        prompt_text     = <<-YAML
+          system: Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol.
+          messages:
+            - 'Source message should be replaced.'
+        YAML
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      length(local.source_prompt.system) + length(local.custom_instructions) > 100000 &&
+      length(yamldecode(local.prompt_text).system) <= 100000 &&
+      strcontains(yamldecode(local.prompt_text).system, trimspace(local.custom_prompt.system)) &&
+      yamldecode(local.prompt_text).messages[0] == "{{$.conversationHistory}}"
+    )
+    error_message = "A complete system prompt must replace even a large source system while retaining custom messages."
+  }
+}
+
+run "oversized_system" {
+  command = plan
+
+  variables {
+    prompt_yaml_file = "tests/fixtures/oversized_system.yaml"
+  }
+
+  expect_failures = [aws_s3_object.template]
 }

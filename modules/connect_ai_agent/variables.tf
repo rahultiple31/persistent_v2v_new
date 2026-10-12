@@ -21,7 +21,7 @@ variable "template_bucket_name" {
 }
 
 variable "prompt_yaml_file" {
-  description = "YAML file containing system or prompt instructions, description, and optional test_question metadata."
+  description = "YAML file containing a complete system prompt (with optional messages) or prompt instructions appended to the source system; may include description and test_question metadata."
   type        = string
   nullable    = false
 

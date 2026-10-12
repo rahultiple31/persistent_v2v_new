@@ -49,20 +49,29 @@ locals {
     CopiedFrom = var.source_agent_name
   })
 
-  # Preserve the system voice protocol and runtime placeholders; exclude test metadata.
-  prompt_text = yamlencode(merge(local.source_prompt, {
-    system = <<-SYSTEM
+  # A system field supplies a complete prompt; a prompt field extends the source policy.
+  # Keep runtime tool definitions available without duplicating a full source system prompt.
+  custom_instructions = trimspace(try(local.custom_prompt.system, local.custom_prompt.prompt))
+  system_prompt = can(local.custom_prompt.system) ? join("\n\n", compact([
+    local.custom_instructions,
+    strcontains(local.custom_instructions, "{{$.toolConfigurationList}}") ? "" : "<toolConfigurationList>\n{{$.toolConfigurationList}}\n</toolConfigurationList>"
+  ])) : <<-SYSTEM
       ${local.source_prompt.system}
 
       <customer_service_policy>
-      ${trimspace(try(local.custom_prompt.system, local.custom_prompt.prompt))}
+      ${local.custom_instructions}
       </customer_service_policy>
     SYSTEM
+  prompt_messages = try(local.custom_prompt.messages, local.source_prompt.messages)
+
+  # Preserve runtime messages and source template fields; exclude custom test metadata.
+  prompt_text = yamlencode(merge(local.source_prompt, {
+    system = local.system_prompt
 
     # Claude Sonnet 5 rejects a final assistant message prefill.
     messages = [
-      for index, message in local.source_prompt.messages : message
-      if !(index == length(local.source_prompt.messages) - 1 && try(message.role == "assistant", false))
+      for index, message in local.prompt_messages : message
+      if !(index == length(local.prompt_messages) - 1 && try(message.role == "assistant", false))
     ]
   }))
 
@@ -152,6 +161,11 @@ resource "aws_s3_object" "template" {
 
   lifecycle {
     create_before_destroy = true
+
+    precondition {
+      condition     = length(local.system_prompt) <= 100000
+      error_message = "Generated system prompt has ${length(local.system_prompt)} characters; QConnect allows at most 100000. Shorten ${var.prompt_yaml_file}, or use a complete system: | prompt instead of appending prompt: | instructions to the source."
+    }
   }
 }
 
