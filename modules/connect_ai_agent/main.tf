@@ -55,7 +55,7 @@ locals {
       ${local.source_prompt.system}
 
       <customer_service_policy>
-      ${trimspace(local.custom_prompt.prompt)}
+      ${trimspace(try(local.custom_prompt.system, local.custom_prompt.prompt))}
       </customer_service_policy>
     SYSTEM
 

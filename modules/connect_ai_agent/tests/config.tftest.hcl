@@ -73,7 +73,7 @@ run "voice_agent_template" {
     condition = (
       strcontains(yamldecode(local.prompt_text).system, "Voice orchestration protocol.") &&
       strcontains(yamldecode(local.prompt_text).system, "{{$.toolConfigurationList}}") &&
-      strcontains(yamldecode(local.prompt_text).system, "Never provide passwords") &&
+      strcontains(yamldecode(local.prompt_text).system, trimspace(local.custom_prompt.system)) &&
       length(yamldecode(local.prompt_text).messages) == 1 &&
       yamldecode(local.prompt_text).messages[0] == "{{$.conversationHistory}}" &&
       !contains(keys(yamldecode(local.prompt_text)), "test_question")
@@ -157,6 +157,26 @@ run "blank_prompt" {
 
   variables {
     prompt_yaml_file = "tests/fixtures/blank_prompt.yaml"
+  }
+
+  expect_failures = [var.prompt_yaml_file]
+}
+
+run "blank_system" {
+  command = plan
+
+  variables {
+    prompt_yaml_file = "tests/fixtures/blank_system.yaml"
+  }
+
+  expect_failures = [var.prompt_yaml_file]
+}
+
+run "missing_instruction_key" {
+  command = plan
+
+  variables {
+    prompt_yaml_file = "tests/fixtures/missing_instruction_key.yaml"
   }
 
   expect_failures = [var.prompt_yaml_file]

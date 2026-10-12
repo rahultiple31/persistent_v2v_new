@@ -21,7 +21,7 @@ variable "template_bucket_name" {
 }
 
 variable "prompt_yaml_file" {
-  description = "YAML file containing prompt instructions, description, and optional test_question metadata."
+  description = "YAML file containing system or prompt instructions, description, and optional test_question metadata."
   type        = string
   nullable    = false
 
@@ -31,8 +31,8 @@ variable "prompt_yaml_file" {
   }
 
   validation {
-    condition     = fileexists(var.prompt_yaml_file) ? length(trimspace(yamldecode(file(var.prompt_yaml_file)).prompt)) > 0 : true
-    error_message = "Prompt file ${var.prompt_yaml_file} must contain a nonempty top-level prompt string. Use prompt: | followed by indented instructions."
+    condition     = fileexists(var.prompt_yaml_file) ? try(length(trimspace(try(yamldecode(file(var.prompt_yaml_file)).system, yamldecode(file(var.prompt_yaml_file)).prompt))) > 0, false) : true
+    error_message = "Prompt file ${var.prompt_yaml_file} must contain a nonempty top-level system or prompt string. Use system: | or prompt: | followed by indented instructions."
   }
 }
 
