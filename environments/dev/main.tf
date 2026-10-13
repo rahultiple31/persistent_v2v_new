@@ -19,8 +19,7 @@ locals {
   imported_flow_directory = "${path.module}/metadata/contact-flows"
 
   # Preserve the requested flow names, including their .json suffixes.
-  # Customer queue, main inbound and voicemail exports currently lack Actions;
-  # their types are inferred from intended use until complete exports are supplied.
+  # Flow types match the Metadata.type values in the complete exports.
   imported_flow_definitions = {
     fieldforce = {
       filename = "AbbVie_Fieldforce_Flow.json"
@@ -87,6 +86,7 @@ module "connect_us_east_1" {
   common_tags           = local.common_tags
   contact_center_alias  = var.contact_center_alias
   instance_alias        = var.connect_instance_alias
+  expected_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
   service_name_suffix   = var.connect_name_suffix
   admin_user_enabled    = var.connect_admin_user_enabled
   admin_user_first_name = var.connect_admin_first_name

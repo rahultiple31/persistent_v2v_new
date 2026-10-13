@@ -87,7 +87,7 @@
         },
         "contactFlow": {
           "text": "ABBVIE-US-SD-Transfer-To-Agent-CustomerQueueFlow",
-          "id": "arn:aws:connect:us-east-1:518902362956:instance/0cc3e955-8cdd-4a82-b6fe-7593e1674ffa/contact-flow/acbb294c-fdbe-45a1-8eec-f6feb96e3d5c"
+        "id": "__CUSTOMER_QUEUE_FLOW_ARN__"
         },
         "customerOrAgent": true
       }
@@ -230,7 +230,7 @@
     {
       "Parameters": {
         "EventHooks": {
-          "CustomerQueue": "arn:aws:connect:us-east-1:518902362956:instance/0cc3e955-8cdd-4a82-b6fe-7593e1674ffa/contact-flow/acbb294c-fdbe-45a1-8eec-f6feb96e3d5c"
+          "CustomerQueue": "__CUSTOMER_QUEUE_FLOW_ARN__"
         }
       },
       "Identifier": "e75b1f99-5228-4efd-921e-78b4858108af",

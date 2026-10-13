@@ -170,7 +170,17 @@ resource "aws_connect_contact_flow" "agent_to_agent_transfer" {
   })
 }
 
-# The imported JSON contains a fixed BasicQueue ARN; verify its target before applying.
+# Resolve the same BasicQueue used by the source flows within the target instance.
+data "aws_connect_queue" "imported_basic" {
+  count = (
+    try(strcontains(var.hr_flow_content, "__BASIC_QUEUE_ARN__"), false) ||
+    anytrue([for flow in values(var.imported_contact_flows) : strcontains(flow.content, "__BASIC_QUEUE_ARN__")])
+  ) ? 1 : 0
+
+  instance_id = aws_connect_instance.this.id
+  name        = "BasicQueue"
+}
+
 resource "aws_connect_contact_flow" "hr" {
   count = var.hr_flow_content != null ? 1 : 0
 
@@ -178,16 +188,27 @@ resource "aws_connect_contact_flow" "hr" {
   name        = local.hr_flow_name
   description = "Transfers callers to the HR team."
   type        = "CONTACT_FLOW"
-  content     = var.hr_flow_content
+  content = replace(
+    var.hr_flow_content,
+    "__BASIC_QUEUE_ARN__",
+    try(data.aws_connect_queue.imported_basic[0].arn, "")
+  )
 
   tags = merge(local.tags, {
     Name = local.hr_flow_name
   })
+
+  lifecycle {
+    precondition {
+      condition     = var.expected_instance_arn == null ? true : aws_connect_instance.this.arn == var.expected_instance_arn
+      error_message = "The managed Connect instance does not match expected_instance_arn. Verify the backend/state before applying."
+    }
+  }
 }
 
 # Imported flows are additional to the existing individual flow resources.
-# Fieldforce/HR contain a fixed BasicQueue ARN and agent transfer contains a
-# fixed CustomerQueue flow ARN; verify their targets before applying.
+# Agent transfer uses the existing managed transfer customer-queue flow, whose
+# Actions and StartAction match the imported transfer customer-queue export.
 resource "aws_connect_contact_flow" "imported" {
   for_each = var.imported_contact_flows
 
@@ -195,13 +216,29 @@ resource "aws_connect_contact_flow" "imported" {
   name        = each.value.name
   type        = each.value.type
   description = "Imported flow: ${each.value.name}"
-  content     = each.value.content
+  content = replace(
+    replace(
+      each.value.content,
+      "__BASIC_QUEUE_ARN__",
+      try(data.aws_connect_queue.imported_basic[0].arn, "")
+    ),
+    "__CUSTOMER_QUEUE_FLOW_ARN__",
+    try(aws_connect_contact_flow.transfer_to_agent_customer_queue[0].arn, "")
+  )
 
   tags = merge(local.tags, {
     Name = each.value.name
   })
 
   lifecycle {
+    precondition {
+      condition     = var.expected_instance_arn == null ? true : aws_connect_instance.this.arn == var.expected_instance_arn
+      error_message = "The managed Connect instance does not match expected_instance_arn. Verify the backend/state before applying."
+    }
+    precondition {
+      condition     = !strcontains(each.value.content, "__CUSTOMER_QUEUE_FLOW_ARN__") || var.customer_queue_flow_content != null
+      error_message = "Flow ${each.value.name} requires the managed transfer customer-queue flow. Supply customer_queue_flow_content."
+    }
     precondition {
       condition = (
         can(jsondecode(each.value.content).Actions[0].Type) &&

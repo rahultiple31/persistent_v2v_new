@@ -148,3 +148,9 @@ variable "imported_contact_flows" {
   }))
   default = {}
 }
+
+variable "expected_instance_arn" {
+  description = "Optional expected target instance ARN; prevents importing flows into a different managed instance."
+  type        = string
+  default     = null
+}
