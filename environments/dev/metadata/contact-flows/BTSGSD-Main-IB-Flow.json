@@ -777,7 +777,7 @@
         },
         "contactFlow": {
           "text": "BTSGSD_Abbvie_CustomerQueueFlow",
-          "id": "arn:aws:connect:us-east-1:518902362956:instance/0cc3e955-8cdd-4a82-b6fe-7593e1674ffa/contact-flow/db994eb3-2dec-44da-868e-b55ac53eaf15"
+          "id": "__MAIN_CUSTOMER_QUEUE_FLOW_ARN__"
         },
         "customerOrAgent": true
       },
@@ -1885,7 +1885,7 @@
     {
       "Parameters": {
         "EventHooks": {
-          "CustomerQueue": "arn:aws:connect:us-east-1:518902362956:instance/0cc3e955-8cdd-4a82-b6fe-7593e1674ffa/contact-flow/db994eb3-2dec-44da-868e-b55ac53eaf15"
+          "CustomerQueue": "__MAIN_CUSTOMER_QUEUE_FLOW_ARN__"
         }
       },
       "Identifier": "5c9bceda-28be-4db6-9782-9c9ccd157e0a",

@@ -210,7 +210,10 @@ resource "aws_connect_contact_flow" "hr" {
 # Agent transfer uses the existing managed transfer customer-queue flow, whose
 # Actions and StartAction match the imported transfer customer-queue export.
 resource "aws_connect_contact_flow" "imported" {
-  for_each = var.imported_contact_flows
+  for_each = {
+    for key, flow in var.imported_contact_flows : key => flow
+    if key != "main_inbound"
+  }
 
   instance_id = aws_connect_instance.this.id
   name        = each.value.name
@@ -238,6 +241,53 @@ resource "aws_connect_contact_flow" "imported" {
     precondition {
       condition     = !strcontains(each.value.content, "__CUSTOMER_QUEUE_FLOW_ARN__") || var.customer_queue_flow_content != null
       error_message = "Flow ${each.value.name} requires the managed transfer customer-queue flow. Supply customer_queue_flow_content."
+    }
+    precondition {
+      condition = (
+        can(jsondecode(each.value.content).Actions[0].Type) &&
+        can(jsondecode(each.value.content).StartAction)
+      )
+      error_message = "Flow ${each.value.name} requires a complete JSON export containing StartAction and Actions."
+    }
+  }
+}
+
+# Keep a previously managed main inbound flow when separating its dependencies.
+moved {
+  from = aws_connect_contact_flow.imported["main_inbound"]
+  to   = aws_connect_contact_flow.imported_main_inbound["main_inbound"]
+}
+
+# Main inbound depends on the imported customer-queue flow. A separate resource
+# avoids referencing another instance of the same for_each resource.
+resource "aws_connect_contact_flow" "imported_main_inbound" {
+  for_each = {
+    for key, flow in var.imported_contact_flows : key => flow
+    if key == "main_inbound"
+  }
+
+  instance_id = aws_connect_instance.this.id
+  name        = each.value.name
+  type        = each.value.type
+  description = "Imported flow: ${each.value.name}"
+  content = replace(
+    each.value.content,
+    "__MAIN_CUSTOMER_QUEUE_FLOW_ARN__",
+    try(aws_connect_contact_flow.imported["customer_queue"].arn, "")
+  )
+
+  tags = merge(local.tags, {
+    Name = each.value.name
+  })
+
+  lifecycle {
+    precondition {
+      condition     = var.expected_instance_arn == null ? true : aws_connect_instance.this.arn == var.expected_instance_arn
+      error_message = "The managed Connect instance does not match expected_instance_arn. Verify the backend/state before applying."
+    }
+    precondition {
+      condition     = !strcontains(each.value.content, "__MAIN_CUSTOMER_QUEUE_FLOW_ARN__") || contains(keys(var.imported_contact_flows), "customer_queue")
+      error_message = "The main inbound flow requires the imported customer_queue flow."
     }
     precondition {
       condition = (
