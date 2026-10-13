@@ -132,3 +132,19 @@ variable "agent_transfer_flow_content" {
   type        = string
   default     = null
 }
+
+variable "hr_flow_content" {
+  description = "JSON content for the HR contact flow."
+  type        = string
+  default     = null
+}
+
+variable "imported_contact_flows" {
+  description = "Contact flows imported from JSON files."
+  type = map(object({
+    name    = string
+    type    = string
+    content = string
+  }))
+  default = {}
+}

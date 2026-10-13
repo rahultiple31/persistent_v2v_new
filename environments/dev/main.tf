@@ -15,6 +15,63 @@ locals {
   deploy_v2v         = contains(local.enabled_module_set, "v2v")
 }
 
+locals {
+  imported_flow_directory = "${path.module}/metadata/contact-flows"
+
+  # Preserve the requested flow names, including their .json suffixes.
+  # Customer queue, main inbound and voicemail exports currently lack Actions;
+  # their types are inferred from intended use until complete exports are supplied.
+  imported_flow_definitions = {
+    fieldforce = {
+      filename = "AbbVie_Fieldforce_Flow.json"
+      name     = "stdgsd_Fieldforce_Flow"
+      type     = "CONTACT_FLOW"
+    }
+
+    customer_queue = {
+      filename = "BTSGSD_Abbvie_CustomerQueueFlow.json"
+      name     = "btsgsd_Abbvie_CustomerQueueFlow"
+      type     = "CUSTOMER_QUEUE"
+    }
+
+    agent_transfer = {
+      filename = "BTSGSD-AgentToAgentTransferFlow.json"
+      name     = "btsgsd-AgentToAgentTransferFlow"
+      type     = "AGENT_TRANSFER"
+    }
+
+    main_inbound = {
+      filename = "BTSGSD-Main-IB-Flow.json"
+      name     = "btsgsd-Main-IB-Flow.json"
+      type     = "CONTACT_FLOW"
+    }
+
+    outbound_whisper = {
+      filename = "BTSGSD-OutboundWhisperFlow.json"
+      name     = "btsgsd-OutboundWhisperFlow.json"
+      type     = "OUTBOUND_WHISPER"
+    }
+
+    transfer_customer_queue = {
+      filename = "BTSGSD-Transfer-To-Agent-CustomerQueueFlow.json"
+      name     = "btsgsd-Transfer-To-Agent-CustomerQueueFlow.json"
+      type     = "CUSTOMER_QUEUE"
+    }
+
+    voicemail = {
+      filename = "BTSGSD-VoicemailFlow.json"
+      name     = "btsgsd-VoicemailFlow.json"
+      type     = "CONTACT_FLOW"
+    }
+
+    hr = {
+      filename = "AbbVie_HR.json"
+      name     = "btsgsd_HR.json"
+      type     = "CONTACT_FLOW"
+    }
+  }
+}
+
 module "connect_us_east_1" {
   count  = local.deploy_connect ? 1 : 0
   source = "../../modules/connect"
@@ -45,6 +102,16 @@ module "connect_us_east_1" {
   agent_transfer_flow_content = file(
     "${path.module}/metadata/contact-flows/abbvie-us-sd-agent-to-agent-transfer-flow.json"
   )
+  hr_flow_content = file(
+    "${path.module}/metadata/contact-flows/AbbVie_HR.json"
+  )
+  imported_contact_flows = {
+    for key, flow in local.imported_flow_definitions : key => {
+      name    = flow.name
+      type    = flow.type
+      content = file("${local.imported_flow_directory}/${flow.filename}")
+    }
+  }
 }
 
 module "btsgsd_support_agent" {

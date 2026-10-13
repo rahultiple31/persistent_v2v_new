@@ -8,6 +8,7 @@ locals {
   customer_queue_flow_name     = "${local.service_name_prefix}-transfer-to-agent-customer-queue-flow"
   outbound_whisper_flow_name   = "${local.service_name_prefix}-outbound-whisper-flow"
   agent_transfer_flow_name     = "${local.service_name_prefix}-agent-to-agent-transfer-flow"
+  hr_flow_name                 = "${local.service_name_prefix}-HR"
   tags = merge(var.common_tags, {
     Name       = local.instance_name
     RegionCode = var.region_code
@@ -167,4 +168,46 @@ resource "aws_connect_contact_flow" "agent_to_agent_transfer" {
   tags = merge(local.tags, {
     Name = local.agent_transfer_flow_name
   })
+}
+
+# The imported JSON contains a fixed BasicQueue ARN; verify its target before applying.
+resource "aws_connect_contact_flow" "hr" {
+  count = var.hr_flow_content != null ? 1 : 0
+
+  instance_id = aws_connect_instance.this.id
+  name        = local.hr_flow_name
+  description = "Transfers callers to the HR team."
+  type        = "CONTACT_FLOW"
+  content     = var.hr_flow_content
+
+  tags = merge(local.tags, {
+    Name = local.hr_flow_name
+  })
+}
+
+# Imported flows are additional to the existing individual flow resources.
+# Fieldforce/HR contain a fixed BasicQueue ARN and agent transfer contains a
+# fixed CustomerQueue flow ARN; verify their targets before applying.
+resource "aws_connect_contact_flow" "imported" {
+  for_each = var.imported_contact_flows
+
+  instance_id = aws_connect_instance.this.id
+  name        = each.value.name
+  type        = each.value.type
+  description = "Imported flow: ${each.value.name}"
+  content     = each.value.content
+
+  tags = merge(local.tags, {
+    Name = each.value.name
+  })
+
+  lifecycle {
+    precondition {
+      condition = (
+        can(jsondecode(each.value.content).Actions[0].Type) &&
+        can(jsondecode(each.value.content).StartAction)
+      )
+      error_message = "Flow ${each.value.name} requires a complete JSON export containing StartAction and Actions."
+    }
+  }
 }

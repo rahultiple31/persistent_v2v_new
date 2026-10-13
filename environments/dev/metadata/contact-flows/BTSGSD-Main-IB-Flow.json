@@ -1,0 +1,41 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "Set logging",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": -100,
+      "y": -60
+    },
+    "ActionMetadata": {
+      "Connect assistant": {
+        "position": {
+          "x": 1120,
+          "y": 0
+        },
+        "isFriendlyName": true,
+        "children": [
+          "Connect assistant-vqVPBexvs6"
+        ],
+        "parameters": {
+          "OrchestrationAIAgentConfiguration": {
+            "AgentAssistanceAgentVersionArn": {
+              "useAIAgentDropdown": true,
+              "aiAgentName": "AbbVieSupportAgent"
+            }
+          }
+        },
+        "fragments": {
+          "SetContactData": "Connect assistant-vqVPBexvs6"
+        },
+        "useAIAgentDropdown": true,
+        "aiAgentName": "AbbVieSupportAgent"
+      },
+      "Connect assistant-vqVPBexvs6": {
+        "position": {
+          "x": 1120,
+          "y": 0
+        }
+      }
+    }
+  }
+}

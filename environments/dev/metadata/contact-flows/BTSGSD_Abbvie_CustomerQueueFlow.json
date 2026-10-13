@@ -1,0 +1,69 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "48310142-6cf6-495b-8175-239238c6c042",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": -484.8,
+      "y": 403.2
+    },
+    "ActionMetadata": {
+      "597e43a9-0bc8-4d1e-bd0c-d2ad0b6f0feb": {
+        "position": {
+          "x": 3966.4,
+          "y": 852.8
+        },
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "d305f3cf-8c36-44fd-82b8-346158a4d04b",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "timeout"
+          }
+        ]
+      },
+      "6bd753d4-caa7-4a33-94bb-a0be2880d23a": {
+        "position": {
+          "x": 6007.2,
+          "y": 802.4
+        }
+      },
+      "f428c9d6-c942-4719-b315-4c9fac0087b3": {
+        "position": {
+          "x": 4220,
+          "y": 1520
+        }
+      },
+      "05413e40-224d-4e5c-9750-1b6e39ca79b6": {
+        "position": {
+          "x": 3675.2,
+          "y": 1639.2
+        }
+      },
+      "2cde22b2-7d40-40cb-a0bf-bb3c0bc64219": {
+        "position": {
+          "x": 3381.6,
+          "y": 2016
+        }
+      },
+      "2e0c219e-a909-4af3-b499-08dc927a5020": {
+        "position": {
+          "x": 3396.8,
+          "y": 1644
+        },
+        "parameters": {
+          "FlowModuleId": {
+            "displayName": "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us",
+            "Alias": {
+              "displayName": "$LATEST"
+            }
+          }
+        },
+        "contactFlowModuleName": "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us"
+      }
+    }
+  }
+}

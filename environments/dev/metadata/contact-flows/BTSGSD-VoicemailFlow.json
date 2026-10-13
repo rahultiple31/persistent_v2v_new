@@ -1,0 +1,44 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "7c3cde55-5690-49f4-a21d-68cf72398f4a",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": -132.8,
+      "y": -152
+    },
+    "ActionMetadata": {
+      "a2d9a221-cbff-408d-b9a4-bcd803045233": {
+        "position": {
+          "x": 1532.8,
+          "y": -244.8
+        },
+        "toCustomer": false,
+        "fromCustomer": true
+      },
+      "dc89e01f-89ae-4d77-ad42-8d7b2c20dd85": {
+        "position": {
+          "x": 1776,
+          "y": -239.2
+        },
+        "parameters": {
+          "Attributes": {
+            "vm_from": {
+              "useDynamic": true
+            },
+            "vm_queue_arn": {
+              "useDynamic": true
+            },
+            "vm_queue_name": {
+              "useDynamic": true
+            }
+          }
+        },
+        "dynamicParams": [
+          "vm_from",
+          "vm_queue_arn",
+          "vm_queue_name"
+        ]
+      }
+    }
+  }
+}
