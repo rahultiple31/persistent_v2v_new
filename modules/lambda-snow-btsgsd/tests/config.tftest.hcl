@@ -17,12 +17,12 @@ run "requested_snow_configuration" {
       local.function_properties.Timeout == 8 &&
       local.function_properties.EphemeralStorage.Size == 512 &&
       local.function_properties.PackageType == "Zip" &&
-      local.function_properties.ReservedConcurrentExecutions == 300 &&
+      !contains(keys(jsondecode(aws_cloudformation_stack.snow.template_body).Resources.SNOWFunction.Properties), "ReservedConcurrentExecutions") &&
       local.function_properties.SnapStart.ApplyOn == "PublishedVersions" &&
       local.function_properties.RuntimeManagementConfig.UpdateRuntimeOn == "Auto" &&
       aws_cloudwatch_log_group.snow.name == "/aws/lambda/SNOW_btsgsd"
     )
-    error_message = "SNOW_btsgsd must match all requested function and logging settings."
+    error_message = "SNOW_btsgsd must retain the requested function settings and omit reserved concurrency by default."
   }
 
   assert {
@@ -45,6 +45,41 @@ run "requested_snow_configuration" {
     )
     error_message = "Lambda deployment packages must be encrypted and stored privately."
   }
+}
+
+run "optional_reserved_concurrency" {
+  command = plan
+  variables {
+    reserved_concurrent_executions = 10
+  }
+  assert {
+    condition     = jsondecode(aws_cloudformation_stack.snow.template_body).Resources.SNOWFunction.Properties.ReservedConcurrentExecutions == 10
+    error_message = "An explicitly configured positive reservation must be passed to CloudFormation."
+  }
+}
+
+run "zero_reservation_is_rejected" {
+  command = plan
+  variables {
+    reserved_concurrent_executions = 0
+  }
+  expect_failures = [var.reserved_concurrent_executions]
+}
+
+run "negative_reservation_is_rejected" {
+  command = plan
+  variables {
+    reserved_concurrent_executions = -1
+  }
+  expect_failures = [var.reserved_concurrent_executions]
+}
+
+run "fractional_reservation_is_rejected" {
+  command = plan
+  variables {
+    reserved_concurrent_executions = 1.5
+  }
+  expect_failures = [var.reserved_concurrent_executions]
 }
 
 run "servicenow_environment_configuration" {

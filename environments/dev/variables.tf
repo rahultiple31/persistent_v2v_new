@@ -62,6 +62,12 @@ variable "common_tags" {
   default     = {}
 }
 
+variable "snow_lambda_reserved_concurrent_executions" {
+  description = "Optional SNOW_btsgsd concurrency reservation. Leave null to use shared account capacity; set a positive integer only when enough unreserved capacity remains above AWS's 100 minimum."
+  type        = number
+  default     = null
+}
+
 variable "snow_lambda_environment_variables" {
   description = "SN_INSTANCE and SN_SECRET_NAME configuration for SNOW_btsgsd; no secret values are required by the supplied handler."
   type        = map(string)

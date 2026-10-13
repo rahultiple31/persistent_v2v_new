@@ -169,10 +169,11 @@ module "lambda-snow-btsgsd" {
     aws = aws.us_east_1
   }
 
-  function_name         = "SNOW_btsgsd"
-  source_file           = abspath("${path.module}/metadata/snow_lambda/lambda_function_snow_btsgsd.py")
-  environment_variables = var.snow_lambda_environment_variables
-  common_tags           = local.common_tags
+  function_name                  = "SNOW_btsgsd"
+  source_file                    = abspath("${path.module}/metadata/snow_lambda/lambda_function_snow_btsgsd.py")
+  environment_variables          = var.snow_lambda_environment_variables
+  reserved_concurrent_executions = var.snow_lambda_reserved_concurrent_executions
+  common_tags                    = local.common_tags
 }
 
 module "iam-ctr" {

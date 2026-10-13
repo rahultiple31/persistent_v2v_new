@@ -154,7 +154,7 @@ existing CTR modules. No separate `src` wrapper is needed.
 The success log uses the new function name `SNOW_btsgsd`.
 
 The configuration is Python 3.14, x86_64, 512 MB memory, 8-second timeout,
-512 MB ephemeral storage, ZIP packaging, 300 reserved concurrent executions,
+512 MB ephemeral storage, ZIP packaging, shared account concurrency by default,
 SnapStart `PublishedVersions`, runtime updates `Auto`, and log group
 `/aws/lambda/SNOW_btsgsd` with the repository's 90-day retention convention.
 An execution role grants only writes to this log group. Optional
@@ -167,11 +167,13 @@ and [SnapStart for Python 3.12 and later](https://docs.aws.amazon.com/lambda/lat
 The pinned Terraform AWS provider 5.100 rejects the Python 3.14 runtime, so
 `modules/lambda-snow-btsgsd` manages the function and published version through
 CloudFormation, using an encrypted private S3 ZIP artifact. Existing provider
-versions and pipelines are unchanged. Invoke the published `VersionArn` from
+versions are unchanged. Invoke the published `VersionArn` from
 the `snow_lambda` output to use SnapStart.
 
-The pipeline target dropdown is unchanged; deploy this target using the CLI.
-From `environments/dev`, use its own backend state:
+In the pipeline, select `targetEnvironment=dev`, `targetModule=lambda-snow-btsgsd`,
+and `terraformAction=plan` or `apply`. The existing backend and artifact naming
+automatically select the SNOW target's separate state. For CLI deployment from
+`environments/dev`, use its own backend state:
 
 ```bash
 terraform init -reconfigure -backend-config=lambda-snow-btsgsd.backend.hcl
@@ -182,7 +184,18 @@ terraform output snow_lambda
 
 The deployment identity needs Lambda, IAM role/PassRole, CloudFormation, S3,
 and CloudWatch Logs provisioning permissions. The backend bucket must already
-exist, and the region/account must have capacity to reserve 300 executions.
+exist. `snow_lambda_reserved_concurrent_executions=null` omits the reservation
+property so the function can deploy without reserving the previously requested
+300 executions. After obtaining sufficient regional concurrency capacity, set
+this variable to a positive integer such as `300` to reserve it explicitly.
+AWS requires at least 100 executions to remain unreserved; zero is rejected
+because it disables invocations.
+
+If the earlier failed creation left `SNOW-btsgsd-lambda` in `ROLLBACK_COMPLETE`,
+delete that failed stack in CloudFormation before retrying. Then generate a fresh
+pipeline plan/apply for `dev` / `lambda-snow-btsgsd`, using the same backend state.
+See [Lambda reserved concurrency](https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html)
+and [CloudFormation rollback statuses](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/view-stack-events.html).
 
 ## Azure Pipeline Flow
 

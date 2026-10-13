@@ -75,3 +75,6 @@ dev_support_ai_agent_enabled = true
 
 # Migrate all custom Dev AI agents to the existing built-in Admin profile.
 dev_ai_admin_security_profile_enabled = true
+
+# Use shared Lambda concurrency until a reservation fits the regional quota.
+snow_lambda_reserved_concurrent_executions = null
