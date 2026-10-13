@@ -45,7 +45,10 @@ variables {
   assistant_id         = "00000000-0000-0000-0000-000000000001"
   connect_instance_arn = "arn:aws:connect:us-east-1:123456789012:instance/00000000-0000-0000-0000-000000000005"
   template_bucket_name = "test-ai-agent-template-bucket"
-  prompt_yaml_file     = "../../environments/dev/metadata/prompts/btsgsd-support_prompts.yaml"
+  agent_name           = "btsgsd-ai-survey-agent"
+  prompt_name          = "btsgsd-ai-survey-prompt"
+  stack_name           = "btsgsd-ai-survey-agent-dev"
+  prompt_yaml_file     = "tests/fixtures/complete_system.yaml"
 }
 
 run "voice_agent_template" {
@@ -53,9 +56,9 @@ run "voice_agent_template" {
 
   assert {
     condition = (
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Name == "btsgsd-support-agent" &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Name == "btsgsd-ai-survey-agent" &&
       jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Type == "ORCHESTRATION" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.Name == "btsgsd-support_prompts" &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.Name == "btsgsd-ai-survey-prompt" &&
       jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.ModelId == "global.anthropic.claude-sonnet-5"
     )
     error_message = "The template must deploy the requested orchestration agent and global Sonnet 5 prompt."
@@ -183,7 +186,7 @@ run "missing_instruction_key" {
   expect_failures = [var.prompt_yaml_file]
 }
 
-run "complete_system_with_large_source" {
+run "complete_system_replaces_source" {
   command = plan
 
   override_data {
@@ -203,12 +206,13 @@ run "complete_system_with_large_source" {
 
   assert {
     condition = (
-      length(local.source_prompt.system) + length(local.custom_instructions) > 100000 &&
+      length(local.source_prompt.system) > length(local.custom_instructions) &&
+      !strcontains(yamldecode(local.prompt_text).system, "Source protocol.") &&
       length(yamldecode(local.prompt_text).system) <= 100000 &&
       strcontains(yamldecode(local.prompt_text).system, trimspace(local.custom_prompt.system)) &&
       yamldecode(local.prompt_text).messages[0] == "{{$.conversationHistory}}"
     )
-    error_message = "A complete system prompt must replace even a large source system while retaining custom messages."
+    error_message = "A complete system prompt must replace the source system and messages while staying within the length limit."
   }
 }
 

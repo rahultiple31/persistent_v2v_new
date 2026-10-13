@@ -37,13 +37,11 @@ variable "prompt_yaml_file" {
 }
 
 variable "agent_name" {
-  type    = string
-  default = "btsgsd-support-agent"
+  type = string
 }
 
 variable "prompt_name" {
-  type    = string
-  default = "btsgsd-support_prompts"
+  type = string
 }
 
 variable "source_agent_name" {
@@ -59,8 +57,7 @@ variable "prompt_model_id" {
 }
 
 variable "stack_name" {
-  type    = string
-  default = "btsgsd-support-agent-dev"
+  type = string
 }
 
 variable "python_executable" {

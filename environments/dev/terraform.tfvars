@@ -67,8 +67,5 @@ dev_ai_prompt_model_id = null
 dev_ai_template_bucket = "atsgsd-dev-us-east-1-ai-agent"
 dev_ai_tools           = []
 
-# Publish the support agent copied from SelfServiceOrchestratorVoice.
-dev_support_ai_agent_enabled = true
-
-# Publish the survey agent independently alongside the support agent.
+# Publish the survey agent copied from SelfServiceOrchestratorVoice.
 dev_survey_ai_agent_enabled = true

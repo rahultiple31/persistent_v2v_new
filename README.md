@@ -183,17 +183,17 @@ authentication. It does not require static AWS access keys.
 
 ### Dev Connect AI Agent
 
-Dev also enables the separate `modules/connect_ai_agent` support voice module via
-`dev_support_ai_agent_enabled=true`. It creates `btsgsd-support-agent` and
-`btsgsd-support_prompts`, using `global.anthropic.claude-sonnet-5` only when
+Dev also enables the separate `modules/connect_ai_agent` survey voice module via
+`dev_survey_ai_agent_enabled=true`. It creates `btsgsd-ai-survey-agent` and
+`btsgsd-ai-survey-prompt`, using `global.anthropic.claude-sonnet-5` only when
 Connect lists it as an ACTIVE global orchestration model. The existing Connect
 instance, Terraform-managed domain, and private template bucket are reused;
 `dev_ai_agent_enabled=false` keeps the legacy custom agent disabled.
 
-The support instructions and test case live in
-`environments/dev/metadata/prompts/btsgsd-support_prompts.yaml`. Only the `prompt`
+The survey instructions live in
+`environments/dev/metadata/prompts/btsgsd-ai-survey-prompt.yaml`. Only the `prompt`
 field is appended to the system voice template. The module's read-only
-`read_source.py` helper copies `SelfServiceOrchestrationVoice` tools, locale,
+`read_source.py` helper copies `SelfServiceOrchestratorVoice` tools, locale,
 guardrail, and prompt context, and removes the assistant prefill for Sonnet 5.
 Populated source fields not supported by CloudFormation stop discovery instead
 of being silently discarded. Discovery runs during planning when its inputs are
@@ -205,16 +205,15 @@ inherited; the helper needs `wisdom:GetAssistant`, `wisdom:ListModels`,
 `wisdom:ListAIAgents`, `wisdom:GetAIAgent`, `wisdom:GetAIPrompt`, and
 `connect:ListIntegrationAssociations`, in addition to the existing deployment
 permissions. For local Windows runs, set
-`-var='dev_support_ai_python_executable=python'`. Run `terraform init` after adding
+`-var='dev_survey_ai_python_executable=python'`. Run `terraform init` after adding
 the module to install the external provider. Keep using the Dev `connect` target
 and its existing backend state.
 
-`btsgsd_support_agent` returns the published identifiers and `AgentVersionArn`.
+`btsgsd_ai_survey_agent` returns the published identifiers and `AgentVersionArn`.
 Publishing does not activate live calls: configure the voice bot/contact flow
 to select the versioned agent ARN, verify knowledge-base access, and handle
-return-to-control escalation. `btsgsd_support_agent_test` returns the YAML test
-case without sending that metadata to the model. Disabling the support flag
-plans removal of the support stack and its template object, retaining the
+return-to-control escalation. Disabling the survey flag
+plans removal of the survey stack and its template object, retaining the
 separately managed domain and bucket.
 
 The original pipeline deploys the AI domain and optional custom agent as part of

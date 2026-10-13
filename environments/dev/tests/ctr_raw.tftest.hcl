@@ -24,7 +24,6 @@ run "raw_target_is_isolated" {
       length(module.lambda-connect-daily-ctr-export) == 0 &&
       length(module.lambda_us_east_1) == 0 &&
       length(module.connect_us_east_1) == 0 &&
-      length(module.btsgsd_support_agent) == 0 &&
       length(module.btsgsd_ai_survey_agent) == 0 &&
       length(module.s3_connect_reporting) == 0
     )

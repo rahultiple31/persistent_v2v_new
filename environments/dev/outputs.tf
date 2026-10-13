@@ -8,16 +8,6 @@ output "dev_ai_agent" {
   value       = try(aws_cloudformation_stack.dev_ai_agent[0].outputs, null)
 }
 
-output "btsgsd_support_agent" {
-  description = "Published support prompt/agent identifiers, including the versioned ARN for a voice flow."
-  value       = try(module.btsgsd_support_agent[0].deployment, null)
-}
-
-output "btsgsd_support_agent_test" {
-  description = "Support-agent test question and expected behavior from the YAML prompt file."
-  value       = try(module.btsgsd_support_agent[0].test_question, null)
-}
-
 output "btsgsd_ai_survey_agent" {
   description = "Published survey prompt and agent identifiers, including the versioned ARN for a voice flow."
   value       = try(module.btsgsd_ai_survey_agent[0].deployment, null)
