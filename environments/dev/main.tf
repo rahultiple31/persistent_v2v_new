@@ -173,6 +173,7 @@ module "lambda-snow-btsgsd-dev" {
   function_name         = "SNOW_btsgsd-dev"
   environment_variables = var.snow_lambda_environment_variables
   python_executable     = var.snow_lambda_python_executable
+  reserved_concurrency  = var.snow_lambda_reserved_concurrency
   common_tags           = local.common_tags
 }
 

@@ -149,15 +149,17 @@ The `lambda-snow-btsgsd-dev` target creates `SNOW_btsgsd-dev` in `us-east-1`.
 Its source is `modules/lambda-snow-btsgsd-dev/src/lambda_function.py`, packaged
 from `./src` with handler `lambda_function.lambda_handler`. It uses Python 3.14,
 x86_64, 512 MB memory, an 8-second timeout, 512 MB ephemeral storage, a ZIP
-package, reserved concurrency 300, automatic runtime updates, and SnapStart on
-published versions. CloudWatch logs go to `/aws/lambda/SNOW_btsgsd-dev`.
+package, configurable reserved concurrency (module default 300; Dev reserves
+none unless `snow_lambda_reserved_concurrency` is set), automatic runtime
+updates, and SnapStart on published versions. CloudWatch logs go to `/aws/lambda/SNOW_btsgsd-dev`.
 Terraform manages a CloudFormation Lambda stack to support Python 3.14 with the
 repository's existing AWS provider version.
 
 Authenticated AWS CLI and Python are required for the read-only capacity check.
-The CLI must use the same account as Terraform. Planning fails when the requested
-300 reservation would leave fewer than 100 unreserved executions. A new function
-requires at least 400 currently unreserved executions; increase the regional
+The CLI must use the same account as Terraform; the check is skipped when no
+reservation is requested. Planning fails when the requested reservation would
+leave fewer than 100 unreserved executions. A new 300 reservation requires at
+least 400 currently unreserved executions; increase the regional
 quota or release other reservations if needed. The check includes this function's
 existing reservation when updating it. Capacity can still change between plan
 and apply. Deployment permissions include `lambda:GetAccountSettings` and

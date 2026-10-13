@@ -74,6 +74,13 @@ variable "snow_lambda_python_executable" {
   default     = "python3"
 }
 
+variable "snow_lambda_reserved_concurrency" {
+  description = "Reserved concurrency for SNOW_btsgsd-dev. Null (default) reserves none, because the dev account has only 100 unreserved executions; set 300 once the regional Lambda quota allows at least 400 unreserved."
+  type        = number
+  default     = null
+  nullable    = true
+}
+
 variable "lambda_name_suffix" {
   description = "Suffix used in the Lambda function name."
   type        = string

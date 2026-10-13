@@ -89,3 +89,35 @@ run "servicenow_environment_configuration" {
     error_message = "Pass the ServiceNow instance and secret name to the handler."
   }
 }
+
+run "no_reservation_skips_capacity_check" {
+  command = plan
+  variables {
+    reserved_concurrency = null
+  }
+  assert {
+    condition     = length(data.external.capacity) == 0 && !contains(keys(local.function_properties), "ReservedConcurrentExecutions")
+    error_message = "A null reservation must omit ReservedConcurrentExecutions and skip the capacity check."
+  }
+}
+
+run "lower_reservation_within_capacity" {
+  command = plan
+  variables {
+    reserved_concurrency = 50
+  }
+  override_data {
+    target = data.external.capacity
+    values = {
+      result = {
+        unreserved          = "150"
+        current_reservation = "0"
+        maximum_reservation = "50"
+      }
+    }
+  }
+  assert {
+    condition     = local.function_properties.ReservedConcurrentExecutions == 50
+    error_message = "Use the configured reserved concurrency."
+  }
+}
