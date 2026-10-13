@@ -161,19 +161,19 @@ module "lambda-ctr-raw" {
   common_tags            = local.common_tags
 }
 
-module "lambda-snow-btsgsd" {
-  count  = contains(local.enabled_module_set, "lambda-snow-btsgsd") ? 1 : 0
-  source = "../../modules/lambda-snow-btsgsd"
+module "lambda-snow-btsgsd-dev" {
+  count  = contains(local.enabled_module_set, "lambda-snow-btsgsd-dev") ? 1 : 0
+  source = "../../modules/lambda-snow-btsgsd-dev"
 
   providers = {
-    aws = aws.us_east_1
+    aws      = aws.us_east_1
+    external = external
   }
 
-  function_name                  = "SNOW_btsgsd"
-  source_file                    = abspath("${path.module}/metadata/snow_lambda/lambda_function_snow_btsgsd.py")
-  environment_variables          = var.snow_lambda_environment_variables
-  reserved_concurrent_executions = var.snow_lambda_reserved_concurrent_executions
-  common_tags                    = local.common_tags
+  function_name         = "SNOW_btsgsd-dev"
+  environment_variables = var.snow_lambda_environment_variables
+  python_executable     = var.snow_lambda_python_executable
+  common_tags           = local.common_tags
 }
 
 module "iam-ctr" {

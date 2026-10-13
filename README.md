@@ -143,59 +143,44 @@ To activate only the V2V application stack in this state:
 terraform plan -var='enabled_modules=["v2v"]'
 ```
 
-## SNOW Lambda
+## SNOW Lambda in Dev
 
-The Dev `lambda-snow-btsgsd` target creates `SNOW_btsgsd` independently of the
-existing Lambda and Connect targets. The canonical source is
-`environments/dev/metadata/snow_lambda/lambda_function_snow_btsgsd.py`.
-The metadata script is read directly and packaged as `lambda_function.py` at the
-ZIP root, preserving the requested `lambda_function.lambda_handler`, like the
-existing CTR modules. No separate `src` wrapper is needed.
-The success log uses the new function name `SNOW_btsgsd`.
+The `lambda-snow-btsgsd-dev` target creates `SNOW_btsgsd-dev` in `us-east-1`.
+Its source is `modules/lambda-snow-btsgsd-dev/src/lambda_function.py`, packaged
+from `./src` with handler `lambda_function.lambda_handler`. It uses Python 3.14,
+x86_64, 512 MB memory, an 8-second timeout, 512 MB ephemeral storage, a ZIP
+package, reserved concurrency 300, automatic runtime updates, and SnapStart on
+published versions. CloudWatch logs go to `/aws/lambda/SNOW_btsgsd-dev`.
+Terraform manages a CloudFormation Lambda stack to support Python 3.14 with the
+repository's existing AWS provider version.
 
-The configuration is Python 3.14, x86_64, 512 MB memory, 8-second timeout,
-512 MB ephemeral storage, ZIP packaging, shared account concurrency by default,
-SnapStart `PublishedVersions`, runtime updates `Auto`, and log group
-`/aws/lambda/SNOW_btsgsd` with the repository's 90-day retention convention.
-An execution role grants only writes to this log group. Optional
-`snow_lambda_environment_variables` supplies `SN_INSTANCE` and `SN_SECRET_NAME`;
-unset values use the supplied handler's `Not Set` defaults. The script prints
-configuration and returns HTTP 200; it does not retrieve a secret or call ServiceNow.
+Authenticated AWS CLI and Python are required for the read-only capacity check.
+The CLI must use the same account as Terraform. Planning fails when the requested
+300 reservation would leave fewer than 100 unreserved executions. A new function
+requires at least 400 currently unreserved executions; increase the regional
+quota or release other reservations if needed. The check includes this function's
+existing reservation when updating it. Capacity can still change between plan
+and apply. Deployment permissions include `lambda:GetAccountSettings` and
+`lambda:GetFunctionConcurrency`, plus IAM, S3, CloudWatch Logs, CloudFormation,
+and Lambda management permissions.
 
-AWS supports [Python 3.14](https://docs.aws.amazon.com/lambda/latest/dg/lambda-python.html)
-and [SnapStart for Python 3.12 and later](https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html).
-The pinned Terraform AWS provider 5.100 rejects the Python 3.14 runtime, so
-`modules/lambda-snow-btsgsd` manages the function and published version through
-CloudFormation, using an encrypted private S3 ZIP artifact. Existing provider
-versions are unchanged. Invoke the published `VersionArn` from
-the `snow_lambda` output to use SnapStart.
+Use the dedicated Dev backend so this Lambda does not share the existing Connect
+or Lambda states. From the repository root:
 
-In the pipeline, select `targetEnvironment=dev`, `targetModule=lambda-snow-btsgsd`,
-and `terraformAction=plan` or `apply`. The existing backend and artifact naming
-automatically select the SNOW target's separate state. For CLI deployment from
-`environments/dev`, use its own backend state:
-
-```bash
-terraform init -reconfigure -backend-config=lambda-snow-btsgsd.backend.hcl
-terraform plan -var='enabled_modules=["lambda-snow-btsgsd"]' -out=snow.tfplan
-terraform apply snow.tfplan
-terraform output snow_lambda
+```powershell
+terraform -chdir=environments/dev init -reconfigure -backend-config=lambda-snow-btsgsd-dev.backend.hcl
+terraform -chdir=environments/dev plan -var='enabled_modules=["lambda-snow-btsgsd-dev"]' -var='snow_lambda_python_executable=python' -out=snow-dev.tfplan
+terraform -chdir=environments/dev apply snow-dev.tfplan
 ```
 
-The deployment identity needs Lambda, IAM role/PassRole, CloudFormation, S3,
-and CloudWatch Logs provisioning permissions. The backend bucket must already
-exist. `snow_lambda_reserved_concurrent_executions=null` omits the reservation
-property so the function can deploy without reserving the previously requested
-300 executions. After obtaining sufficient regional concurrency capacity, set
-this variable to a positive integer such as `300` to reserve it explicitly.
-AWS requires at least 100 executions to remain unreserved; zero is rejected
-because it disables invocations.
-
-If the earlier failed creation left `SNOW-btsgsd-lambda` in `ROLLBACK_COMPLETE`,
-delete that failed stack in CloudFormation before retrying. Then generate a fresh
-pipeline plan/apply for `dev` / `lambda-snow-btsgsd`, using the same backend state.
-See [Lambda reserved concurrency](https://docs.aws.amazon.com/lambda/latest/dg/configuration-concurrency.html)
-and [CloudFormation rollback statuses](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/view-stack-events.html).
+Use `python3` instead of `python` where appropriate. Optional
+`snow_lambda_environment_variables` can supply `SN_INSTANCE` and `SN_SECRET_NAME`;
+without them the supplied handler returns `Not Set`. This handler only prints
+configuration and returns a response; it does not call ServiceNow or read a
+Secrets Manager secret. Invoke the `VersionArn` from the `snow_lambda_dev` output
+to use SnapStart. The new name uses a separate stack and does not resolve or
+remove the old failed `SNOW-btsgsd-lambda` stack. Generate a fresh plan before
+deploying. No new pipeline choice is added by this change.
 
 ## Azure Pipeline Flow
 

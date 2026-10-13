@@ -1,9 +1,22 @@
-# Package the metadata source directly under the filename expected by the handler.
+data "aws_caller_identity" "current" {}
+
+data "aws_region" "current" {}
+
+data "external" "capacity" {
+  program = [var.python_executable, "${path.module}/scripts/check_capacity.py"]
+
+  query = {
+    region        = data.aws_region.current.name
+    account_id    = data.aws_caller_identity.current.account_id
+    function_name = var.function_name
+  }
+}
+
+# Package ./src with lambda_function.py at the ZIP root.
 data "archive_file" "snow" {
-  type                    = "zip"
-  source_content          = file(var.source_file)
-  source_content_filename = "lambda_function.py"
-  output_path             = "${path.root}/${var.function_name}.zip"
+  type        = "zip"
+  source_dir  = "${path.module}/src"
+  output_path = "${path.root}/${var.function_name}.zip"
 }
 
 resource "aws_cloudwatch_log_group" "snow" {
@@ -84,24 +97,23 @@ resource "aws_s3_object" "code" {
 
 locals {
   function_properties = merge({
-    FunctionName            = var.function_name
-    Runtime                 = "python3.14"
-    Architectures           = ["x86_64"]
-    Handler                 = "lambda_function.lambda_handler"
-    MemorySize              = 512
-    Timeout                 = 8
-    EphemeralStorage        = { Size = 512 }
-    PackageType             = "Zip"
-    SnapStart               = { ApplyOn = "PublishedVersions" }
-    RuntimeManagementConfig = { UpdateRuntimeOn = "Auto" }
-    LoggingConfig           = { LogFormat = "Text", LogGroup = { Ref = "LogGroupName" } }
-    Role                    = { Ref = "ExecutionRoleArn" }
-    Code                    = { S3Bucket = { Ref = "CodeBucket" }, S3Key = { Ref = "CodeKey" } }
-    Tags                    = [for key, value in var.common_tags : { Key = key, Value = value }]
+    FunctionName                 = var.function_name
+    Runtime                      = "python3.14"
+    Architectures                = ["x86_64"]
+    Handler                      = "lambda_function.lambda_handler"
+    MemorySize                   = 512
+    Timeout                      = 8
+    EphemeralStorage             = { Size = 512 }
+    PackageType                  = "Zip"
+    ReservedConcurrentExecutions = 300
+    SnapStart                    = { ApplyOn = "PublishedVersions" }
+    RuntimeManagementConfig      = { UpdateRuntimeOn = "Auto" }
+    LoggingConfig                = { LogFormat = "Text", LogGroup = { Ref = "LogGroupName" } }
+    Role                         = { Ref = "ExecutionRoleArn" }
+    Code                         = { S3Bucket = { Ref = "CodeBucket" }, S3Key = { Ref = "CodeKey" } }
+    Tags                         = [for key, value in var.common_tags : { Key = key, Value = value }]
     }, length(var.environment_variables) == 0 ? {} : {
     Environment = { Variables = var.environment_variables }
-    }, var.reserved_concurrent_executions == null ? {} : {
-    ReservedConcurrentExecutions = var.reserved_concurrent_executions
   })
 
   # Changing code or function configuration creates a fresh published version.
@@ -155,6 +167,13 @@ resource "aws_cloudformation_stack" "snow" {
     CodeKey          = aws_s3_object.code.key
     CodeHash         = data.archive_file.snow.output_base64sha256
     LogGroupName     = aws_cloudwatch_log_group.snow.name
+  }
+
+  lifecycle {
+    precondition {
+      condition     = tonumber(data.external.capacity.result.maximum_reservation) >= 300
+      error_message = "SNOW_btsgsd-dev requires reserved concurrency 300, but the available reservation is ${data.external.capacity.result.maximum_reservation}. AWS requires at least 100 unreserved executions; increase the regional concurrency quota or release other reservations before applying. Current unreserved: ${data.external.capacity.result.unreserved}; this function's current reservation: ${data.external.capacity.result.current_reservation}."
+    }
   }
 
   depends_on = [aws_iam_role_policy.logging]

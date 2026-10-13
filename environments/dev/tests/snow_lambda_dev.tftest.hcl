@@ -13,16 +13,26 @@ mock_provider "aws" {
   alias = "proxy_us_east_1"
 }
 
-mock_provider "external" {}
+mock_provider "external" {
+  mock_data "external" {
+    defaults = {
+      result = {
+        unreserved          = "400"
+        current_reservation = "0"
+        maximum_reservation = "300"
+      }
+    }
+  }
+}
 
-run "snow_target_is_isolated" {
+run "snow_dev_target_is_isolated" {
   command = plan
   variables {
-    enabled_modules = ["lambda-snow-btsgsd"]
+    enabled_modules = ["lambda-snow-btsgsd-dev"]
   }
   assert {
     condition = (
-      length(module.lambda-snow-btsgsd) == 1 &&
+      length(module.lambda-snow-btsgsd-dev) == 1 &&
       length(module.lambda_us_east_1) == 0 &&
       length(module.lambda-ctr-survey) == 0 &&
       length(module.lambda-ctr-raw) == 0 &&
@@ -31,17 +41,17 @@ run "snow_target_is_isolated" {
       length(module.btsgsd_support_agent) == 0 &&
       length(module.btsgsd_ai_survey_agent) == 0
     )
-    error_message = "The SNOW Lambda target must deploy without the existing Lambdas, Connect instance, or AI agents."
+    error_message = "Deploy SNOW_btsgsd-dev independently of existing Lambda, Connect and AI resources."
   }
 }
 
-run "existing_lambda_targets_exclude_snow" {
+run "existing_lambda_targets_exclude_snow_dev" {
   command = plan
   variables {
     enabled_modules = ["lambda", "lambda-ctr-survey", "lambda-ctr-raw", "lambda-connect-daily-ctr-export"]
   }
   assert {
-    condition     = length(module.lambda-snow-btsgsd) == 0 && output.snow_lambda == null
-    error_message = "Existing Lambda targets must not deploy SNOW_btsgsd implicitly."
+    condition     = length(module.lambda-snow-btsgsd-dev) == 0 && output.snow_lambda_dev == null
+    error_message = "Existing Lambda targets must not deploy SNOW_btsgsd-dev implicitly."
   }
 }

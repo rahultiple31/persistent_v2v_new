@@ -46,13 +46,13 @@ variable "connect_name_suffix" {
 }
 
 variable "enabled_modules" {
-  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd, iam-ctr."
+  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd-dev, iam-ctr."
   type        = list(string)
   default     = ["connect"]
 
   validation {
-    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v", "s3_connect_reporting", "lambda-ctr-survey", "lambda-connect-daily-ctr-export", "lambda-ctr-raw", "lambda-snow-btsgsd", "iam-ctr"]))) == 0
-    error_message = "enabled_modules supports: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd, iam-ctr."
+    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v", "s3_connect_reporting", "lambda-ctr-survey", "lambda-connect-daily-ctr-export", "lambda-ctr-raw", "lambda-snow-btsgsd-dev", "iam-ctr"]))) == 0
+    error_message = "enabled_modules supports: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd-dev, iam-ctr."
   }
 }
 
@@ -62,16 +62,16 @@ variable "common_tags" {
   default     = {}
 }
 
-variable "snow_lambda_reserved_concurrent_executions" {
-  description = "Optional SNOW_btsgsd concurrency reservation. Leave null to use shared account capacity; set a positive integer only when enough unreserved capacity remains above AWS's 100 minimum."
-  type        = number
-  default     = null
-}
-
 variable "snow_lambda_environment_variables" {
-  description = "SN_INSTANCE and SN_SECRET_NAME configuration for SNOW_btsgsd; no secret values are required by the supplied handler."
+  description = "Optional environment settings for SNOW_btsgsd-dev, including SN_INSTANCE and SN_SECRET_NAME."
   type        = map(string)
   default     = {}
+}
+
+variable "snow_lambda_python_executable" {
+  description = "Python executable for the SNOW Lambda read-only AWS concurrency check."
+  type        = string
+  default     = "python3"
 }
 
 variable "lambda_name_suffix" {
