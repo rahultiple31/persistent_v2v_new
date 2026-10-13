@@ -38,7 +38,399 @@
           "vm_queue_arn",
           "vm_queue_name"
         ]
+      },
+      "6c110d6f-d49f-4dc7-b5e1-c8162f43c953": {
+        "position": {
+          "x": 1760,
+          "y": -13.6
+        },
+        "parameters": {
+          "LambdaFunctionARN": {
+            "displayName": "REMSContactCenterDev-InvokeTelephonyIntegrationApiFunction:active"
+          },
+          "LambdaInvocationAttributes": {
+            "fallbackQueue": {
+              "useDynamic": true
+            },
+            "flowInput-QueueAPIName": {
+              "useDynamic": true
+            },
+            "flowInput-ProgramName": {
+              "useDynamic": true
+            }
+          }
+        },
+        "dynamicMetadata": {
+          "flowInput-recordId": false,
+          "fallbackQueue": true,
+          "flowDevName": false,
+          "flowInput-QueueAPIName": true,
+          "flowInput-ProgramName": true,
+          "methodName": false
+        }
+      },
+      "214b4b6b-362c-4842-85ef-29625ad74c0e": {
+        "position": {
+          "x": 2033.6,
+          "y": -259.2
+        },
+        "conditionMetadata": []
+      },
+      "a3a111be-343a-4d7d-b328-b4fdfb0aea51": {
+        "position": {
+          "x": 2296.8,
+          "y": -271.2
+        }
+      },
+      "92bc7c08-16fe-4d2d-ae11-bd4b19423938": {
+        "position": {
+          "x": 2716.8,
+          "y": 152.8
+        }
+      },
+      "0110466a-bbb4-4526-84a7-fef820eeab1e": {
+        "position": {
+          "x": 352.8,
+          "y": -225.6
+        },
+        "parameters": {
+          "Attributes": {
+            "IB_QueueName": {
+              "useDynamic": true
+            }
+          }
+        },
+        "dynamicParams": [
+          "IB_QueueName"
+        ]
+      },
+      "218ff366-2cdf-468b-ab32-1a562e087725": {
+        "position": {
+          "x": 901.6,
+          "y": 218.4
+        }
+      },
+      "7c3cde55-5690-49f4-a21d-68cf72398f4a": {
+        "position": {
+          "x": 12,
+          "y": -188
+        },
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "a28de8fe-e300-4d40-a09f-58f9fd063a03",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "Test_Queue"
+          }
+        ]
+      },
+      "673fff9b-ec61-43ec-8403-85a701435baa": {
+        "position": {
+          "x": 840,
+          "y": -260
+        },
+        "parameters": {
+          "QueueId": {
+            "useDynamic": true
+          }
+        },
+        "useDynamic": true
+      },
+      "f0d2e38c-7e72-4876-8920-be43ea77cca3": {
+        "position": {
+          "x": 1311.2,
+          "y": -252.8
+        }
+      },
+      "Only to be used to solve voicemail race condition": {
+        "position": {
+          "x": 1085.6,
+          "y": -249.6
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "LambdaFunctionARN": {
+            "displayName": "REMSContactCenterDev-InvokeSalesforceRestApiFunction:active"
+          }
+        },
+        "dynamicMetadata": {
+          "methodName": false,
+          "objectApiName": false,
+          "recordId": false,
+          "callOrigin": false
+        }
+      }
+    },
+    "Annotations": [],
+    "name": "BTSGSD-VoicemailFlow",
+    "description": "BTSGSD-VoicemailFlow",
+    "type": "contactFlow",
+    "status": "PUBLISHED",
+    "hash": {}
+  },
+  "Actions": [
+    {
+      "Parameters": {
+        "MediaStreamingState": "Enabled",
+        "MediaStreamType": "Audio",
+        "Participants": [
+          {
+            "ParticipantType": "Customer",
+            "MediaDirections": [
+              "From"
+            ]
+          }
+        ]
+      },
+      "Identifier": "a2d9a221-cbff-408d-b9a4-bcd803045233",
+      "Type": "UpdateContactMediaStreamingBehavior",
+      "Transitions": {
+        "NextAction": "dc89e01f-89ae-4d77-ad42-8d7b2c20dd85",
+        "Errors": [
+          {
+            "NextAction": "218ff366-2cdf-468b-ab32-1a562e087725",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "vm_from": "$.CustomerEndpoint.Address",
+          "vm_lang": "en-US",
+          "vm_queue_arn": "$.Queue.ARN",
+          "vm_flag": "1",
+          "vm_queue_name": "$.Queue.Name"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "dc89e01f-89ae-4d77-ad42-8d7b2c20dd85",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "214b4b6b-362c-4842-85ef-29625ad74c0e",
+        "Errors": [
+          {
+            "NextAction": "218ff366-2cdf-468b-ab32-1a562e087725",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "LambdaFunctionARN": "arn:aws:lambda:us-west-2:925529666915:function:REMSContactCenterDev-InvokeTelephonyIntegrationApiFunction:active",
+        "InvocationTimeLimitSeconds": "8",
+        "InvocationType": "SYNCHRONOUS",
+        "LambdaInvocationAttributes": {
+          "flowInput-recordId": "$.Attributes.voiceCallId",
+          "fallbackQueue": "$.Queue.Name",
+          "flowDevName": "REMS_Voice_Mail_Flow",
+          "flowInput-QueueAPIName": "$.Queue.Name",
+          "flowInput-ProgramName": "$.Attributes.ProgramName",
+          "methodName": "executeOmniFlow"
+        },
+        "ResponseValidation": {
+          "ResponseType": "STRING_MAP"
+        }
+      },
+      "Identifier": "6c110d6f-d49f-4dc7-b5e1-c8162f43c953",
+      "Type": "InvokeLambdaFunction",
+      "Transitions": {
+        "NextAction": "214b4b6b-362c-4842-85ef-29625ad74c0e",
+        "Errors": [
+          {
+            "NextAction": "214b4b6b-362c-4842-85ef-29625ad74c0e",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "StoreInput": "False",
+        "InputTimeLimitSeconds": "300",
+        "SSML": "<speak><break time=\"0.01s\"/></speak>"
+      },
+      "Identifier": "214b4b6b-362c-4842-85ef-29625ad74c0e",
+      "Type": "GetParticipantInput",
+      "Transitions": {
+        "NextAction": "a3a111be-343a-4d7d-b328-b4fdfb0aea51",
+        "Errors": [
+          {
+            "NextAction": "a3a111be-343a-4d7d-b328-b4fdfb0aea51",
+            "ErrorType": "InputTimeLimitExceeded"
+          },
+          {
+            "NextAction": "a3a111be-343a-4d7d-b328-b4fdfb0aea51",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "a3a111be-343a-4d7d-b328-b4fdfb0aea51",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "MediaStreamingState": "Disabled",
+        "Participants": [
+          {
+            "ParticipantType": "Customer",
+            "MediaDirections": [
+              "To",
+              "From"
+            ]
+          }
+        ],
+        "MediaStreamType": "Audio"
+      },
+      "Identifier": "a3a111be-343a-4d7d-b328-b4fdfb0aea51",
+      "Type": "UpdateContactMediaStreamingBehavior",
+      "Transitions": {
+        "NextAction": "92bc7c08-16fe-4d2d-ae11-bd4b19423938",
+        "Errors": [
+          {
+            "NextAction": "92bc7c08-16fe-4d2d-ae11-bd4b19423938",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "92bc7c08-16fe-4d2d-ae11-bd4b19423938",
+      "Type": "DisconnectParticipant",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "VM_QueueName": "eb7cdae3-8932-4271-9afc-efcc4959c01a",
+          "IB_QueueName": "$.Queue.Name"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "0110466a-bbb4-4526-84a7-fef820eeab1e",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "673fff9b-ec61-43ec-8403-85a701435baa",
+        "Errors": [
+          {
+            "NextAction": "218ff366-2cdf-468b-ab32-1a562e087725",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "Text": "Thank you for Calling. We are currently experiencing technical difficulties. Please call again later."
+      },
+      "Identifier": "218ff366-2cdf-468b-ab32-1a562e087725",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "92bc7c08-16fe-4d2d-ae11-bd4b19423938",
+        "Errors": [
+          {
+            "NextAction": "92bc7c08-16fe-4d2d-ae11-bd4b19423938",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ComparisonValue": "$.Queue.Name"
+      },
+      "Identifier": "7c3cde55-5690-49f4-a21d-68cf72398f4a",
+      "Type": "Compare",
+      "Transitions": {
+        "NextAction": "218ff366-2cdf-468b-ab32-1a562e087725",
+        "Conditions": [
+          {
+            "NextAction": "0110466a-bbb4-4526-84a7-fef820eeab1e",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "Test_Queue"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "218ff366-2cdf-468b-ab32-1a562e087725",
+            "ErrorType": "NoMatchingCondition"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "QueueId": "$.Attributes.VM_QueueName"
+      },
+      "Identifier": "673fff9b-ec61-43ec-8403-85a701435baa",
+      "Type": "UpdateContactTargetQueue",
+      "Transitions": {
+        "NextAction": "Only to be used to solve voicemail race condition",
+        "Errors": [
+          {
+            "NextAction": "218ff366-2cdf-468b-ab32-1a562e087725",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak><say-as interpret-as=\"expletive\">beep</say-as></speak>"
+      },
+      "Identifier": "f0d2e38c-7e72-4876-8920-be43ea77cca3",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "a2d9a221-cbff-408d-b9a4-bcd803045233",
+        "Errors": [
+          {
+            "NextAction": "218ff366-2cdf-468b-ab32-1a562e087725",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "LambdaFunctionARN": "arn:aws:lambda:us-west-2:925529666915:function:REMSContactCenterDev-InvokeSalesforceRestApiFunction:active",
+        "InvocationTimeLimitSeconds": "3",
+        "InvocationType": "SYNCHRONOUS",
+        "LambdaInvocationAttributes": {
+          "methodName": "updateRecord",
+          "objectApiName": "Voicecall",
+          "recordId": "$.Attributes.voiceCallId",
+          "callOrigin": "Voicemail"
+        },
+        "ResponseValidation": {
+          "ResponseType": "JSON"
+        }
+      },
+      "Identifier": "Only to be used to solve voicemail race condition",
+      "Type": "InvokeLambdaFunction",
+      "Transitions": {
+        "NextAction": "f0d2e38c-7e72-4876-8920-be43ea77cca3",
+        "Errors": [
+          {
+            "NextAction": "f0d2e38c-7e72-4876-8920-be43ea77cca3",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
       }
     }
-  }
+  ]
 }
