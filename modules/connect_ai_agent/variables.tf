@@ -50,6 +50,12 @@ variable "source_agent_name" {
   default     = "SelfServiceOrchestratorVoice"
 }
 
+variable "source_prompt_name" {
+  description = "Optional required system prompt name on the source agent; discovery fails if the source uses a different template."
+  type        = string
+  default     = null
+}
+
 variable "prompt_model_id" {
   description = "Active Connect orchestration model using global cross-region inference."
   type        = string

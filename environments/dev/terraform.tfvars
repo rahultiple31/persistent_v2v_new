@@ -69,3 +69,9 @@ dev_ai_tools           = []
 
 # Publish the survey agent copied from SelfServiceOrchestratorVoice.
 dev_survey_ai_agent_enabled = true
+
+# Publish the new SupportAgent with the supplied complete voice prompt.
+dev_support_ai_agent_enabled = true
+
+# Migrate all custom Dev AI agents to the existing built-in Admin profile.
+dev_ai_admin_security_profile_enabled = true

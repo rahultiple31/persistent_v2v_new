@@ -8,9 +8,24 @@ output "dev_ai_agent" {
   value       = try(aws_cloudformation_stack.dev_ai_agent[0].outputs, null)
 }
 
+output "btsgsd_support_agent" {
+  description = "Published btsgsd-SupportAgent prompt, agent and version identifiers after Admin-profile assignment."
+  value       = try(module.btsgsd_support_agent[0].deployment, null)
+  depends_on  = [terraform_data.dev_ai_admin_security_profiles]
+}
+
 output "btsgsd_ai_survey_agent" {
   description = "Published survey prompt and agent identifiers, including the versioned ARN for a voice flow."
   value       = try(module.btsgsd_ai_survey_agent[0].deployment, null)
+}
+
+output "dev_ai_admin_security_profile" {
+  description = "Existing Admin profile assigned to custom AI agents during apply, or null when disabled."
+  value = local.dev_ai_admin_security_profile_enabled ? {
+    name                = "Admin"
+    security_profile_id = data.aws_connect_security_profile.ai_admin[0].security_profile_id
+    assignment_config   = terraform_data.dev_ai_admin_security_profiles[0].output.config
+  } : null
 }
 
 output "regional_connect_instances" {

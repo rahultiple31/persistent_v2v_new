@@ -141,6 +141,21 @@ class SourceDiscoveryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsupported by CloudFormation"):
             self.discover()
 
+    def test_accepts_required_voice_prompt_name(self):
+        self.query["source_prompt_name"] = "SelfServiceOrchestrationVoice"
+        for name in ("SelfServiceOrchestrationVoice", "system:SelfServiceOrchestrationVoice"):
+            with self.subTest(name=name):
+                self.responses["get-ai-prompt"]["aiPrompt"]["name"] = name
+                self.assertEqual(self.discover()["source_agent_id"], "source-agent")
+
+    def test_rejects_wrong_or_missing_required_voice_prompt(self):
+        self.query["source_prompt_name"] = "SelfServiceOrchestrationVoice"
+        for name in ("AgentAssistanceOrchestration", None):
+            with self.subTest(name=name):
+                self.responses["get-ai-prompt"]["aiPrompt"]["name"] = name
+                with self.assertRaisesRegex(ValueError, "required system prompt"):
+                    self.discover()
+
     def test_rejects_incompatible_prompt_format(self):
         self.responses["get-ai-prompt"]["aiPrompt"]["apiFormat"] = "TEXT_COMPLETIONS"
         with self.assertRaisesRegex(ValueError, "MESSAGES prompt"):

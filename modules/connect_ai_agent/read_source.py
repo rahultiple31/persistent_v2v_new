@@ -101,6 +101,9 @@ def discover(query, aws):
         "qconnect", "get-ai-prompt", "--assistant-id", query["assistant_id"],
         "--ai-prompt-id", configuration["orchestrationAIPromptId"],
     )["aiPrompt"]
+    required_prompt = query.get("source_prompt_name", "")
+    if required_prompt and prompt.get("name") not in (required_prompt, "system:" + required_prompt):
+        raise ValueError("The source agent must use the required system prompt: " + required_prompt)
     if prompt["type"] != "ORCHESTRATION" or prompt["apiFormat"] not in (
         "MESSAGES", "ANTHROPIC_CLAUDE_MESSAGES",
     ):

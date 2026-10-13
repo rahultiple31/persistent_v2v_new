@@ -146,6 +146,44 @@ run "survey_agent_template" {
   }
 }
 
+run "support_agent_template" {
+  command = plan
+
+  variables {
+    agent_name         = "btsgsd-SupportAgent"
+    prompt_name        = "btsgsd-SupportAgent-prompt"
+    stack_name         = "btsgsd-SupportAgent-dev"
+    source_prompt_name = "SelfServiceOrchestrationVoice"
+    prompt_yaml_file   = "../../environments/dev/metadata/prompts/btsgsd-SupportAgent-prompt.yaml"
+  }
+
+  assert {
+    condition = (
+      aws_cloudformation_stack.agent.name == "btsgsd-SupportAgent-dev" &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Name == "btsgsd-SupportAgent" &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Type == "ORCHESTRATION" &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.Name == "btsgsd-SupportAgent-prompt" &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.Type == "ORCHESTRATION" &&
+      data.external.source.query.source_name == "SelfServiceOrchestratorVoice" &&
+      data.external.source.query.source_prompt_name == "SelfServiceOrchestrationVoice"
+    )
+    error_message = "Create the requested SupportAgent and prompt from the required system voice source."
+  }
+
+  assert {
+    condition = (
+      strcontains(yamldecode(local.prompt_text).system, trimspace(local.custom_prompt.system)) &&
+      !strcontains(yamldecode(local.prompt_text).system, "Voice orchestration protocol.") &&
+      strcontains(yamldecode(local.prompt_text).system, "{{$.toolConfigurationList}}") &&
+      length(yamldecode(local.prompt_text).system) <= 100000 &&
+      yamldecode(local.prompt_text).messages == local.custom_prompt.messages &&
+      !contains(keys(yamldecode(local.prompt_text)), "name") &&
+      !contains(keys(yamldecode(local.prompt_text)), "description")
+    )
+    error_message = "Preserve the complete supplied instructions and conversation messages while keeping metadata outside the runtime prompt and respecting the length limit."
+  }
+}
+
 run "missing_prompt_file" {
   command = plan
 

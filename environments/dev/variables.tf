@@ -392,6 +392,41 @@ variable "dev_ai_agent_test_mode" {
   default     = false
 }
 
+variable "dev_ai_admin_security_profile_enabled" {
+  description = "Assign the existing Admin security profile to all custom AI agents in the Dev assistant and detach their previous profiles; ignored outside the Connect target."
+  type        = bool
+  default     = false
+}
+
+variable "dev_ai_security_profile_python_executable" {
+  description = "Python 3 executable for applying AI-agent Admin security-profile assignments; use python for local Windows runs."
+  type        = string
+  default     = "python3"
+}
+
+variable "dev_support_ai_agent_enabled" {
+  description = "Publish btsgsd-SupportAgent and its orchestration prompt with the Dev Connect target."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.dev_support_ai_agent_enabled || !local.deploy_connect || var.dev_ai_admin_security_profile_enabled
+    error_message = "Enable dev_ai_admin_security_profile_enabled when deploying btsgsd-SupportAgent so its required Admin security profile is assigned."
+  }
+}
+
+variable "dev_support_ai_prompt_file" {
+  description = "Environment-relative path to the complete SupportAgent system prompt and conversation messages."
+  type        = string
+  default     = "metadata/prompts/btsgsd-SupportAgent-prompt.yaml"
+}
+
+variable "dev_support_ai_python_executable" {
+  description = "Python 3 executable for read-only SupportAgent source discovery; use python for local Windows runs."
+  type        = string
+  default     = "python3"
+}
+
 variable "dev_survey_ai_python_executable" {
   description = "Python 3 executable for read-only source discovery; use python for local Windows runs."
   type        = string
@@ -416,7 +451,7 @@ variable "dev_ai_assistant_id" {
   default     = null
 
   validation {
-    condition     = !(local.dev_ai_enabled || local.dev_survey_ai_enabled) || local.dev_ai_domain_enabled || can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.dev_ai_assistant_id))
+    condition     = !(local.dev_ai_enabled || local.dev_survey_ai_enabled || local.dev_support_ai_enabled || local.dev_ai_admin_security_profile_enabled) || local.dev_ai_domain_enabled || can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.dev_ai_assistant_id))
     error_message = "Enable dev_ai_domain_enabled to create a Dev assistant, or supply an existing assistant UUID associated with the Dev Connect instance."
   }
 
@@ -449,7 +484,7 @@ variable "dev_ai_template_bucket" {
   default     = null
 
   validation {
-    condition     = !local.deploy_connect || (var.dev_ai_template_bucket == null && !(local.dev_ai_enabled || local.dev_survey_ai_enabled)) || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.dev_ai_template_bucket))
+    condition     = !local.deploy_connect || (var.dev_ai_template_bucket == null && !(local.dev_ai_enabled || local.dev_survey_ai_enabled || local.dev_support_ai_enabled)) || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.dev_ai_template_bucket))
     error_message = "Set dev_ai_template_bucket in Dev Terraform values to a valid S3 bucket name without underscores."
   }
 }

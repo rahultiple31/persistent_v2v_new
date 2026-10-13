@@ -183,6 +183,71 @@ authentication. It does not require static AWS access keys.
 
 ### Dev Connect AI Agent
 
+Dev enables `dev_support_ai_agent_enabled=true` to create the new
+`btsgsd-SupportAgent` and `btsgsd-SupportAgent-prompt`, both of type
+`ORCHESTRATION`, in the existing Connect instance and assistant. Its stack is
+`btsgsd-SupportAgent-dev`. The complete supplied prompt is stored at
+`environments/dev/metadata/prompts/btsgsd-SupportAgent-prompt.yaml`; its original
+system instructions and conversation messages are preserved, with only name,
+type and description metadata added outside the system block. The runtime system
+includes the module's tool-list placeholder and remains below 100000 characters.
+
+The system source agent is `SelfServiceOrchestratorVoice`; its source prompt must
+be `SelfServiceOrchestrationVoice` (a `system:` prefix is also accepted). Discovery
+rejects a different source prompt rather than deploying with the wrong voice
+template. The source tools, locale and guardrail are copied; the new custom prompt
+replaces the source system instructions. Set
+`-var='dev_support_ai_python_executable=python'` for local Windows source discovery.
+
+SupportAgent requires `dev_ai_admin_security_profile_enabled=true`. Admin
+assignment runs after the new agent and its published version are created, and
+the `btsgsd_support_agent` output exposes its identifiers after that assignment.
+The existing survey agent retains its own names and prompt; the legacy agent
+remains disabled. Use the existing Dev `connect` backend and pipeline to deploy.
+
+Dev sets `dev_ai_admin_security_profile_enabled=true`. The Terraform resource
+`terraform_data.dev_ai_admin_security_profiles` looks up the existing `Admin`
+profile and runs `modules/connect_ai_agent/assign_admin_security_profile.py`
+during apply. It assigns Admin to all customer-created AI agents in the Dev
+assistant, including their `$LATEST` and published versions. It verifies Admin
+access for every version before removing previous profiles, then verifies that
+each version uses only Admin. AWS system agents are retained as source templates;
+agents explicitly configured for a different instance are skipped. Agent IDs and
+voice-flow ARNs are retained. The pipeline does not need any changes.
+
+The operation runs after managed AI-agent creation/updates and reruns when their
+published outputs or the helper change. It does not detect external assignment
+changes on every plan. To rerun explicitly, use
+`-replace='terraform_data.dev_ai_admin_security_profiles[0]'` in a new plan.
+Set `dev_ai_admin_security_profile_enabled=false` to stop managing assignments;
+this does not undo assignments already applied. For local Windows runs, set
+`-var='dev_ai_security_profile_python_executable=python'`.
+
+For recovery from the reported `409 ResourceInUseException`, first apply the
+Admin migration separately so obsolete profiles are detached before a full
+apply can attempt to delete them. From `environments/dev`, initialized against
+the same Dev `connect` backend used by the pipeline:
+
+```bash
+terraform plan -var='enabled_modules=["connect"]' \
+  -target='terraform_data.dev_ai_admin_security_profiles[0]' \
+  -out=ai-admin-migration.tfplan
+terraform apply ai-admin-migration.tfplan
+```
+
+Then generate a fresh full Connect plan and apply it using the existing pipeline.
+This migration also updates custom agents created outside Terraform in the same
+assistant. Admin grants broad Connect permissions; tool configuration and
+applicable human-agent permissions still govern which tools can be invoked.
+The runner needs `wisdom:GetAssistant`, `wisdom:ListAIAgents`,
+`wisdom:ListAIAgentVersions`, `connect:ListIntegrationAssociations`,
+`connect:ListSecurityProfiles`, `connect:DescribeSecurityProfile`,
+`connect:ListEntitySecurityProfiles`, `connect:AssociateSecurityProfiles`, and
+`connect:DisassociateSecurityProfiles`, using the same AWS credentials as Terraform.
+The existing Admin profile is reused and is not created or deleted by this code.
+See the AWS APIs for [assigning profiles](https://docs.aws.amazon.com/cli/latest/reference/connect/associate-security-profiles.html)
+and [detaching previous profiles](https://docs.aws.amazon.com/cli/latest/reference/connect/disassociate-security-profiles.html).
+
 Dev also enables the separate `modules/connect_ai_agent` survey voice module via
 `dev_survey_ai_agent_enabled=true`. It creates `btsgsd-ai-survey-agent` and
 `btsgsd-ai-survey-prompt`, using `global.anthropic.claude-sonnet-5` only when

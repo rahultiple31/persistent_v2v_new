@@ -27,6 +27,7 @@ data "external" "source" {
     region               = data.aws_region.current.name
     aws_profile          = var.aws_profile
     source_name          = var.source_agent_name
+    source_prompt_name   = var.source_prompt_name == null ? "" : var.source_prompt_name
     model_id             = var.prompt_model_id
   }
 }
