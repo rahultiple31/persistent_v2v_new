@@ -99,20 +99,20 @@ resource "aws_s3_object" "code" {
 
 locals {
   function_properties = merge({
-    FunctionName                 = var.function_name
-    Runtime                      = "python3.14"
-    Architectures                = ["x86_64"]
-    Handler                      = "lambda_function.lambda_handler"
-    MemorySize                   = 512
-    Timeout                      = 8
-    EphemeralStorage             = { Size = 512 }
-    PackageType                  = "Zip"
-    SnapStart                    = { ApplyOn = "PublishedVersions" }
-    RuntimeManagementConfig      = { UpdateRuntimeOn = "Auto" }
-    LoggingConfig                = { LogFormat = "Text", LogGroup = { Ref = "LogGroupName" } }
-    Role                         = { Ref = "ExecutionRoleArn" }
-    Code                         = { S3Bucket = { Ref = "CodeBucket" }, S3Key = { Ref = "CodeKey" } }
-    Tags                         = [for key, value in var.common_tags : { Key = key, Value = value }]
+    FunctionName            = var.function_name
+    Runtime                 = "python3.14"
+    Architectures           = ["x86_64"]
+    Handler                 = "lambda_function.lambda_handler"
+    MemorySize              = 512
+    Timeout                 = 8
+    EphemeralStorage        = { Size = 512 }
+    PackageType             = "Zip"
+    SnapStart               = { ApplyOn = "PublishedVersions" }
+    RuntimeManagementConfig = { UpdateRuntimeOn = "Auto" }
+    LoggingConfig           = { LogFormat = "Text", LogGroup = { Ref = "LogGroupName" } }
+    Role                    = { Ref = "ExecutionRoleArn" }
+    Code                    = { S3Bucket = { Ref = "CodeBucket" }, S3Key = { Ref = "CodeKey" } }
+    Tags                    = [for key, value in var.common_tags : { Key = key, Value = value }]
     }, var.reserved_concurrency == null ? {} : {
     ReservedConcurrentExecutions = var.reserved_concurrency
     }, length(var.environment_variables) == 0 ? {} : {
