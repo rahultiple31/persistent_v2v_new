@@ -143,6 +143,47 @@ To activate only the V2V application stack in this state:
 terraform plan -var='enabled_modules=["v2v"]'
 ```
 
+## SNOW Lambda
+
+The Dev `lambda-snow-btsgsd` target creates `SNOW_btsgsd` independently of the
+existing Lambda and Connect targets. The canonical source is
+`environments/dev/metadata/snow_lambda/lambda_function_snow_btsgsd.py`.
+The metadata script is read directly and packaged as `lambda_function.py` at the
+ZIP root, preserving the requested `lambda_function.lambda_handler`, like the
+existing CTR modules. No separate `src` wrapper is needed.
+The success log uses the new function name `SNOW_btsgsd`.
+
+The configuration is Python 3.14, x86_64, 512 MB memory, 8-second timeout,
+512 MB ephemeral storage, ZIP packaging, 300 reserved concurrent executions,
+SnapStart `PublishedVersions`, runtime updates `Auto`, and log group
+`/aws/lambda/SNOW_btsgsd` with the repository's 90-day retention convention.
+An execution role grants only writes to this log group. Optional
+`snow_lambda_environment_variables` supplies `SN_INSTANCE` and `SN_SECRET_NAME`;
+unset values use the supplied handler's `Not Set` defaults. The script prints
+configuration and returns HTTP 200; it does not retrieve a secret or call ServiceNow.
+
+AWS supports [Python 3.14](https://docs.aws.amazon.com/lambda/latest/dg/lambda-python.html)
+and [SnapStart for Python 3.12 and later](https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html).
+The pinned Terraform AWS provider 5.100 rejects the Python 3.14 runtime, so
+`modules/lambda-snow-btsgsd` manages the function and published version through
+CloudFormation, using an encrypted private S3 ZIP artifact. Existing provider
+versions and pipelines are unchanged. Invoke the published `VersionArn` from
+the `snow_lambda` output to use SnapStart.
+
+The pipeline target dropdown is unchanged; deploy this target using the CLI.
+From `environments/dev`, use its own backend state:
+
+```bash
+terraform init -reconfigure -backend-config=lambda-snow-btsgsd.backend.hcl
+terraform plan -var='enabled_modules=["lambda-snow-btsgsd"]' -out=snow.tfplan
+terraform apply snow.tfplan
+terraform output snow_lambda
+```
+
+The deployment identity needs Lambda, IAM role/PassRole, CloudFormation, S3,
+and CloudWatch Logs provisioning permissions. The backend bucket must already
+exist, and the region/account must have capacity to reserve 300 executions.
+
 ## Azure Pipeline Flow
 
 The pipeline in `azure-pipelines.yml` supports these parameters:

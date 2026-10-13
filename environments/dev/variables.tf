@@ -46,18 +46,24 @@ variable "connect_name_suffix" {
 }
 
 variable "enabled_modules" {
-  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, iam-ctr."
+  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd, iam-ctr."
   type        = list(string)
   default     = ["connect"]
 
   validation {
-    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v", "s3_connect_reporting", "lambda-ctr-survey", "lambda-connect-daily-ctr-export", "lambda-ctr-raw", "iam-ctr"]))) == 0
-    error_message = "enabled_modules supports: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, iam-ctr."
+    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v", "s3_connect_reporting", "lambda-ctr-survey", "lambda-connect-daily-ctr-export", "lambda-ctr-raw", "lambda-snow-btsgsd", "iam-ctr"]))) == 0
+    error_message = "enabled_modules supports: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd, iam-ctr."
   }
 }
 
 variable "common_tags" {
   description = "Additional tags applied to all resources."
+  type        = map(string)
+  default     = {}
+}
+
+variable "snow_lambda_environment_variables" {
+  description = "SN_INSTANCE and SN_SECRET_NAME configuration for SNOW_btsgsd; no secret values are required by the supplied handler."
   type        = map(string)
   default     = {}
 }

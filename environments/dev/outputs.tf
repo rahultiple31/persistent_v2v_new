@@ -55,6 +55,15 @@ output "regional_lambda_functions" {
   }
 }
 
+output "snow_lambda" {
+  description = "SNOW_btsgsd function/version identifiers and log group, or null outside its target."
+  value = try({
+    deployment         = module.lambda-snow-btsgsd[0].deployment
+    log_group_name     = module.lambda-snow-btsgsd[0].log_group_name
+    execution_role_arn = module.lambda-snow-btsgsd[0].execution_role_arn
+  }, null)
+}
+
 output "regional_proxy" {
   description = "V2V translation proxy deployment outputs by region."
   value = {
