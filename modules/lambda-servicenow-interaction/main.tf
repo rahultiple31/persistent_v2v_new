@@ -69,7 +69,7 @@ data "archive_file" "interaction" {
 }
 
 resource "aws_cloudwatch_log_group" "interaction" {
-  name              = "/aws/lambda/ServiceNow_Interaction"
+  name              = "/aws/lambda/${local.function_name}"
   retention_in_days = 90
   tags              = var.common_tags
 }

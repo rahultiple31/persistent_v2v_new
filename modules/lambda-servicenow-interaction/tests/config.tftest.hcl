@@ -25,7 +25,7 @@ run "requested_lambda_configuration" {
       jsondecode(aws_cloudformation_stack.interaction.template_body).Resources.InteractionFunction.Properties.Timeout == 8 &&
       jsondecode(aws_cloudformation_stack.interaction.template_body).Resources.InteractionFunction.Properties.EphemeralStorage.Size == 512 &&
       jsondecode(aws_cloudformation_stack.interaction.template_body).Resources.InteractionFunction.Properties.ReservedConcurrentExecutions == 100 &&
-      aws_cloudformation_stack.interaction.parameters.LogGroupName == "/aws/lambda/ServiceNow_Interaction" &&
+      aws_cloudformation_stack.interaction.parameters.LogGroupName == "/aws/lambda/ServiceNow_Interaction_btsgsd-dev" &&
       jsondecode(aws_cloudformation_stack.interaction.template_body).Resources.InteractionFunction.Properties.LoggingConfig.LogGroup.Ref == "LogGroupName" &&
       data.archive_file.interaction.source_dir == "./src" &&
       aws_s3_object.code.source_hash == data.archive_file.interaction.output_base64sha256

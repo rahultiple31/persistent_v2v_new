@@ -199,7 +199,7 @@ concurrency 100; Dev's `terraform.tfvars` sets
 pool without guaranteeing 100 concurrent executions. The CloudFormation
 reservation property and capacity check are omitted in that configuration.
 Zero is rejected because it would disable invocation.
-Logs go to `/aws/lambda/ServiceNow_Interaction` with 90-day retention. The handler
+Logs go to `/aws/lambda/ServiceNow_Interaction_btsgsd-dev` with 90-day retention. The handler
 validates UPI and ContactId, limits the summary, and returns a ServiceNow CTI
 screen-pop URL. Optional `servicenow_interaction_environment_variables` override
 `SN_INSTANCE` and `SN_CTI_RULE` while retaining other defaults.
@@ -243,7 +243,7 @@ timeout. The module defaults to reserved concurrency 200; Dev's `terraform.tfvar
 sets `nexthink_handoff_reserved_concurrency = null` to use the shared unreserved
 pool without guaranteeing 200 concurrent executions. This omits the CloudFormation
 reservation property and skips the reservation capacity check. Zero is rejected
-because it would disable invocation. Logs go to `/aws/lambda/Nextthink_Handoff`
+because it would disable invocation. Logs go to `/aws/lambda/Nextthink_Handoff_btsgsd-dev`
 with 90-day retention. The required environment variable is
 `NEXTHINK_SECRET_NAME = Nextthink/Clientid/Secretkey`.
 

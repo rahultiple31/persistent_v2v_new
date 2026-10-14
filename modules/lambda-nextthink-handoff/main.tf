@@ -80,7 +80,7 @@ data "archive_file" "handoff" {
 }
 
 resource "aws_cloudwatch_log_group" "handoff" {
-  name              = "/aws/lambda/Nextthink_Handoff"
+  name              = "/aws/lambda/${local.function_name}"
   retention_in_days = 90
   tags              = var.common_tags
 }

@@ -44,7 +44,7 @@ run "requested_lambda_configuration" {
       jsondecode(aws_cloudformation_stack.handoff.template_body).Resources.HandoffFunction.Properties.Timeout == 8 &&
       jsondecode(aws_cloudformation_stack.handoff.template_body).Resources.HandoffFunction.Properties.ReservedConcurrentExecutions == 200 &&
       jsondecode(aws_cloudformation_stack.handoff.template_body).Resources.HandoffFunction.Properties.Environment.Variables.NEXTHINK_SECRET_NAME == "Nextthink/Clientid/Secretkey" &&
-      aws_cloudformation_stack.handoff.parameters.LogGroupName == "/aws/lambda/Nextthink_Handoff" &&
+      aws_cloudformation_stack.handoff.parameters.LogGroupName == "/aws/lambda/Nextthink_Handoff_btsgsd-dev" &&
       jsondecode(aws_cloudformation_stack.handoff.template_body).Resources.HandoffFunction.Properties.LoggingConfig.LogGroup.Ref == "LogGroupName" &&
       jsondecode(aws_cloudformation_stack.handoff.template_body).Resources.HandoffFunction.Properties.Code.S3Key.Ref == "CodeKey" &&
       data.archive_file.handoff.source_dir == "./src" &&
