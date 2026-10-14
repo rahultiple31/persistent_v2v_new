@@ -251,8 +251,13 @@ stages:
                     terraform apply -auto-approve "$(Pipeline.Workspace)/$(planArtifactName)/tfplan"
 
                     if [ '${{ parameters.targetModule }}' = 'agentcore_gateway' ]; then
-                      terraform output -json agentcore_gateway
-                      echo "On the first deployment, rerun agentcore_gateway to add its generated ID as the second JWT audience."
+                      GATEWAY_OUTPUT_JSON="$(terraform output -json | python3 -c 'import json, sys; outputs = json.load(sys.stdin); print(json.dumps((outputs.get("agentcore_gateway") or {}).get("value")))')"
+                      if [ "$GATEWAY_OUTPUT_JSON" = "null" ]; then
+                        echo "agentcore_gateway output is absent; skipping gateway details after removal."
+                      else
+                        printf '%s\n' "$GATEWAY_OUTPUT_JSON"
+                        echo "On the first deployment, rerun agentcore_gateway to add its generated ID as the second JWT audience."
+                      fi
                     fi
 
                     if [ '${{ parameters.targetModule }}' = 'v2v' ]; then
