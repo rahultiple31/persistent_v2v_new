@@ -5,15 +5,8 @@ DEPLOYMENT_TARGET="${1:?Target module is required}"
 DEPLOYMENT_ENVIRONMENT="${2:?Environment is required}"
 DEPLOYMENT_REGION="${3:-us-east-1}"
 
-# Friendly pipeline choice for the existing full Connect deployment.
 case "$DEPLOYMENT_TARGET" in
-  Connect_integrations)
-    DEPLOYMENT_TARGET="connect"
-    ;;
-esac
-
-case "$DEPLOYMENT_TARGET" in
-  data_table|agentcore_gateway|lambda-servicenow-interaction|lambda-nextthink-handoff)
+  Connect_integrations|data_table|agentcore_gateway|lambda-servicenow-interaction|lambda-nextthink-handoff)
     if [ "$DEPLOYMENT_ENVIRONMENT" != "dev" ]; then
       echo "$DEPLOYMENT_TARGET is supported only for dev." >&2
       return 1
@@ -27,6 +20,13 @@ TERRAFORM_PLAN_ARGS=(
 )
 
 case "$DEPLOYMENT_TARGET" in
+  Connect_integrations)
+    TERRAFORM_STATE_MODULE="connect"
+    TERRAFORM_PLAN_ARGS=(
+      '-var=enabled_modules=["connect"]'
+      -target=module.connect_Integrations
+    )
+    ;;
   data_table)
     TERRAFORM_STATE_MODULE="connect"
     TERRAFORM_PLAN_ARGS=(
@@ -62,7 +62,7 @@ TERRAFORM_BACKEND_KEY="terraform-state/$DEPLOYMENT_ENVIRONMENT/$DEPLOYMENT_REGIO
 
 preserve_terraform_target_outputs() {
   case "$DEPLOYMENT_TARGET" in
-    connect|agentcore_gateway)
+    connect|agentcore_gateway|Connect_integrations)
       local gateway_audience_id
       gateway_audience_id="$(
         terraform output -json |
