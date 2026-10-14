@@ -14,6 +14,12 @@ variable "lambda_arn" {
   type = string
 }
 
+variable "interaction_lambda_arn" {
+  description = "Optional ServiceNow Interaction Lambda ARN for a second MCP target."
+  type        = string
+  default     = null
+}
+
 variable "connect_url" {
   type = string
 }

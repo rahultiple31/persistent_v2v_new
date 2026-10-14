@@ -331,6 +331,22 @@ backend-key mapping, and Gateway ID preservation are handled by
 `scripts/terraform-target.sh`, sourced by both pipeline stages. The gateway
 selection name appears only in the pipeline's module choice list.
 
+The inline tool schema is `UserLookUp___UserLookUp` with a required `upi` string
+and no `phone` property. It contains the supplied UPI-only bot instructions;
+the contact flow owns the phone lookup. The exposed MCP tool name is
+`snow-userlookup___UserLookUp___UserLookUp`. Update consuming tool references
+to that name when deploying this schema.
+
+Dev also configures the `snow-interaction` Lambda target for
+`ServiceNow_Interaction_btsgsd-dev`, with the supplied `Interaction__Interaction`
+schema and required `upi` and `contactId` strings. Its exposed MCP tool name is
+`snow-interaction___Interaction__Interaction`. The gateway role can invoke this
+Lambda as well as the existing lookup Lambda. Deploy the Interaction Lambda
+before applying the gateway target. The current Interaction handler generates
+a CTI `ScreenPopURL`; it does not directly create a ServiceNow record and ignores
+`shortDescription`. The schema instructions do not add these behaviors to the
+handler.
+
 Use `agentcore_gateway_enabled` in `environments/dev/terraform.tfvars` to control
 the stack: `true` creates or retains it, and `false` plans deletion of the
 gateway, target and gateway IAM role. For either setting, select the same Dev

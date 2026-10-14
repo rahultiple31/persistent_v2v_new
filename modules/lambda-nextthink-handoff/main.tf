@@ -5,6 +5,7 @@ terraform {
     aws      = { source = "hashicorp/aws", version = "~> 5.100" }
     archive  = { source = "hashicorp/archive", version = "~> 2.0" }
     external = { source = "hashicorp/external", version = "~> 2.3" }
+    time     = { source = "hashicorp/time", version = "~> 0.13" }
   }
 }
 
@@ -177,6 +178,20 @@ resource "aws_s3_object" "code" {
   ]
 }
 
+# The existing trust policy permits lambda.amazonaws.com.
+# Allow time for possible IAM propagation before creating the Lambda.
+resource "time_sleep" "execution_role_propagation" {
+  create_duration = "60s"
+
+  triggers = {
+    role_unique_id     = aws_iam_role.execution.unique_id
+    trust_policy_hash  = sha256(aws_iam_role.execution.assume_role_policy)
+    access_policy_hash = sha256(aws_iam_role_policy.execution.policy)
+  }
+
+  depends_on = [aws_iam_role_policy.execution]
+}
+
 # CloudFormation supports Python 3.14 with the pinned AWS provider.
 resource "aws_cloudformation_stack" "handoff" {
   name = "Nextthink-Handoff-btsgsd-dev-lambda"
@@ -259,7 +274,7 @@ resource "aws_cloudformation_stack" "handoff" {
     }
   }
 
-  depends_on = [aws_iam_role_policy.execution]
+  depends_on = [time_sleep.execution_role_propagation]
 }
 
 output "deployment" {

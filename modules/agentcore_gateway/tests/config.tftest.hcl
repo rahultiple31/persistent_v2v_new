@@ -6,6 +6,7 @@ mock_provider "aws" {
         GatewayArn = "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/gateway-quick-start-dev-a1b2c3d4e5"
         GatewayUrl = "https://gateway-quick-start-dev-a1b2c3d4e5.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp"
         TargetId   = "target12345"
+        InteractionTargetId = "interaction67890"
       }
     }
   }
@@ -24,6 +25,14 @@ run "bootstrap_configuration" {
 
   plan_options {
     target = [aws_cloudformation_stack.gateway]
+  }
+
+  assert {
+    condition = (
+      !contains(keys(local.gateway_template.Resources), "InteractionTarget") &&
+      !contains(keys(local.gateway_template.Outputs), "InteractionTargetId")
+    )
+    error_message = "Omit the optional target and its CloudFormation output when no Interaction Lambda is configured."
   }
 
   assert {
@@ -67,20 +76,21 @@ run "bootstrap_configuration" {
   assert {
     condition = (
       length(local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload) == 1 &&
-      local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].Name == "UserLookUp" &&
+      local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].Name == "UserLookUp___UserLookUp" &&
       local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].Description == local.userlookup_schema[0].description &&
       local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema.Type == "object" &&
-      toset(keys(local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema.Properties)) == toset(["phone", "upi"]) &&
+      toset(keys(local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema.Properties)) == toset(["upi"]) &&
       alltrue([
-        for name in ["phone", "upi"] :
+        for name in ["upi"] :
         local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema.Properties[name].Type == "string" &&
         local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema.Properties[name].Description == local.userlookup_schema[0].inputSchema.properties[name].description
       ]) &&
-      !contains(keys(local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema), "Required") &&
-      strcontains(local.userlookup_schema[0].description, "Status (\"Authenticated\"/\"Unauthenticated\")") &&
-      strcontains(local.userlookup_schema[0].description, "At most three UPI submissions per conversation")
+      local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema.Required == ["upi"] &&
+      strcontains(local.userlookup_schema[0].description, "Flow owns phone; NEVER send phone.") &&
+      strcontains(local.userlookup_schema[0].description, "Max three confirmed submissions.") &&
+      strcontains(local.userlookup_schema[0].description, "(UPI-only release)")
     )
-    error_message = "Preserve the supplied UserLookUp schema and optional phone/upi parameters when translating to CloudFormation casing."
+    error_message = "Preserve the supplied UPI-only schema name, required upi field, and bot instructions when translating to CloudFormation casing."
   }
 }
 
@@ -104,7 +114,9 @@ run "generated_gateway_id_audience" {
       output.deployment.url == "https://gateway-quick-start-dev-a1b2c3d4e5.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp" &&
       local.gateway_template.Resources.GatewayRole.Properties.AssumeRolePolicyDocument.Statement[0].Condition.ArnLike["aws:SourceArn"] == "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/gateway-quick-start-dev-a1b2c3d4e5" &&
       output.deployment.target_id == "target12345" &&
-      output.deployment.tool_name == "snow-userlookup___UserLookUp"
+      output.deployment.tool_name == "snow-userlookup___UserLookUp___UserLookUp" &&
+      output.deployment.interaction_target_id == null &&
+      output.deployment.interaction_tool_name == null
     )
     error_message = "Use the actual generated ID as the second audience and export the gateway endpoint and tool identifiers."
   }
@@ -139,4 +151,74 @@ run "literal_gateway_id_is_rejected" {
   }
 
   expect_failures = [var.gateway_id_audience]
+}
+
+run "interaction_target_configuration" {
+  command = plan
+
+  variables {
+    interaction_lambda_arn = "arn:aws:lambda:us-east-1:518902362956:function:ServiceNow_Interaction_btsgsd-dev"
+  }
+
+  assert {
+    condition = (
+      toset(keys(local.gateway_template.Resources)) == toset(["GatewayRole", "Gateway", "UserLookupTarget", "InteractionTarget"]) &&
+      local.gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.LambdaArn == "arn:aws:lambda:us-east-1:518902362956:function:SNOW_btsgsd-dev" &&
+      local.gateway_template.Resources.InteractionTarget.Type == "AWS::BedrockAgentCore::GatewayTarget" &&
+      local.gateway_template.Resources.InteractionTarget.DependsOn == ["GatewayRole"] &&
+      local.gateway_template.Resources.InteractionTarget.Properties.Name == "snow-interaction" &&
+      local.gateway_template.Resources.InteractionTarget.Properties.GatewayIdentifier.Ref == "Gateway" &&
+      local.gateway_template.Resources.InteractionTarget.Properties.CredentialProviderConfigurations[0].CredentialProviderType == "GATEWAY_IAM_ROLE" &&
+      local.gateway_template.Resources.InteractionTarget.Properties.TargetConfiguration.Mcp.Lambda.LambdaArn == "arn:aws:lambda:us-east-1:518902362956:function:ServiceNow_Interaction_btsgsd-dev"
+    )
+    error_message = "Add the second MCP Lambda target to the existing gateway after its role permissions are updated."
+  }
+
+  assert {
+    condition = (
+      length(local.gateway_template.Resources.GatewayRole.Properties.Policies) == 2 &&
+      local.gateway_template.Resources.GatewayRole.Properties.Policies[0].PolicyDocument.Statement[0].Resource == "arn:aws:lambda:us-east-1:518902362956:function:SNOW_btsgsd-dev" &&
+      local.gateway_template.Resources.GatewayRole.Properties.Policies[1].PolicyName == "InvokeServiceNowInteraction" &&
+      length(local.gateway_template.Resources.GatewayRole.Properties.Policies[1].PolicyDocument.Statement) == 1 &&
+      local.gateway_template.Resources.GatewayRole.Properties.Policies[1].PolicyDocument.Statement[0].Action == "lambda:InvokeFunction" &&
+      local.gateway_template.Resources.GatewayRole.Properties.Policies[1].PolicyDocument.Statement[0].Resource == "arn:aws:lambda:us-east-1:518902362956:function:ServiceNow_Interaction_btsgsd-dev"
+    )
+    error_message = "Limit the new invoke permission to the specified Interaction Lambda and retain lookup permission."
+  }
+
+  assert {
+    condition = (
+      length(local.gateway_template.Resources.InteractionTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload) == 1 &&
+      local.gateway_template.Resources.InteractionTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].Name == "Interaction__Interaction" &&
+      local.gateway_template.Resources.InteractionTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].Description == local.interaction_schema[0].description &&
+      local.gateway_template.Resources.InteractionTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema.Type == "object" &&
+      toset(keys(local.gateway_template.Resources.InteractionTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema.Properties)) == toset(["contactId", "description", "shortDescription", "upi"]) &&
+      alltrue([
+        for name in ["contactId", "description", "shortDescription", "upi"] :
+        local.gateway_template.Resources.InteractionTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema.Properties[name].Type == "string" &&
+        local.gateway_template.Resources.InteractionTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema.Properties[name].Description == local.interaction_schema[0].inputSchema.properties[name].description
+      ]) &&
+      local.gateway_template.Resources.InteractionTarget.Properties.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload[0].InputSchema.Required == ["upi", "contactId"] &&
+      local.gateway_template.Outputs.InteractionTargetId.Value["Fn::GetAtt"] == ["InteractionTarget", "TargetId"]
+    )
+    error_message = "Translate the supplied Interaction schema and export the new target ID without altering field names or required inputs."
+  }
+}
+
+run "interaction_target_outputs" {
+  command = apply
+
+  variables {
+    interaction_lambda_arn = "arn:aws:lambda:us-east-1:518902362956:function:ServiceNow_Interaction_btsgsd-dev"
+  }
+
+  assert {
+    condition = (
+      output.deployment.interaction_target_id == "interaction67890" &&
+      output.deployment.interaction_tool_name == "snow-interaction___Interaction__Interaction" &&
+      output.deployment.target_id == "target12345" &&
+      output.deployment.tool_name == "snow-userlookup___UserLookUp___UserLookUp"
+    )
+    error_message = "Export both targets' identifiers and MCP tool names."
+  }
 }
