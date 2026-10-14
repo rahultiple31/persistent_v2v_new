@@ -154,3 +154,21 @@ variable "expected_instance_arn" {
   type        = string
   default     = null
 }
+
+variable "flow_dependency_python_executable" {
+  description = "Python executable for read-only Connect flow dependency resolution through AWS CLI."
+  type        = string
+  default     = "python3"
+}
+
+variable "customer_queue_dependency_names" {
+  description = "Optional mapping of exported prompt, data-table and flow-module names to their names in the target instance."
+  type        = map(string)
+  default     = {}
+}
+
+variable "customer_number_data_table_id" {
+  description = "Target CustomerNumberDataTable identifier for the main inbound LangConfig lookup."
+  type        = string
+  default     = null
+}

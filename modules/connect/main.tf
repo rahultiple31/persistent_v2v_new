@@ -209,6 +209,23 @@ resource "aws_connect_contact_flow" "hr" {
 # Imported flows are additional to the existing individual flow resources.
 # Agent transfer uses the existing managed transfer customer-queue flow, whose
 # Actions and StartAction match the imported transfer customer-queue export.
+data "external" "customer_queue_dependencies" {
+  for_each = {
+    for key, flow in var.imported_contact_flows : key => flow
+    if key == "customer_queue"
+  }
+
+  program = [var.flow_dependency_python_executable, "${path.module}/scripts/resolve_customer_queue_dependencies.py"]
+
+  query = {
+    region         = var.aws_region
+    instance_id    = aws_connect_instance.this.id
+    instance_arn   = aws_connect_instance.this.arn
+    content        = each.value.content
+    name_overrides = jsonencode(var.customer_queue_dependency_names)
+  }
+}
+
 resource "aws_connect_contact_flow" "imported" {
   for_each = {
     for key, flow in var.imported_contact_flows : key => flow
@@ -221,7 +238,7 @@ resource "aws_connect_contact_flow" "imported" {
   description = "Imported flow: ${each.value.name}"
   content = replace(
     replace(
-      each.value.content,
+      each.key == "customer_queue" ? data.external.customer_queue_dependencies[each.key].result.content : each.value.content,
       "__BASIC_QUEUE_ARN__",
       try(data.aws_connect_queue.imported_basic[0].arn, "")
     ),
@@ -271,9 +288,13 @@ resource "aws_connect_contact_flow" "imported_main_inbound" {
   type        = each.value.type
   description = "Imported flow: ${each.value.name}"
   content = replace(
-    each.value.content,
-    "__MAIN_CUSTOMER_QUEUE_FLOW_ARN__",
-    try(aws_connect_contact_flow.imported["customer_queue"].arn, "")
+    replace(
+      each.value.content,
+      "__MAIN_CUSTOMER_QUEUE_FLOW_ARN__",
+      try(aws_connect_contact_flow.imported["customer_queue"].arn, "")
+    ),
+    "__CUSTOMER_NUMBER_DATA_TABLE_ID__",
+    var.customer_number_data_table_id == null ? "" : var.customer_number_data_table_id
   )
 
   tags = merge(local.tags, {
@@ -288,6 +309,10 @@ resource "aws_connect_contact_flow" "imported_main_inbound" {
     precondition {
       condition     = !strcontains(each.value.content, "__MAIN_CUSTOMER_QUEUE_FLOW_ARN__") || contains(keys(var.imported_contact_flows), "customer_queue")
       error_message = "The main inbound flow requires the imported customer_queue flow."
+    }
+    precondition {
+      condition     = !strcontains(each.value.content, "__CUSTOMER_NUMBER_DATA_TABLE_ID__") || var.customer_number_data_table_id != null
+      error_message = "The main inbound LangConfig lookup requires customer_number_data_table_id."
     }
     precondition {
       condition = (

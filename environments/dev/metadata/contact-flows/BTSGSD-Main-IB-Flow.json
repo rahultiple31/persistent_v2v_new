@@ -1211,7 +1211,7 @@
     },
     {
       "Parameters": {
-        "DataTableId": "0108a88c-5ec2-4e79-921d-e0fc5780d203",
+        "DataTableId": "__CUSTOMER_NUMBER_DATA_TABLE_ID__",
         "Queries": [
           {
             "QueryName": "LangConfig",

@@ -69,6 +69,23 @@ locals {
       type     = "CONTACT_FLOW"
     }
   }
+
+  # Stack outputs bind table lookups and defer dependency lookup until creation.
+  rendered_imported_contact_flows = local.deploy_connect ? {
+    for key, flow in local.imported_flow_definitions : key => {
+      name = flow.name
+      type = flow.type
+      content = contains(["customer_queue", "main_inbound"], key) ? replace(
+        key == "main_inbound" ? replace(
+          file("${local.imported_flow_directory}/${flow.filename}"),
+          "e0917ae9-956c-4e02-b73f-43150201aa7f",
+          local.top_level_blocker_data_table_id
+        ) : file("${local.imported_flow_directory}/${flow.filename}"),
+        "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
+        local.survey_data_table_id
+      ) : file("${local.imported_flow_directory}/${flow.filename}")
+    }
+  } : {}
 }
 
 module "connect_us_east_1" {
@@ -105,13 +122,11 @@ module "connect_us_east_1" {
   hr_flow_content = file(
     "${path.module}/metadata/contact-flows/AbbVie_HR.json"
   )
-  imported_contact_flows = {
-    for key, flow in local.imported_flow_definitions : key => {
-      name    = flow.name
-      type    = flow.type
-      content = file("${local.imported_flow_directory}/${flow.filename}")
-    }
-  }
+  imported_contact_flows = local.rendered_imported_contact_flows
+
+  flow_dependency_python_executable = var.connect_flow_python_executable
+  customer_queue_dependency_names   = var.connect_customer_queue_dependency_names
+  customer_number_data_table_id     = local.customer_number_data_table_id
 }
 
 module "btsgsd_support_agent" {

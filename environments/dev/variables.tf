@@ -62,6 +62,18 @@ variable "common_tags" {
   default     = {}
 }
 
+variable "connect_flow_python_executable" {
+  description = "Python executable for read-only Connect flow dependency resolution; AWS CLI must also be installed."
+  type        = string
+  default     = "python3"
+}
+
+variable "connect_customer_queue_dependency_names" {
+  description = "Optional exported-name to Dev-name mapping for customer-queue prompts, data tables and flow modules."
+  type        = map(string)
+  default     = {}
+}
+
 variable "snow_lambda_environment_variables" {
   description = "Optional environment settings for SNOW_btsgsd-dev, including SN_INSTANCE and SN_SECRET_NAME."
   type        = map(string)
