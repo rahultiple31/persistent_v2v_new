@@ -18,6 +18,7 @@ parameters:
     values:
       - connect
       - data_table
+      - agentcore_gateway
       - lambda
       - proxy
       - v2v
@@ -42,8 +43,8 @@ variables:
   deploymentRegion: 'us-east-1'
   workingDirectory: 'environments/${{ parameters.targetEnvironment }}'
   backendBucket: 'bts-cloud-terraform-tfstate'
-  # Tables are already owned by Connect; both choices must lock the same state.
-  ${{ if eq(parameters.targetModule, 'data_table') }}:
+  # Connect, table and gateway choices must lock the same state.
+  ${{ if or(eq(parameters.targetModule, 'data_table'), eq(parameters.targetModule, 'agentcore_gateway')) }}:
     backendKey: 'terraform-state/${{ parameters.targetEnvironment }}/us-east-1/connect/terraform.tfstate'
   ${{ else }}:
     backendKey: 'terraform-state/${{ parameters.targetEnvironment }}/us-east-1/${{ parameters.targetModule }}/terraform.tfstate'
@@ -76,8 +77,8 @@ stages:
           - script: |
               set -euo pipefail
 
-              if [ '${{ parameters.targetModule }}' = 'data_table' ] && [ '${{ parameters.targetEnvironment }}' != 'dev' ]; then
-                echo "The data_table choice is supported only for dev, where data_table.tf is defined."
+              if { [ '${{ parameters.targetModule }}' = 'data_table' ] || [ '${{ parameters.targetModule }}' = 'agentcore_gateway' ]; } && [ '${{ parameters.targetEnvironment }}' != 'dev' ]; then
+                echo "The ${{ parameters.targetModule }} choice is supported only for dev, where its Terraform configuration is defined."
                 exit 1
               fi
 
@@ -142,6 +143,19 @@ stages:
                   -target=aws_cloudformation_stack.veeva_transfer_data_table
                   -target=aws_cloudformation_stack.top_level_blocker_data_table
                 )
+              elif [ '${{ parameters.targetModule }}' = 'agentcore_gateway' ]; then
+                TERRAFORM_PLAN_ARGS=(
+                  -var='enabled_modules=["connect"]'
+                  -target=aws_cloudformation_stack.agentcore_gateway
+                )
+              fi
+              if [ '${{ parameters.targetModule }}' = 'connect' ] || [ '${{ parameters.targetModule }}' = 'agentcore_gateway' ]; then
+                # Bootstrap has no Gateway ID yet. Subsequent runs preserve the
+                # actual generated ID audience, including full Connect plans.
+                GATEWAY_AUDIENCE_ID="$(terraform output -json | python3 -c 'import json, sys; gateway = json.load(sys.stdin).get("agentcore_gateway", {}).get("value") or {}; print(gateway.get("id") or "")')"
+                if [ -n "$GATEWAY_AUDIENCE_ID" ]; then
+                  TERRAFORM_PLAN_ARGS+=("-var=agentcore_gateway_id_audience=$GATEWAY_AUDIENCE_ID")
+                fi
               fi
               terraform plan "${TERRAFORM_PLAN_ARGS[@]}" -out=tfplan
 
@@ -235,6 +249,11 @@ stages:
 
                     find "$(Pipeline.Workspace)/$(planArtifactName)" -maxdepth 1 -name '*.zip' -exec cp {} . \;
                     terraform apply -auto-approve "$(Pipeline.Workspace)/$(planArtifactName)/tfplan"
+
+                    if [ '${{ parameters.targetModule }}' = 'agentcore_gateway' ]; then
+                      terraform output -json agentcore_gateway
+                      echo "On the first deployment, rerun agentcore_gateway to add its generated ID as the second JWT audience."
+                    fi
 
                     if [ '${{ parameters.targetModule }}' = 'v2v' ]; then
                       bash "$(Build.SourcesDirectory)/scripts/deploy-webapp.sh" "$(Build.SourcesDirectory)/webapp/dist"

@@ -15,8 +15,9 @@ module in `modules/connect`.
 
 The pipeline also selects one infrastructure module per run. Each selected
 module uses its own Terraform state file in S3 using the environment, region,
-and module order. The Dev `data_table` choice shares the `connect` state because
-those tables are also managed by the full Connect deployment.
+and module order. The Dev `data_table` and `agentcore_gateway` choices share the
+`connect` state because these resources are also managed by the full Connect
+deployment.
 
 ## Region
 
@@ -190,7 +191,7 @@ deploying. No new pipeline choice is added by this change.
 The pipeline in `azure-pipelines.yml` supports these parameters:
 
 - `targetEnvironment`: `dev` or `dev-nsso`
-- `targetModule`: `connect`, `data_table`, `lambda`, `proxy`, `v2v`,
+- `targetModule`: `connect`, `data_table`, `agentcore_gateway`, `lambda`, `proxy`, `v2v`,
   `s3_connect_reporting`, `lambda-ctr-survey`, `lambda-connect-daily-ctr-export`,
   `lambda-ctr-raw`, `iam-ctr`, or `lambda-snow-btsgsd-dev`
 - `terraformAction`: `plan` or `apply`
@@ -207,6 +208,19 @@ The table names are `CustomerNumberDataTable`, `BTS_GSD-HR_Transfer`,
 It uses the existing OIDC credentials, approval environment, and saved-plan
 apply stage. It is not available for `dev-nsso`. Use the `connect` choice when
 deploying contact-flow changes, including updated table lookups.
+
+To deploy `environments/dev/agentcore_gateway.tf`, select
+`targetEnvironment=dev`, `targetModule=agentcore_gateway`, and
+`terraformAction=apply` from `main`. This choice shares the Connect backend and
+targets `aws_cloudformation_stack.agentcore_gateway`, including its IAM role,
+`default` gateway and `SNOW_btsgsd-dev` Lambda target. It is not available for
+`dev-nsso`. The first apply bootstraps JWT authorization with the Connect URL
+audience. Run the same choice again to add the generated Gateway ID audience:
+the planner reads the `agentcore_gateway` output from Terraform state and passes
+its ID to `agentcore_gateway_id_audience`. Full `connect` plans also preserve
+this ID automatically. The apply stage uses the saved, reviewed plan and prints
+the gateway identifiers. For Terraform runs outside this pipeline, retain the
+generated ID in `terraform.tfvars` as described in `agentcore_gateway.tf`.
 
 The proxy target requires EC2 network bootstrap permissions, including
 `ec2:CreateVpc` and `ec2:AllocateAddress`. Previously documented AWS Organizations

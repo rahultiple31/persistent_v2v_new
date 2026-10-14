@@ -18,7 +18,7 @@ locals {
 locals {
   imported_flow_directory = "${path.module}/metadata/contact-flows"
 
-  # Preserve the requested flow names, including their .json suffixes.
+  # Display names are independent of the JSON export filenames.
   # Flow types match the Metadata.type values in the complete exports.
   imported_flow_definitions = {
     fieldforce = {
@@ -41,31 +41,31 @@ locals {
 
     main_inbound = {
       filename = "BTSGSD-Main-IB-Flow.json"
-      name     = "btsgsd-Main-IB-Flow.json"
+      name     = "btsgsd-Main-IB-Flow"
       type     = "CONTACT_FLOW"
     }
 
     outbound_whisper = {
       filename = "BTSGSD-OutboundWhisperFlow.json"
-      name     = "btsgsd-OutboundWhisperFlow.json"
+      name     = "btsgsd-OutboundWhisperFlow"
       type     = "OUTBOUND_WHISPER"
     }
 
     transfer_customer_queue = {
       filename = "BTSGSD-Transfer-To-Agent-CustomerQueueFlow.json"
-      name     = "btsgsd-Transfer-To-Agent-CustomerQueueFlow.json"
+      name     = "btsgsd-Transfer-To-Agent-CustomerQueueFlow"
       type     = "CUSTOMER_QUEUE"
     }
 
     voicemail = {
       filename = "BTSGSD-VoicemailFlow.json"
-      name     = "btsgsd-VoicemailFlow.json"
+      name     = "btsgsd-VoicemailFlow"
       type     = "CONTACT_FLOW"
     }
 
     hr = {
       filename = "AbbVie_HR.json"
-      name     = "btsgsd_HR.json"
+      name     = "btsgsd_HR"
       type     = "CONTACT_FLOW"
     }
   }

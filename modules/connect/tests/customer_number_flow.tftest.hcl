@@ -22,7 +22,7 @@ variables {
 
   imported_contact_flows = {
     main_inbound = {
-      name    = "btsgsd-Main-IB-Flow.json"
+      name    = "btsgsd-Main-IB-Flow"
       type    = "CONTACT_FLOW"
       content = file("../../environments/dev/metadata/contact-flows/BTSGSD-Main-IB-Flow.json")
     }
