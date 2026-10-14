@@ -5,6 +5,13 @@ DEPLOYMENT_TARGET="${1:?Target module is required}"
 DEPLOYMENT_ENVIRONMENT="${2:?Environment is required}"
 DEPLOYMENT_REGION="${3:-us-east-1}"
 
+# Friendly pipeline choice for the existing full Connect deployment.
+case "$DEPLOYMENT_TARGET" in
+  'amazon connect')
+    DEPLOYMENT_TARGET="connect"
+    ;;
+esac
+
 case "$DEPLOYMENT_TARGET" in
   data_table|agentcore_gateway|lambda-servicenow-interaction|lambda-nextthink-handoff)
     if [ "$DEPLOYMENT_ENVIRONMENT" != "dev" ]; then
@@ -36,6 +43,7 @@ case "$DEPLOYMENT_TARGET" in
     TERRAFORM_PLAN_ARGS=(
       '-var=enabled_modules=["connect"]'
       -target=module.agentcore_gateway
+      -target=module.connect_Integrations
     )
     ;;
   lambda-servicenow-interaction)

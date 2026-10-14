@@ -138,6 +138,12 @@ JSON
           AuthorizerType = "CUSTOM_JWT"
           RoleArn        = { "Fn::GetAtt" = ["GatewayRole", "Arn"] }
 
+          ProtocolConfiguration = {
+            Mcp = {
+              SupportedVersions = ["2025-03-26"]
+            }
+          }
+
           AuthorizerConfiguration = {
             CustomJWTAuthorizer = {
               DiscoveryUrl = "${local.connect_url}/.well-known/openid-configuration"

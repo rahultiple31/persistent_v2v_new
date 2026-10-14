@@ -508,3 +508,24 @@ module "agentcore_gateway" {
   gateway_id_audience    = var.agentcore_gateway_id_audience
   common_tags            = local.common_tags
 }
+
+module "connect_Integrations" {
+  count = (
+    local.deploy_connect &&
+    var.agentcore_gateway_enabled &&
+    var.connect_integrations_enabled
+  ) ? 1 : 0
+
+  source = "../../modules/connect_Integrations"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  stack_name           = "btsgsd-dev-Connect-SNOW-MCP-Integration"
+  display_name         = "btsgsd_SNOW"
+  connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
+  gateway_id           = module.agentcore_gateway[0].deployment.id
+  gateway_url          = module.agentcore_gateway[0].deployment.url
+  common_tags          = local.common_tags
+}

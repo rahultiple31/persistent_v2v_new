@@ -615,6 +615,12 @@ variable "dev_ai_tools" {
   }
 }
 
+variable "connect_integrations_enabled" {
+  description = "Create or retain the Connect MCP integration; false removes only the integration stack."
+  type        = bool
+  default     = true
+}
+
 variable "proxy_log_retention_days" {
   description = "CloudWatch Logs retention period for proxy logs."
   type        = number

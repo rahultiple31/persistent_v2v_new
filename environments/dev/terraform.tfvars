@@ -82,6 +82,9 @@ dev_ai_admin_security_profile_enabled = true
 # For a new gateway, run apply again to add its generated ID JWT audience.
 agentcore_gateway_enabled = true
 
+# Set false to remove only the integration stack through the gateway choice.
+connect_integrations_enabled = true
+
 # Manual deployments use a state key dedicated to the selected module.
 enabled_modules                          = ["lambda-nextthink-handoff"]
 servicenow_interaction_python_executable = "python"

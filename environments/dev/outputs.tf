@@ -116,3 +116,8 @@ output "agentcore_gateway" {
   description = "gateway-quick-start-dev AgentCore gateway identifiers and MCP endpoint."
   value       = try(module.agentcore_gateway[0].deployment, null)
 }
+
+output "connect_integrations" {
+  description = "Dev Connect MCP integration, or null when disabled."
+  value       = try(module.connect_Integrations[0].deployment, null)
+}
