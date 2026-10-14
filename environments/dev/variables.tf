@@ -46,13 +46,13 @@ variable "connect_name_suffix" {
 }
 
 variable "enabled_modules" {
-  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd-dev, iam-ctr."
+  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd-dev, lambda-servicenow-interaction, lambda-nextthink-handoff, iam-ctr."
   type        = list(string)
   default     = ["connect"]
 
   validation {
-    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v", "s3_connect_reporting", "lambda-ctr-survey", "lambda-connect-daily-ctr-export", "lambda-ctr-raw", "lambda-snow-btsgsd-dev", "iam-ctr"]))) == 0
-    error_message = "enabled_modules supports: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd-dev, iam-ctr."
+    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v", "s3_connect_reporting", "lambda-ctr-survey", "lambda-connect-daily-ctr-export", "lambda-ctr-raw", "lambda-snow-btsgsd-dev", "lambda-servicenow-interaction", "lambda-nextthink-handoff", "iam-ctr"]))) == 0
+    error_message = "enabled_modules supports: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd-dev, lambda-servicenow-interaction, lambda-nextthink-handoff, iam-ctr."
   }
 }
 
@@ -60,6 +60,55 @@ variable "common_tags" {
   description = "Additional tags applied to all resources."
   type        = map(string)
   default     = {}
+}
+
+variable "agentcore_gateway_enabled" {
+  description = "Create the Dev AgentCore gateway stack when true; remove it on apply when false."
+  type        = bool
+  default     = true
+}
+
+variable "agentcore_gateway_id_audience" {
+  description = "Generated Gateway ID used as the second allowed JWT audience."
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.agentcore_gateway_id_audience == null ? true : can(
+      regex("^([0-9a-z][-]?){1,100}-[a-z0-9]{10}$", var.agentcore_gateway_id_audience)
+    )
+    error_message = "Use the actual Gateway ID returned by agentcore_gateway.id."
+  }
+}
+
+variable "servicenow_interaction_environment_variables" {
+  description = "Optional environment overrides for the Interaction Lambda, including SN_INSTANCE and SN_CTI_RULE."
+  type        = map(string)
+  default     = {}
+}
+
+variable "servicenow_interaction_python_executable" {
+  description = "Python executable for the read-only Interaction Lambda concurrency check; use python on Windows."
+  type        = string
+  default     = "python3"
+}
+
+variable "nexthink_handoff_python_executable" {
+  description = "Python executable for the read-only Nexthink concurrency check."
+  type        = string
+  default     = "python3"
+}
+
+variable "nexthink_handoff_environment_variables" {
+  description = "Optional Nexthink handler environment overrides."
+  type        = map(string)
+  default     = {}
+}
+
+variable "nexthink_handoff_secret_kms_key_arn" {
+  description = "Set when the existing Nexthink secret uses a customer-managed KMS key."
+  type        = string
+  default     = null
 }
 
 variable "connect_flow_python_executable" {

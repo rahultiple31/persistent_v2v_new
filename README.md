@@ -186,6 +186,95 @@ to use SnapStart. The new name uses a separate stack and does not resolve or
 remove the old failed `SNOW-btsgsd-lambda` stack. Generate a fresh plan before
 deploying. No new pipeline choice is added by this change.
 
+## ServiceNow Interaction Lambda in Dev
+
+The `lambda-servicenow-interaction` target, configured in
+`environments/dev/main.tf`, creates
+`ServiceNow_Interaction_btsgsd-dev` in `us-east-1`. It packages the supplied
+`modules/lambda-servicenow-interaction/src/lambda_function.py` and uses Python
+3.14, x86_64, handler `lambda_function.lambda_handler`, 512 MB memory, an
+8-second timeout, 512 MB ephemeral storage, and reserved concurrency 100.
+Logs go to `/aws/lambda/ServiceNow_Interaction` with 90-day retention. The handler
+validates UPI and ContactId, limits the summary, and returns a ServiceNow CTI
+screen-pop URL. Optional `servicenow_interaction_environment_variables` override
+`SN_INSTANCE` and `SN_CTI_RULE` while retaining other defaults.
+
+To deploy through Azure Pipelines, select `targetEnvironment=dev`,
+`targetModule=lambda-servicenow-interaction`, and `terraformAction=apply`.
+Use `terraformAction=plan` for a plan-only run. This choice uses its own state
+key and overrides the concurrency check executable to `python3` on Ubuntu.
+The apply stage consumes the saved plan and retains the existing Dev approval
+checks. This target is not available for `dev-nsso`.
+
+For manual deployment, set
+`enabled_modules = ["lambda-servicenow-interaction"]` in Dev's `terraform.tfvars`
+for this target and use its dedicated backend. From the repository root:
+
+```powershell
+terraform -chdir=environments/dev init -reconfigure -backend-config="bucket=bts-cloud-terraform-tfstate" -backend-config="key=terraform-state/dev/us-east-1/lambda-servicenow-interaction/terraform.tfstate" -backend-config="region=us-east-1" -backend-config="encrypt=true"
+terraform -chdir=environments/dev plan -out=interaction-dev.tfplan
+terraform -chdir=environments/dev apply interaction-dev.tfplan
+```
+
+Dev's `terraform.tfvars` is loaded automatically. It uses `python` for the
+ServiceNow Interaction read-only concurrency checker on
+Windows; change it to `python3` if needed. The checker reuses the existing SNOW
+capacity script and requires AWS CLI credentials for the same account as
+Terraform. A new reservation of 100 requires at least 200 currently unreserved
+executions. Deployment permissions include `lambda:GetAccountSettings` and
+`lambda:GetFunctionConcurrency`, plus IAM, S3, CloudWatch Logs, CloudFormation
+and Lambda management permissions.
+
+## Nexthink Handoff Lambda in Dev
+
+The `lambda-nextthink-handoff` target, configured in
+`environments/dev/main.tf`, creates
+`Nextthink_Handoff_btsgsd-dev` in `us-east-1`. It packages the attached source at
+`modules/lambda-nextthink-handoff/src/lambda_function.py` unchanged, using Python
+3.14, x86_64, handler `lambda_function.lambda_handler`, 128 MB memory, an 8-second
+timeout, and reserved concurrency 200. Logs go to `/aws/lambda/Nextthink_Handoff`
+with 90-day retention. The required environment variable is
+`NEXTHINK_SECRET_NAME = Nextthink/Clientid/Secretkey`.
+
+To deploy through Azure Pipelines, select `targetEnvironment=dev`,
+`targetModule=lambda-nextthink-handoff`, and `terraformAction=apply`.
+Use `terraformAction=plan` for a plan-only run. This choice uses its own state
+key and overrides the concurrency check executable to `python3` on Ubuntu.
+The apply stage consumes the saved plan and retains the existing Dev approval
+checks. This target is not available for `dev-nsso`.
+
+Dev's `terraform.tfvars` selects `lambda-nextthink-handoff` by default and
+sets its concurrency check executable to `python` for Windows. No separate
+Nexthink tfvars or backend HCL file is needed. The existing `backend.tf` declares
+an S3 backend and enables locking; its bucket, region, and state key still need
+to be supplied during initialization. Use a dedicated Nexthink state key to
+match this module selection. From the repository root:
+
+```powershell
+terraform -chdir=environments/dev init -reconfigure -backend-config="bucket=bts-cloud-terraform-tfstate" -backend-config="key=terraform-state/dev/us-east-1/lambda-nextthink-handoff/terraform.tfstate" -backend-config="region=us-east-1" -backend-config="encrypt=true"
+terraform -chdir=environments/dev plan -out=nextthink-dev.tfplan
+terraform -chdir=environments/dev apply nextthink-dev.tfplan
+```
+
+The existing Secrets Manager secret must contain JSON with `clientId` and
+`clientSecret` (or `client_id` and `client_secret`). Terraform reads only its
+metadata and grants the execution role access to that secret. If the secret
+uses a customer-managed KMS key, set `nexthink_handoff_secret_kms_key_arn` and
+ensure its key policy permits decryption by the role. No secret values are
+created or stored by this configuration.
+
+The capacity checker requires AWS CLI credentials for the same account as
+Terraform. A new reservation of 200 needs at least 300 currently unreserved
+executions. The deployer also needs `secretsmanager:DescribeSecret`,
+`lambda:GetAccountSettings`, and `lambda:GetFunctionConcurrency`, in addition
+to the normal IAM, S3, CloudWatch Logs, CloudFormation and Lambda permissions.
+
+The supplied handler's default HTTP read timeout is 10 seconds, exceeding the
+Lambda's 8-second timeout. Optional shorter timeout overrides are shown in
+`terraform.tfvars`; secret retrieval, token authentication, handoff, and the
+possible 401 retry must all fit within the total invocation budget. Live
+authentication and handoff require deployment and valid Nexthink credentials.
+
 ## Azure Pipeline Flow
 
 The pipeline in `azure-pipelines.yml` supports these parameters:
@@ -193,7 +282,8 @@ The pipeline in `azure-pipelines.yml` supports these parameters:
 - `targetEnvironment`: `dev` or `dev-nsso`
 - `targetModule`: `connect`, `data_table`, `agentcore_gateway`, `lambda`, `proxy`, `v2v`,
   `s3_connect_reporting`, `lambda-ctr-survey`, `lambda-connect-daily-ctr-export`,
-  `lambda-ctr-raw`, `iam-ctr`, or `lambda-snow-btsgsd-dev`
+  `lambda-ctr-raw`, `iam-ctr`, `lambda-snow-btsgsd-dev`,
+  `lambda-servicenow-interaction`, or `lambda-nextthink-handoff`
 - `terraformAction`: `plan` or `apply`
 
 The deployment region is fixed to `us-east-1` for both environments.
@@ -209,18 +299,31 @@ It uses the existing OIDC credentials, approval environment, and saved-plan
 apply stage. It is not available for `dev-nsso`. Use the `connect` choice when
 deploying contact-flow changes, including updated table lookups.
 
-To deploy `environments/dev/agentcore_gateway.tf`, select
+To deploy `modules/agentcore_gateway` through `environments/dev/main.tf`, select
 `targetEnvironment=dev`, `targetModule=agentcore_gateway`, and
 `terraformAction=apply` from `main`. This choice shares the Connect backend and
-targets `aws_cloudformation_stack.agentcore_gateway`, including its IAM role,
-`default` gateway and `SNOW_btsgsd-dev` Lambda target. It is not available for
+targets `module.agentcore_gateway`, including its IAM role,
+`gateway-quick-start-dev` gateway and `SNOW_btsgsd-dev` Lambda target. It is not available for
 `dev-nsso`. The first apply bootstraps JWT authorization with the Connect URL
 audience. Run the same choice again to add the generated Gateway ID audience:
 the planner reads the `agentcore_gateway` output from Terraform state and passes
 its ID to `agentcore_gateway_id_audience`. Full `connect` plans also preserve
-this ID automatically. The apply stage uses the saved, reviewed plan and prints
-the gateway identifiers. For Terraform runs outside this pipeline, retain the
-generated ID in `terraform.tfvars` as described in `agentcore_gateway.tf`.
+this ID automatically. The apply stage uses the saved, reviewed plan. For
+Terraform runs outside this pipeline, retain the
+generated ID in `terraform.tfvars` before subsequent applies. The module keeps
+the existing stack and IAM role names. A `moved` block maps the original stack
+address to `module.agentcore_gateway[0].aws_cloudformation_stack.gateway` in
+the same Connect state; no state-key change is required. Target selection,
+backend-key mapping, and Gateway ID preservation are handled by
+`scripts/terraform-target.sh`, sourced by both pipeline stages. The gateway
+selection name appears only in the pipeline's module choice list.
+
+Use `agentcore_gateway_enabled` in `environments/dev/terraform.tfvars` to control
+the stack: `true` creates or retains it, and `false` plans deletion of the
+gateway, target and gateway IAM role. For either setting, select the same Dev
+`agentcore_gateway` choice, review a `plan`, then run `apply`. Leaving the flag
+false also keeps full Connect deployments from recreating the stack. The
+pipeline no longer requests or prints gateway outputs after apply.
 
 The proxy target requires EC2 network bootstrap permissions, including
 `ec2:CreateVpc` and `ec2:AllocateAddress`. Previously documented AWS Organizations

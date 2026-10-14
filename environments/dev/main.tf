@@ -452,3 +452,55 @@ module "ssm_v2v" {
   parameters    = local.ssm_parameters
   common_tags   = local.common_tags
 }
+
+module "lambda-servicenow-interaction" {
+  count  = contains(local.enabled_module_set, "lambda-servicenow-interaction") ? 1 : 0
+  source = "../../modules/lambda-servicenow-interaction"
+
+  providers = {
+    aws      = aws.us_east_1
+    external = external
+  }
+
+  common_tags           = local.common_tags
+  environment_variables = var.servicenow_interaction_environment_variables
+  python_executable     = var.servicenow_interaction_python_executable
+}
+
+module "lambda-nextthink-handoff" {
+  count  = contains(local.enabled_module_set, "lambda-nextthink-handoff") ? 1 : 0
+  source = "../../modules/lambda-nextthink-handoff"
+
+  providers = {
+    aws      = aws.us_east_1
+    external = external
+  }
+
+  common_tags           = local.common_tags
+  python_executable     = var.nexthink_handoff_python_executable
+  environment_variables = var.nexthink_handoff_environment_variables
+  secret_kms_key_arn    = var.nexthink_handoff_secret_kms_key_arn
+}
+
+# Preserve the existing stack's ownership in the Dev Connect state.
+moved {
+  from = aws_cloudformation_stack.agentcore_gateway[0]
+  to   = module.agentcore_gateway[0].aws_cloudformation_stack.gateway
+}
+
+module "agentcore_gateway" {
+  count  = local.deploy_connect && var.agentcore_gateway_enabled ? 1 : 0
+  source = "../../modules/agentcore_gateway"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  stack_name          = "btsgsd-dev-AgentCore-DefaultGateway"
+  gateway_name        = "gateway-quick-start-dev"
+  role_name           = "btsgsd-dev-agentcore-default-gateway-role"
+  lambda_arn          = "arn:aws:lambda:us-east-1:518902362956:function:SNOW_btsgsd-dev"
+  connect_url         = "https://btsgsd-dev-us-east-1.my.connect.aws"
+  gateway_id_audience = var.agentcore_gateway_id_audience
+  common_tags         = local.common_tags
+}

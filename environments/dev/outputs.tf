@@ -101,3 +101,18 @@ output "connect_v2v_translation" {
     ssm_parameter_names                 = try(module.ssm_v2v[0].parameter_names, {})
   }
 }
+
+output "servicenow_interaction_lambda" {
+  description = "ServiceNow Interaction Lambda identifiers."
+  value       = try(module.lambda-servicenow-interaction[0].deployment, null)
+}
+
+output "nexthink_handoff_lambda" {
+  description = "Nexthink Handoff Lambda identifiers."
+  value       = try(module.lambda-nextthink-handoff[0].deployment, null)
+}
+
+output "agentcore_gateway" {
+  description = "gateway-quick-start-dev AgentCore gateway identifiers and MCP endpoint."
+  value       = try(module.agentcore_gateway[0].deployment, null)
+}

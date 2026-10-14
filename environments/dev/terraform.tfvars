@@ -75,3 +75,35 @@ dev_support_ai_agent_enabled = true
 
 # Migrate all custom Dev AI agents to the existing built-in Admin profile.
 dev_ai_admin_security_profile_enabled = true
+
+# true = create/retain the gateway stack; false = destroy it on apply.
+# Pipeline: targetEnvironment=dev, targetModule=agentcore_gateway.
+# Use terraformAction=plan to review, then terraformAction=apply.
+# For a new gateway, run apply again to add its generated ID JWT audience.
+agentcore_gateway_enabled = true
+
+# Manual deployments use a state key dedicated to the selected module.
+enabled_modules                          = ["lambda-nextthink-handoff"]
+servicenow_interaction_python_executable = "python"
+
+# Use python3 instead on systems where that is the installed executable.
+# Optional overrides; the supplied handler defaults remain in effect otherwise:
+# servicenow_interaction_environment_variables = {
+#   SN_INSTANCE = "abbvienowdev"
+#   SN_CTI_RULE = "cti_gsd"
+# }
+
+# Nextthink Handoff manual deployment; no separate tfvars file is needed.
+nexthink_handoff_python_executable = "python"
+
+# The supplied handler's default HTTP read timeout is 10 seconds; the Lambda
+# timeout is 8 seconds. Optional shorter HTTP timeouts reduce that risk, but
+# secret retrieval, authentication, and a 401 retry must share the same budget.
+# nexthink_handoff_environment_variables = {
+#   CONNECT_TIMEOUT_SECONDS = "1"
+#   READ_TIMEOUT_SECONDS    = "1"
+# }
+
+# Set only if the existing secret uses a customer-managed KMS key.
+# The key policy must also permit the execution role to decrypt.
+# nexthink_handoff_secret_kms_key_arn = "arn:aws:kms:us-east-1:518902362956:key/<key-id>"

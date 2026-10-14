@@ -1,30 +1,27 @@
-# Uses CloudFormation with the repository's existing AWS provider.
-# https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-bedrockagentcore-gateway.html
-# https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-bedrockagentcore-gatewaytarget.html
-#
-# Two applies are required:
-# 1. Create the gateway using the Connect URL audience.
-# 2. Save the generated Gateway ID in terraform.tfvars and apply again
-#    to configure both requested audiences. Retain that setting for future runs.
+terraform {
+  required_version = ">= 1.10.0"
 
-variable "agentcore_gateway_id_audience" {
-  description = "Generated default Gateway ID used as the second allowed JWT audience."
-  type        = string
-  default     = null
-
-  validation {
-    condition = var.agentcore_gateway_id_audience == null ? true : can(
-      regex("^default-[a-z0-9]{10}$", var.agentcore_gateway_id_audience)
-    )
-    error_message = "Use the actual Gateway ID returned by agentcore_gateway.id."
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.100"
+    }
   }
 }
 
 locals {
-  agentcore_gateway_lambda_arn  = "arn:aws:lambda:us-east-1:518902362956:function:SNOW_btsgsd-dev"
-  agentcore_gateway_connect_url = "https://btsgsd-dev-us-east-1.my.connect.aws"
+  partition   = split(":", var.lambda_arn)[1]
+  region      = split(":", var.lambda_arn)[3]
+  account_id  = split(":", var.lambda_arn)[4]
+  connect_url = trimsuffix(var.connect_url, "/")
 
-  agentcore_userlookup_schema = jsondecode(<<-JSON
+  gateway_source_arn = (
+    var.gateway_id_audience == null
+    ? "arn:${local.partition}:bedrock-agentcore:${local.region}:${local.account_id}:gateway/${var.gateway_name}-*"
+    : "arn:${local.partition}:bedrock-agentcore:${local.region}:${local.account_id}:gateway/${var.gateway_id_audience}"
+  )
+
+  userlookup_schema = jsondecode(<<-JSON
 [
   {
     "name": "UserLookUp",
@@ -47,9 +44,9 @@ locals {
 JSON
   )
 
-  agentcore_gateway_template = {
+  gateway_template = {
     AWSTemplateFormatVersion = "2010-09-09"
-    Description              = "Default AgentCore MCP gateway for ServiceNow user lookup."
+    Description              = "AgentCore ${var.gateway_name} MCP gateway for ServiceNow user lookup."
 
     Parameters = {
       GatewayAudience = {
@@ -71,7 +68,7 @@ JSON
         Type = "AWS::IAM::Role"
 
         Properties = {
-          RoleName = "btsgsd-dev-agentcore-default-gateway-role"
+          RoleName = var.role_name
 
           AssumeRolePolicyDocument = {
             Version = "2012-10-17"
@@ -82,10 +79,10 @@ JSON
 
               Condition = {
                 StringEquals = {
-                  "aws:SourceAccount" = "518902362956"
+                  "aws:SourceAccount" = local.account_id
                 }
                 ArnLike = {
-                  "aws:SourceArn" = "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/default-*"
+                  "aws:SourceArn" = local.gateway_source_arn
                 }
               }
             }]
@@ -98,13 +95,13 @@ JSON
               Statement = [{
                 Effect   = "Allow"
                 Action   = "lambda:InvokeFunction"
-                Resource = local.agentcore_gateway_lambda_arn
+                Resource = var.lambda_arn
               }]
             }
           }]
 
           Tags = [
-            for key, value in local.common_tags : {
+            for key, value in var.common_tags : {
               Key   = key
               Value = value
             }
@@ -116,7 +113,7 @@ JSON
         Type = "AWS::BedrockAgentCore::Gateway"
 
         Properties = {
-          Name           = "default"
+          Name           = var.gateway_name
           Description    = "ServiceNow user lookup for the AbbVie Dev Connect instance."
           ProtocolType   = "MCP"
           AuthorizerType = "CUSTOM_JWT"
@@ -124,22 +121,22 @@ JSON
 
           AuthorizerConfiguration = {
             CustomJWTAuthorizer = {
-              DiscoveryUrl = "${local.agentcore_gateway_connect_url}/.well-known/openid-configuration"
+              DiscoveryUrl = "${local.connect_url}/.well-known/openid-configuration"
 
               AllowedAudience = {
                 "Fn::If" = [
                   "HasGatewayAudience",
                   [
-                    local.agentcore_gateway_connect_url,
+                    local.connect_url,
                     { Ref = "GatewayAudience" }
                   ],
-                  [local.agentcore_gateway_connect_url]
+                  [local.connect_url]
                 ]
               }
             }
           }
 
-          Tags = local.common_tags
+          Tags = var.common_tags
 
           # VPC security: none; no private endpoint configuration.
         }
@@ -160,12 +157,12 @@ JSON
           TargetConfiguration = {
             Mcp = {
               Lambda = {
-                LambdaArn = local.agentcore_gateway_lambda_arn
+                LambdaArn = var.lambda_arn
 
                 ToolSchema = {
                   # Convert the supplied schema to CloudFormation property casing.
                   InlinePayload = [
-                    for tool in local.agentcore_userlookup_schema : {
+                    for tool in local.userlookup_schema : {
                       Name        = tool.name
                       Description = tool.description
 
@@ -206,52 +203,14 @@ JSON
   }
 }
 
-resource "aws_cloudformation_stack" "agentcore_gateway" {
-  count    = 0
-  provider = aws.us_east_1
-
-  name          = "btsgsd-dev-AgentCore-DefaultGateway"
+resource "aws_cloudformation_stack" "gateway" {
+  name          = var.stack_name
   capabilities  = ["CAPABILITY_NAMED_IAM"]
-  template_body = jsonencode(local.agentcore_gateway_template)
+  template_body = jsonencode(local.gateway_template)
 
   parameters = {
-    GatewayAudience = var.agentcore_gateway_id_audience == null ? "" : var.agentcore_gateway_id_audience
+    GatewayAudience = var.gateway_id_audience == null ? "" : var.gateway_id_audience
   }
 
-  tags = local.common_tags
+  tags = var.common_tags
 }
-
-output "agentcore_gateway" {
-  description = "Default AgentCore gateway identifiers and MCP endpoint."
-
-  value = try({
-    name      = "default"
-    id        = aws_cloudformation_stack.agentcore_gateway[0].outputs["GatewayId"]
-    arn       = aws_cloudformation_stack.agentcore_gateway[0].outputs["GatewayArn"]
-    url       = aws_cloudformation_stack.agentcore_gateway[0].outputs["GatewayUrl"]
-    target_id = aws_cloudformation_stack.agentcore_gateway[0].outputs["TargetId"]
-    tool_name = "snow-userlookup___UserLookUp"
-  }, null)
-}
-
-# Deployment sequence: use the existing Dev Connect backend and AWS credentials.
-#
-# terraform -chdir=environments/dev plan \
-#   -var='enabled_modules=["connect"]' \
-#   -target=aws_cloudformation_stack.agentcore_gateway \
-#   -out=agentcore-bootstrap.tfplan
-#
-# terraform -chdir=environments/dev apply agentcore-bootstrap.tfplan
-# terraform -chdir=environments/dev output -json agentcore_gateway
-#
-# Add the returned ID to environments/dev/terraform.tfvars:
-# agentcore_gateway_id_audience = "default-<actual-generated-suffix>"
-#
-# Retain that setting for future pipeline runs, then configure both audiences:
-#
-# terraform -chdir=environments/dev plan \
-#   -var='enabled_modules=["connect"]' \
-#   -target=aws_cloudformation_stack.agentcore_gateway \
-#   -out=agentcore-final.tfplan
-#
-# terraform -chdir=environments/dev apply agentcore-final.tfplan

@@ -28,6 +28,8 @@ parameters:
       - lambda-ctr-raw
       - iam-ctr
       - lambda-snow-btsgsd-dev
+      - lambda-servicenow-interaction
+      - lambda-nextthink-handoff
 
   - name: terraformAction
     displayName: Terraform action
@@ -43,11 +45,6 @@ variables:
   deploymentRegion: 'us-east-1'
   workingDirectory: 'environments/${{ parameters.targetEnvironment }}'
   backendBucket: 'bts-cloud-terraform-tfstate'
-  # Connect, table and gateway choices must lock the same state.
-  ${{ if or(eq(parameters.targetModule, 'data_table'), eq(parameters.targetModule, 'agentcore_gateway')) }}:
-    backendKey: 'terraform-state/${{ parameters.targetEnvironment }}/us-east-1/connect/terraform.tfstate'
-  ${{ else }}:
-    backendKey: 'terraform-state/${{ parameters.targetEnvironment }}/us-east-1/${{ parameters.targetModule }}/terraform.tfstate'
   backendRegion: 'us-east-1'
   planArtifactName: 'terraform-plan-${{ parameters.targetEnvironment }}-us-east-1-${{ parameters.targetModule }}'
 
@@ -77,10 +74,10 @@ stages:
           - script: |
               set -euo pipefail
 
-              if { [ '${{ parameters.targetModule }}' = 'data_table' ] || [ '${{ parameters.targetModule }}' = 'agentcore_gateway' ]; } && [ '${{ parameters.targetEnvironment }}' != 'dev' ]; then
-                echo "The ${{ parameters.targetModule }} choice is supported only for dev, where its Terraform configuration is defined."
-                exit 1
-              fi
+              source "$(Build.SourcesDirectory)/scripts/terraform-target.sh" \
+                '${{ parameters.targetModule }}' \
+                '${{ parameters.targetEnvironment }}' \
+                '$(deploymentRegion)'
 
               echo "Checked-out source commit: $(git rev-parse HEAD)"
               echo "Pipeline source commit: $BUILD_SOURCEVERSION"
@@ -118,7 +115,7 @@ stages:
 
               terraform init -reconfigure \
                 -backend-config="bucket=$(backendBucket)" \
-                -backend-config="key=$(backendKey)" \
+                -backend-config="key=$TERRAFORM_BACKEND_KEY" \
                 -backend-config="region=$(backendRegion)" \
                 -backend-config="encrypt=true"
 
@@ -131,32 +128,7 @@ stages:
               python3 -m pip install --upgrade pip
               python3 -m pip install checkov
               checkov -d ../.. --framework terraform --soft-fail
-              TERRAFORM_PLAN_ARGS=(-var='enabled_modules=["${{ parameters.targetModule }}"]')
-              if [ '${{ parameters.targetModule }}' = 'data_table' ]; then
-                # Retain Connect configuration in its shared state and focus on
-                # the five table stacks and their required instance dependency.
-                TERRAFORM_PLAN_ARGS=(
-                  -var='enabled_modules=["connect"]'
-                  -target=aws_cloudformation_stack.customer_number_data_table
-                  -target=aws_cloudformation_stack.hr_transfer_data_table
-                  -target=aws_cloudformation_stack.survey_data_table
-                  -target=aws_cloudformation_stack.veeva_transfer_data_table
-                  -target=aws_cloudformation_stack.top_level_blocker_data_table
-                )
-              elif [ '${{ parameters.targetModule }}' = 'agentcore_gateway' ]; then
-                TERRAFORM_PLAN_ARGS=(
-                  -var='enabled_modules=["connect"]'
-                  -target=aws_cloudformation_stack.agentcore_gateway
-                )
-              fi
-              if [ '${{ parameters.targetModule }}' = 'connect' ] || [ '${{ parameters.targetModule }}' = 'agentcore_gateway' ]; then
-                # Bootstrap has no Gateway ID yet. Subsequent runs preserve the
-                # actual generated ID audience, including full Connect plans.
-                GATEWAY_AUDIENCE_ID="$(terraform output -json | python3 -c 'import json, sys; gateway = json.load(sys.stdin).get("agentcore_gateway", {}).get("value") or {}; print(gateway.get("id") or "")')"
-                if [ -n "$GATEWAY_AUDIENCE_ID" ]; then
-                  TERRAFORM_PLAN_ARGS+=("-var=agentcore_gateway_id_audience=$GATEWAY_AUDIENCE_ID")
-                fi
-              fi
+              preserve_terraform_target_outputs
               terraform plan "${TERRAFORM_PLAN_ARGS[@]}" -out=tfplan
 
               PLAN_ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)/terraform-plan"
@@ -240,25 +212,20 @@ stages:
                       cp -R "$(Pipeline.Workspace)/$(planArtifactName)/v2v-dist/." "$V2V_DIST_DIR/"
                     fi
 
+                    source "$(Build.SourcesDirectory)/scripts/terraform-target.sh" \
+                      '${{ parameters.targetModule }}' \
+                      '${{ parameters.targetEnvironment }}' \
+                      '$(deploymentRegion)'
+
                     cp "$(Pipeline.Workspace)/$(planArtifactName)/.terraform.lock.hcl" .
                     terraform init -reconfigure \
                       -backend-config="bucket=$(backendBucket)" \
-                      -backend-config="key=$(backendKey)" \
+                      -backend-config="key=$TERRAFORM_BACKEND_KEY" \
                       -backend-config="region=$(backendRegion)" \
                       -backend-config="encrypt=true"
 
                     find "$(Pipeline.Workspace)/$(planArtifactName)" -maxdepth 1 -name '*.zip' -exec cp {} . \;
                     terraform apply -auto-approve "$(Pipeline.Workspace)/$(planArtifactName)/tfplan"
-
-                    if [ '${{ parameters.targetModule }}' = 'agentcore_gateway' ]; then
-                      GATEWAY_OUTPUT_JSON="$(terraform output -json | python3 -c 'import json, sys; outputs = json.load(sys.stdin); print(json.dumps((outputs.get("agentcore_gateway") or {}).get("value")))')"
-                      if [ "$GATEWAY_OUTPUT_JSON" = "null" ]; then
-                        echo "agentcore_gateway output is absent; skipping gateway details after removal."
-                      else
-                        printf '%s\n' "$GATEWAY_OUTPUT_JSON"
-                        echo "On the first deployment, rerun agentcore_gateway to add its generated ID as the second JWT audience."
-                      fi
-                    fi
 
                     if [ '${{ parameters.targetModule }}' = 'v2v' ]; then
                       bash "$(Build.SourcesDirectory)/scripts/deploy-webapp.sh" "$(Build.SourcesDirectory)/webapp/dist"
