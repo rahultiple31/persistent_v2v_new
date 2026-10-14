@@ -6,9 +6,9 @@ mock_provider "aws" {
   mock_resource "aws_cloudformation_stack" {
     defaults = {
       outputs = {
-        GatewayId  = "default-a1b2c3d4e5"
-        GatewayArn = "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/default-a1b2c3d4e5"
-        GatewayUrl = "https://default-a1b2c3d4e5.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp"
+        GatewayId  = "gateway-quick-start-dev-a1b2c3d4e5"
+        GatewayArn = "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/gateway-quick-start-dev-a1b2c3d4e5"
+        GatewayUrl = "https://gateway-quick-start-dev-a1b2c3d4e5.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp"
         TargetId   = "target12345"
       }
     }
@@ -45,12 +45,12 @@ run "bootstrap_configuration" {
     condition = (
       length(aws_cloudformation_stack.agentcore_gateway) == 1 &&
       aws_cloudformation_stack.agentcore_gateway[0].parameters.GatewayAudience == "" &&
-      jsondecode(aws_cloudformation_stack.agentcore_gateway[0].template_body).Resources.Gateway.Properties.Name == "default" &&
+      jsondecode(aws_cloudformation_stack.agentcore_gateway[0].template_body).Resources.Gateway.Properties.Name == "gateway-quick-start-dev" &&
       jsondecode(aws_cloudformation_stack.agentcore_gateway[0].template_body).Resources.Gateway.Properties.ProtocolType == "MCP" &&
       jsondecode(aws_cloudformation_stack.agentcore_gateway[0].template_body).Resources.Gateway.Properties.AuthorizerType == "CUSTOM_JWT" &&
       jsondecode(aws_cloudformation_stack.agentcore_gateway[0].template_body).Resources.Gateway.Properties.AuthorizerConfiguration.CustomJWTAuthorizer.DiscoveryUrl == "https://btsgsd-dev-us-east-1.my.connect.aws/.well-known/openid-configuration"
     )
-    error_message = "Bootstrap the default MCP gateway with the requested Connect JWT discovery endpoint before its ID exists."
+    error_message = "Bootstrap gateway-quick-start-dev with the requested Connect JWT discovery endpoint before its ID exists."
   }
 
   assert {
@@ -68,7 +68,7 @@ run "bootstrap_configuration" {
     condition = (
       local.agentcore_gateway_template.Resources.GatewayRole.Properties.AssumeRolePolicyDocument.Statement[0].Principal.Service == "bedrock-agentcore.amazonaws.com" &&
       local.agentcore_gateway_template.Resources.GatewayRole.Properties.AssumeRolePolicyDocument.Statement[0].Condition.StringEquals["aws:SourceAccount"] == "518902362956" &&
-      local.agentcore_gateway_template.Resources.GatewayRole.Properties.AssumeRolePolicyDocument.Statement[0].Condition.ArnLike["aws:SourceArn"] == "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/default-*" &&
+      local.agentcore_gateway_template.Resources.GatewayRole.Properties.AssumeRolePolicyDocument.Statement[0].Condition.ArnLike["aws:SourceArn"] == "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/gateway-quick-start-dev-*" &&
       length(local.agentcore_gateway_template.Resources.GatewayRole.Properties.Policies) == 1 &&
       length(local.agentcore_gateway_template.Resources.GatewayRole.Properties.Policies[0].PolicyDocument.Statement) == 1 &&
       local.agentcore_gateway_template.Resources.GatewayRole.Properties.Policies[0].PolicyDocument.Statement[0].Action == "lambda:InvokeFunction" &&
@@ -76,7 +76,7 @@ run "bootstrap_configuration" {
       local.agentcore_gateway_template.Resources.UserLookupTarget.Properties.CredentialProviderConfigurations[0].CredentialProviderType == "GATEWAY_IAM_ROLE" &&
       local.agentcore_gateway_template.Resources.UserLookupTarget.Properties.TargetConfiguration.Mcp.Lambda.LambdaArn == "arn:aws:lambda:us-east-1:518902362956:function:SNOW_btsgsd-dev"
     )
-    error_message = "Restrict gateway execution to the intended account, default gateway and ServiceNow Lambda."
+    error_message = "Restrict gateway execution to the intended account, gateway-quick-start-dev and ServiceNow Lambda."
   }
 
   assert {
@@ -103,6 +103,32 @@ run "generated_gateway_id_audience" {
   command = apply
 
   variables {
+    agentcore_gateway_id_audience = "gateway-quick-start-dev-a1b2c3d4e5"
+  }
+
+  plan_options {
+    target = [aws_cloudformation_stack.agentcore_gateway]
+  }
+
+  assert {
+    condition = (
+      aws_cloudformation_stack.agentcore_gateway[0].parameters.GatewayAudience == "gateway-quick-start-dev-a1b2c3d4e5" &&
+      output.agentcore_gateway.name == "gateway-quick-start-dev" &&
+      output.agentcore_gateway.id == "gateway-quick-start-dev-a1b2c3d4e5" &&
+      output.agentcore_gateway.arn == "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/gateway-quick-start-dev-a1b2c3d4e5" &&
+      output.agentcore_gateway.url == "https://gateway-quick-start-dev-a1b2c3d4e5.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp" &&
+      local.agentcore_gateway_template.Resources.GatewayRole.Properties.AssumeRolePolicyDocument.Statement[0].Condition.ArnLike["aws:SourceArn"] == "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/gateway-quick-start-dev-a1b2c3d4e5" &&
+      output.agentcore_gateway.target_id == "target12345" &&
+      output.agentcore_gateway.tool_name == "snow-userlookup___UserLookUp"
+    )
+    error_message = "Use the actual generated ID as the second audience and export the gateway endpoint and tool identifiers."
+  }
+}
+
+run "existing_gateway_id_survives_rename" {
+  command = plan
+
+  variables {
     agentcore_gateway_id_audience = "default-a1b2c3d4e5"
   }
 
@@ -112,14 +138,13 @@ run "generated_gateway_id_audience" {
 
   assert {
     condition = (
+      local.agentcore_gateway_template.Resources.Gateway.Properties.Name == "gateway-quick-start-dev" &&
       aws_cloudformation_stack.agentcore_gateway[0].parameters.GatewayAudience == "default-a1b2c3d4e5" &&
-      output.agentcore_gateway.id == "default-a1b2c3d4e5" &&
-      output.agentcore_gateway.arn == "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/default-a1b2c3d4e5" &&
-      output.agentcore_gateway.url == "https://default-a1b2c3d4e5.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp" &&
-      output.agentcore_gateway.target_id == "target12345" &&
-      output.agentcore_gateway.tool_name == "snow-userlookup___UserLookUp"
+      local.agentcore_gateway_template.Resources.GatewayRole.Properties.AssumeRolePolicyDocument.Statement[0].Condition.ArnLike["aws:SourceArn"] == "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/default-a1b2c3d4e5" &&
+      local.agentcore_gateway_template.Resources.GatewayRole.Properties.RoleName == "btsgsd-dev-agentcore-default-gateway-role" &&
+      aws_cloudformation_stack.agentcore_gateway[0].name == "btsgsd-dev-AgentCore-DefaultGateway"
     )
-    error_message = "Use the actual generated ID as the second audience and export the gateway endpoint and tool identifiers."
+    error_message = "An existing Gateway ID must remain usable for JWT and exact IAM trust while updating the display name in the same stack."
   }
 }
 

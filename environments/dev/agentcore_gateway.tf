@@ -8,19 +8,20 @@
 #    to configure both requested audiences. Retain that setting for future runs.
 
 variable "agentcore_gateway_id_audience" {
-  description = "Generated default Gateway ID used as the second allowed JWT audience."
+  description = "Generated Gateway ID used as the second allowed JWT audience; existing IDs remain valid after a gateway rename."
   type        = string
   default     = null
 
   validation {
     condition = var.agentcore_gateway_id_audience == null ? true : can(
-      regex("^default-[a-z0-9]{10}$", var.agentcore_gateway_id_audience)
+      regex("^([0-9a-z][-]?){1,100}-[a-z0-9]{10}$", var.agentcore_gateway_id_audience)
     )
     error_message = "Use the actual Gateway ID returned by agentcore_gateway.id."
   }
 }
 
 locals {
+  agentcore_gateway_name        = "gateway-quick-start-dev"
   agentcore_gateway_lambda_arn  = "arn:aws:lambda:us-east-1:518902362956:function:SNOW_btsgsd-dev"
   agentcore_gateway_connect_url = "https://btsgsd-dev-us-east-1.my.connect.aws"
 
@@ -49,7 +50,7 @@ JSON
 
   agentcore_gateway_template = {
     AWSTemplateFormatVersion = "2010-09-09"
-    Description              = "Default AgentCore MCP gateway for ServiceNow user lookup."
+    Description              = "AgentCore gateway-quick-start-dev MCP gateway for ServiceNow user lookup."
 
     Parameters = {
       GatewayAudience = {
@@ -85,7 +86,7 @@ JSON
                   "aws:SourceAccount" = "518902362956"
                 }
                 ArnLike = {
-                  "aws:SourceArn" = "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/default-*"
+                  "aws:SourceArn" = var.agentcore_gateway_id_audience == null ? "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/${local.agentcore_gateway_name}-*" : "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/${var.agentcore_gateway_id_audience}"
                 }
               }
             }]
@@ -116,7 +117,7 @@ JSON
         Type = "AWS::BedrockAgentCore::Gateway"
 
         Properties = {
-          Name           = "default"
+          Name           = local.agentcore_gateway_name
           Description    = "ServiceNow user lookup for the AbbVie Dev Connect instance."
           ProtocolType   = "MCP"
           AuthorizerType = "CUSTOM_JWT"
@@ -222,10 +223,10 @@ resource "aws_cloudformation_stack" "agentcore_gateway" {
 }
 
 output "agentcore_gateway" {
-  description = "Default AgentCore gateway identifiers and MCP endpoint."
+  description = "gateway-quick-start-dev AgentCore gateway identifiers and MCP endpoint."
 
   value = try({
-    name      = "default"
+    name      = local.agentcore_gateway_name
     id        = aws_cloudformation_stack.agentcore_gateway[0].outputs["GatewayId"]
     arn       = aws_cloudformation_stack.agentcore_gateway[0].outputs["GatewayArn"]
     url       = aws_cloudformation_stack.agentcore_gateway[0].outputs["GatewayUrl"]
@@ -245,7 +246,8 @@ output "agentcore_gateway" {
 # terraform -chdir=environments/dev output -json agentcore_gateway
 #
 # Add the returned ID to environments/dev/terraform.tfvars:
-# agentcore_gateway_id_audience = "default-<actual-generated-suffix>"
+# agentcore_gateway_id_audience = "gateway-quick-start-dev-<actual-generated-suffix>"
+# For a previously created gateway, use its returned ID even if it starts with default-.
 #
 # Retain that setting for future pipeline runs, then configure both audiences:
 #

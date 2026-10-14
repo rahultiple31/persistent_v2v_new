@@ -213,7 +213,7 @@ To deploy `environments/dev/agentcore_gateway.tf`, select
 `targetEnvironment=dev`, `targetModule=agentcore_gateway`, and
 `terraformAction=apply` from `main`. This choice shares the Connect backend and
 targets `aws_cloudformation_stack.agentcore_gateway`, including its IAM role,
-`default` gateway and `SNOW_btsgsd-dev` Lambda target. It is not available for
+`gateway-quick-start-dev` gateway and `SNOW_btsgsd-dev` Lambda target. It is not available for
 `dev-nsso`. The first apply bootstraps JWT authorization with the Connect URL
 audience. Run the same choice again to add the generated Gateway ID audience:
 the planner reads the `agentcore_gateway` output from Terraform state and passes
@@ -221,6 +221,9 @@ its ID to `agentcore_gateway_id_audience`. Full `connect` plans also preserve
 this ID automatically. The apply stage uses the saved, reviewed plan and prints
 the gateway identifiers. For Terraform runs outside this pipeline, retain the
 generated ID in `terraform.tfvars` as described in `agentcore_gateway.tf`.
+When renaming an existing gateway, retain its returned ID for JWT authorization
+even if that ID starts with `default-`. The IAM trust policy uses the supplied
+exact ID after creation; the name prefix is used only during bootstrap.
 
 The proxy target requires EC2 network bootstrap permissions, including
 `ec2:CreateVpc` and `ec2:AllocateAddress`. Previously documented AWS Organizations
