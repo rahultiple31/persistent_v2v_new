@@ -41,3 +41,9 @@ variable "common_tags" {
   type    = map(string)
   default = {}
 }
+
+variable "nexthink_lambda_arn" {
+  description = "Optional Nexthink handoff Lambda ARN for an additional MCP target."
+  type        = string
+  default     = null
+}

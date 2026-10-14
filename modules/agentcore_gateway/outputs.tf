@@ -13,5 +13,10 @@ output "deployment" {
       null
     )
     interaction_tool_name = var.interaction_lambda_arn == null ? null : "snow-interaction___${local.interaction_schema[0].name}"
+    nexthink_target_id = var.nexthink_lambda_arn == null ? null : try(
+      aws_cloudformation_stack.gateway.outputs["NexthinkTargetId"],
+      null
+    )
+    nexthink_tool_name = var.nexthink_lambda_arn == null ? null : "nexthink-handoff___${local.nexthink_schema[0].name}"
   }
 }

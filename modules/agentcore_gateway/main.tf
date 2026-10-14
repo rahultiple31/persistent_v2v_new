@@ -107,6 +107,16 @@ JSON
                 Resource = var.interaction_lambda_arn
               }]
             }
+            }], var.nexthink_lambda_arn == null ? [] : [{
+            PolicyName = "InvokeNexthinkHandoff"
+            PolicyDocument = {
+              Version = "2012-10-17"
+              Statement = [{
+                Effect   = "Allow"
+                Action   = "lambda:InvokeFunction"
+                Resource = var.nexthink_lambda_arn
+              }]
+            }
           }])
 
           Tags = [
@@ -196,6 +206,8 @@ JSON
       }
       }, var.interaction_lambda_arn == null ? {} : {
       InteractionTarget = local.interaction_target
+      }, var.nexthink_lambda_arn == null ? {} : {
+      NexthinkTarget = local.nexthink_target
     })
 
     Outputs = merge({
@@ -214,6 +226,10 @@ JSON
       }, var.interaction_lambda_arn == null ? {} : {
       InteractionTargetId = {
         Value = { "Fn::GetAtt" = ["InteractionTarget", "TargetId"] }
+      }
+      }, var.nexthink_lambda_arn == null ? {} : {
+      NexthinkTargetId = {
+        Value = { "Fn::GetAtt" = ["NexthinkTarget", "TargetId"] }
       }
     })
   }
@@ -293,6 +309,78 @@ JSON
                   Name        = tool.name
                   Description = tool.description
 
+                  InputSchema = {
+                    Type = tool.inputSchema.type
+                    Properties = {
+                      for name, property in tool.inputSchema.properties :
+                      name => {
+                        Type        = property.type
+                        Description = property.description
+                      }
+                    }
+                    Required = tool.inputSchema.required
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+locals {
+  # Deploy Nextthink_Handoff_btsgsd-dev before applying this target.
+  nexthink_schema = jsondecode(<<-JSON
+[
+  {
+    "name": "handoff",
+    "description": "Hands off a caller to Nexthink Spark support given their email and reason for contact.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Reason for the caller's contact / issue description"
+        },
+        "email": {
+          "type": "string",
+          "description": "Caller's email address (User Principal Name)"
+        }
+      },
+      "required": [
+        "email",
+        "reason"
+      ]
+    }
+  }
+]
+JSON
+  )
+
+  nexthink_target = {
+    Type      = "AWS::BedrockAgentCore::GatewayTarget"
+    DependsOn = ["GatewayRole"]
+
+    Properties = {
+      Name              = "nexthink-handoff"
+      Description       = "Nexthink Spark handoff Lambda MCP target."
+      GatewayIdentifier = { Ref = "Gateway" }
+
+      CredentialProviderConfigurations = [{
+        CredentialProviderType = "GATEWAY_IAM_ROLE"
+      }]
+
+      TargetConfiguration = {
+        Mcp = {
+          Lambda = {
+            LambdaArn = var.nexthink_lambda_arn
+            ToolSchema = {
+              InlinePayload = [
+                for tool in local.nexthink_schema : {
+                  Name        = tool.name
+                  Description = tool.description
                   InputSchema = {
                     Type = tool.inputSchema.type
                     Properties = {

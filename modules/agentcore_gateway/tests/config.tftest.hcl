@@ -2,10 +2,10 @@ mock_provider "aws" {
   mock_resource "aws_cloudformation_stack" {
     defaults = {
       outputs = {
-        GatewayId  = "gateway-quick-start-dev-a1b2c3d4e5"
-        GatewayArn = "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/gateway-quick-start-dev-a1b2c3d4e5"
-        GatewayUrl = "https://gateway-quick-start-dev-a1b2c3d4e5.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp"
-        TargetId   = "target12345"
+        GatewayId           = "gateway-quick-start-dev-a1b2c3d4e5"
+        GatewayArn          = "arn:aws:bedrock-agentcore:us-east-1:518902362956:gateway/gateway-quick-start-dev-a1b2c3d4e5"
+        GatewayUrl          = "https://gateway-quick-start-dev-a1b2c3d4e5.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp"
+        TargetId            = "target12345"
         InteractionTargetId = "interaction67890"
       }
     }

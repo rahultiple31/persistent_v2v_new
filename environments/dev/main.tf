@@ -503,6 +503,7 @@ module "agentcore_gateway" {
   role_name              = "btsgsd-dev-agentcore-default-gateway-role"
   lambda_arn             = "arn:aws:lambda:us-east-1:518902362956:function:SNOW_btsgsd-dev"
   interaction_lambda_arn = "arn:aws:lambda:us-east-1:518902362956:function:ServiceNow_Interaction_btsgsd-dev"
+  nexthink_lambda_arn    = "arn:aws:lambda:us-east-1:518902362956:function:Nextthink_Handoff_btsgsd-dev"
   connect_url            = "https://btsgsd-dev-us-east-1.my.connect.aws"
   gateway_id_audience    = var.agentcore_gateway_id_audience
   common_tags            = local.common_tags
