@@ -465,6 +465,7 @@ module "lambda-servicenow-interaction" {
   common_tags           = local.common_tags
   environment_variables = var.servicenow_interaction_environment_variables
   python_executable     = var.servicenow_interaction_python_executable
+  reserved_concurrency  = var.servicenow_interaction_reserved_concurrency
 }
 
 module "lambda-nextthink-handoff" {
@@ -479,6 +480,7 @@ module "lambda-nextthink-handoff" {
   common_tags           = local.common_tags
   python_executable     = var.nexthink_handoff_python_executable
   environment_variables = var.nexthink_handoff_environment_variables
+  reserved_concurrency  = var.nexthink_handoff_reserved_concurrency
   secret_kms_key_arn    = var.nexthink_handoff_secret_kms_key_arn
 }
 

@@ -193,7 +193,12 @@ The `lambda-servicenow-interaction` target, configured in
 `ServiceNow_Interaction_btsgsd-dev` in `us-east-1`. It packages the supplied
 `modules/lambda-servicenow-interaction/src/lambda_function.py` and uses Python
 3.14, x86_64, handler `lambda_function.lambda_handler`, 512 MB memory, an
-8-second timeout, 512 MB ephemeral storage, and reserved concurrency 100.
+8-second timeout and 512 MB ephemeral storage. The module defaults to reserved
+concurrency 100; Dev's `terraform.tfvars` sets
+`servicenow_interaction_reserved_concurrency = null` to use the shared unreserved
+pool without guaranteeing 100 concurrent executions. The CloudFormation
+reservation property and capacity check are omitted in that configuration.
+Zero is rejected because it would disable invocation.
 Logs go to `/aws/lambda/ServiceNow_Interaction` with 90-day retention. The handler
 validates UPI and ContactId, limits the summary, and returns a ServiceNow CTI
 screen-pop URL. Optional `servicenow_interaction_environment_variables` override
@@ -217,13 +222,15 @@ terraform -chdir=environments/dev apply interaction-dev.tfplan
 ```
 
 Dev's `terraform.tfvars` is loaded automatically. It uses `python` for the
-ServiceNow Interaction read-only concurrency checker on
-Windows; change it to `python3` if needed. The checker reuses the existing SNOW
-capacity script and requires AWS CLI credentials for the same account as
-Terraform. A new reservation of 100 requires at least 200 currently unreserved
-executions. Deployment permissions include `lambda:GetAccountSettings` and
-`lambda:GetFunctionConcurrency`, plus IAM, S3, CloudWatch Logs, CloudFormation
-and Lambda management permissions.
+ServiceNow Interaction read-only concurrency checker on Windows; change it to
+`python3` if needed. When a positive reservation is configured, the checker
+reuses the existing SNOW capacity script and requires AWS CLI credentials for
+the same account as Terraform. A new reservation of 100 requires at least 200
+currently unreserved executions. Restore the tfvars setting to 100 once the
+regional quota or available capacity permits it, then generate a fresh plan.
+The capacity check needs `lambda:GetAccountSettings` and
+`lambda:GetFunctionConcurrency`; deployment also needs IAM, S3, CloudWatch Logs,
+CloudFormation and Lambda management permissions.
 
 ## Nexthink Handoff Lambda in Dev
 
@@ -232,7 +239,11 @@ The `lambda-nextthink-handoff` target, configured in
 `Nextthink_Handoff_btsgsd-dev` in `us-east-1`. It packages the attached source at
 `modules/lambda-nextthink-handoff/src/lambda_function.py` unchanged, using Python
 3.14, x86_64, handler `lambda_function.lambda_handler`, 128 MB memory, an 8-second
-timeout, and reserved concurrency 200. Logs go to `/aws/lambda/Nextthink_Handoff`
+timeout. The module defaults to reserved concurrency 200; Dev's `terraform.tfvars`
+sets `nexthink_handoff_reserved_concurrency = null` to use the shared unreserved
+pool without guaranteeing 200 concurrent executions. This omits the CloudFormation
+reservation property and skips the reservation capacity check. Zero is rejected
+because it would disable invocation. Logs go to `/aws/lambda/Nextthink_Handoff`
 with 90-day retention. The required environment variable is
 `NEXTHINK_SECRET_NAME = Nextthink/Clientid/Secretkey`.
 
@@ -263,11 +274,13 @@ uses a customer-managed KMS key, set `nexthink_handoff_secret_kms_key_arn` and
 ensure its key policy permits decryption by the role. No secret values are
 created or stored by this configuration.
 
-The capacity checker requires AWS CLI credentials for the same account as
-Terraform. A new reservation of 200 needs at least 300 currently unreserved
-executions. The deployer also needs `secretsmanager:DescribeSecret`,
-`lambda:GetAccountSettings`, and `lambda:GetFunctionConcurrency`, in addition
-to the normal IAM, S3, CloudWatch Logs, CloudFormation and Lambda permissions.
+When a positive reservation is configured, the capacity checker requires AWS
+CLI credentials for the same account as Terraform. A new reservation of 200
+needs at least 300 currently unreserved executions. Restore the tfvars setting
+to 200 once the regional quota or available capacity permits it, then generate
+a fresh plan. The capacity checker needs `lambda:GetAccountSettings` and
+`lambda:GetFunctionConcurrency`. The deployer needs `secretsmanager:DescribeSecret`
+and the normal IAM, S3, CloudWatch Logs, CloudFormation and Lambda permissions.
 
 The supplied handler's default HTTP read timeout is 10 seconds, exceeding the
 Lambda's 8-second timeout. Optional shorter timeout overrides are shown in

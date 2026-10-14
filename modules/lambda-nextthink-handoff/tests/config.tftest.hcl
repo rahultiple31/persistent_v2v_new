@@ -97,7 +97,7 @@ run "insufficient_concurrency_is_rejected" {
   command = plan
 
   override_data {
-    target = data.external.capacity
+    target = data.external.capacity[0]
     values = {
       result = {
         unreserved          = "299"
@@ -108,4 +108,85 @@ run "insufficient_concurrency_is_rejected" {
   }
 
   expect_failures = [aws_cloudformation_stack.handoff]
+}
+
+run "unreserved_pool_omits_reservation_and_capacity_check" {
+  command = plan
+
+  variables {
+    reserved_concurrency = null
+  }
+
+  assert {
+    condition = (
+      length(data.external.capacity) == 0 &&
+      !contains(keys(jsondecode(aws_cloudformation_stack.handoff.template_body).Resources.HandoffFunction.Properties), "ReservedConcurrentExecutions") &&
+      jsondecode(aws_cloudformation_stack.handoff.template_body).Resources.HandoffFunction.Properties.Environment.Variables.NEXTHINK_SECRET_NAME == "Nextthink/Clientid/Secretkey"
+    )
+    error_message = "null must omit the reservation and capacity checker while preserving the required secret name."
+  }
+}
+
+run "custom_reservation_uses_its_own_capacity_threshold" {
+  command = plan
+
+  variables {
+    reserved_concurrency = 100
+  }
+
+  override_data {
+    target = data.external.capacity[0]
+    values = {
+      result = {
+        unreserved          = "200"
+        current_reservation = "0"
+        maximum_reservation = "100"
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      length(data.external.capacity) == 1 &&
+      jsondecode(aws_cloudformation_stack.handoff.template_body).Resources.HandoffFunction.Properties.ReservedConcurrentExecutions == 100
+    )
+    error_message = "An explicit reservation must check and configure its requested amount instead of the default 200."
+  }
+}
+
+run "zero_available_reservation_rejects_explicit_200" {
+  command = plan
+
+  override_data {
+    target = data.external.capacity[0]
+    values = {
+      result = {
+        unreserved          = "100"
+        current_reservation = "0"
+        maximum_reservation = "0"
+      }
+    }
+  }
+
+  expect_failures = [aws_cloudformation_stack.handoff]
+}
+
+run "zero_reservation_is_rejected" {
+  command = plan
+
+  variables {
+    reserved_concurrency = 0
+  }
+
+  expect_failures = [var.reserved_concurrency]
+}
+
+run "fractional_reservation_is_rejected" {
+  command = plan
+
+  variables {
+    reserved_concurrency = 100.5
+  }
+
+  expect_failures = [var.reserved_concurrency]
 }

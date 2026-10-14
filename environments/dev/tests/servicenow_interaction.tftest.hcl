@@ -12,9 +12,9 @@ mock_provider "external" {
   mock_data "external" {
     defaults = {
       result = {
-        unreserved          = "200"
+        unreserved          = "100"
         current_reservation = "0"
-        maximum_reservation = "100"
+        maximum_reservation = "0"
       }
     }
   }
@@ -24,7 +24,8 @@ run "interaction_target_is_isolated" {
   command = plan
 
   variables {
-    enabled_modules = ["lambda-servicenow-interaction"]
+    enabled_modules                             = ["lambda-servicenow-interaction"]
+    servicenow_interaction_reserved_concurrency = null
   }
 
   assert {
@@ -39,7 +40,7 @@ run "interaction_target_is_isolated" {
       length(module.agentcore_gateway) == 0 &&
       length(aws_cloudformation_stack.customer_number_data_table) == 0
     )
-    error_message = "The Interaction target must deploy independently of the existing Lambda, Connect and gateway targets."
+    error_message = "The shared-pool Interaction target must plan with no available reservation and remain independent of other targets."
   }
 }
 

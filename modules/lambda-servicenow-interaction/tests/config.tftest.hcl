@@ -65,7 +65,7 @@ run "insufficient_concurrency_is_rejected" {
   command = plan
 
   override_data {
-    target = data.external.capacity
+    target = data.external.capacity[0]
     values = {
       result = {
         unreserved          = "199"
@@ -76,4 +76,84 @@ run "insufficient_concurrency_is_rejected" {
   }
 
   expect_failures = [aws_cloudformation_stack.interaction]
+}
+
+run "unreserved_pool_omits_reservation_and_capacity_check" {
+  command = plan
+
+  variables {
+    reserved_concurrency = null
+  }
+
+  assert {
+    condition = (
+      length(data.external.capacity) == 0 &&
+      !contains(keys(jsondecode(aws_cloudformation_stack.interaction.template_body).Resources.InteractionFunction.Properties), "ReservedConcurrentExecutions")
+    )
+    error_message = "null must omit the reservation property and skip the capacity checker entirely."
+  }
+}
+
+run "custom_reservation_uses_its_own_capacity_threshold" {
+  command = plan
+
+  variables {
+    reserved_concurrency = 50
+  }
+
+  override_data {
+    target = data.external.capacity[0]
+    values = {
+      result = {
+        unreserved          = "150"
+        current_reservation = "0"
+        maximum_reservation = "50"
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      length(data.external.capacity) == 1 &&
+      jsondecode(aws_cloudformation_stack.interaction.template_body).Resources.InteractionFunction.Properties.ReservedConcurrentExecutions == 50
+    )
+    error_message = "An explicit reservation of 50 must check and configure 50 rather than the default 100."
+  }
+}
+
+run "zero_available_reservation_rejects_explicit_100" {
+  command = plan
+
+  override_data {
+    target = data.external.capacity[0]
+    values = {
+      result = {
+        unreserved          = "100"
+        current_reservation = "0"
+        maximum_reservation = "0"
+      }
+    }
+  }
+
+  expect_failures = [aws_cloudformation_stack.interaction]
+}
+
+run "zero_reservation_is_rejected" {
+  command = plan
+
+  variables {
+    reserved_concurrency = 0
+  }
+
+  expect_failures = [var.reserved_concurrency]
+}
+
+run "fractional_reservation_is_rejected" {
+  command = plan
+
+  variables {
+    reserved_concurrency = 50.5
+  }
+
+  expect_failures = [var.reserved_concurrency]
 }

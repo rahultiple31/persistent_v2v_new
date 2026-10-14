@@ -12,9 +12,9 @@ mock_provider "external" {
   mock_data "external" {
     defaults = {
       result = {
-        unreserved          = "300"
+        unreserved          = "100"
         current_reservation = "0"
-        maximum_reservation = "200"
+        maximum_reservation = "0"
       }
     }
   }
@@ -24,7 +24,8 @@ run "nextthink_target_is_isolated" {
   command = plan
 
   variables {
-    enabled_modules = ["lambda-nextthink-handoff"]
+    enabled_modules                       = ["lambda-nextthink-handoff"]
+    nexthink_handoff_reserved_concurrency = null
   }
 
   assert {
@@ -40,7 +41,7 @@ run "nextthink_target_is_isolated" {
       length(module.agentcore_gateway) == 0 &&
       length(aws_cloudformation_stack.customer_number_data_table) == 0
     )
-    error_message = "The Nexthink target must deploy independently of the existing Lambda and Connect targets."
+    error_message = "The shared-pool Nexthink target must plan with no available reservation and remain independent of other targets."
   }
 }
 
@@ -48,7 +49,8 @@ run "interaction_target_excludes_nextthink" {
   command = plan
 
   variables {
-    enabled_modules = ["lambda-servicenow-interaction"]
+    enabled_modules                             = ["lambda-servicenow-interaction"]
+    servicenow_interaction_reserved_concurrency = null
   }
 
   assert {

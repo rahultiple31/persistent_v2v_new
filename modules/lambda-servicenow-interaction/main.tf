@@ -23,6 +23,21 @@ variable "python_executable" {
   default = "python3"
 }
 
+variable "reserved_concurrency" {
+  description = "Positive reserved concurrency, or null to use the shared unreserved pool."
+  type        = number
+  default     = 100
+  nullable    = true
+
+  validation {
+    condition = var.reserved_concurrency == null ? true : (
+      var.reserved_concurrency >= 1 &&
+      floor(var.reserved_concurrency) == var.reserved_concurrency
+    )
+    error_message = "reserved_concurrency must be null or a positive whole number."
+  }
+}
+
 locals {
   function_name = "ServiceNow_Interaction_btsgsd-dev"
 }
@@ -30,8 +45,10 @@ locals {
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
-# Reuse the repository's existing read-only concurrency check.
+# Check capacity only when reserving executions.
 data "external" "capacity" {
+  count = var.reserved_concurrency == null ? 0 : 1
+
   program = [
     var.python_executable,
     "${path.module}/../lambda-snow-btsgsd-dev/scripts/check_capacity.py"
@@ -153,17 +170,16 @@ resource "aws_cloudformation_stack" "interaction" {
       InteractionFunction = {
         Type = "AWS::Lambda::Function"
 
-        Properties = {
-          FunctionName                 = local.function_name
-          Runtime                      = "python3.14"
-          Architectures                = ["x86_64"]
-          Handler                      = "lambda_function.lambda_handler"
-          PackageType                  = "Zip"
-          MemorySize                   = 512
-          Timeout                      = 8
-          EphemeralStorage             = { Size = 512 }
-          ReservedConcurrentExecutions = 100
-          Role                         = { Ref = "ExecutionRoleArn" }
+        Properties = merge({
+          FunctionName     = local.function_name
+          Runtime          = "python3.14"
+          Architectures    = ["x86_64"]
+          Handler          = "lambda_function.lambda_handler"
+          PackageType      = "Zip"
+          MemorySize       = 512
+          Timeout          = 8
+          EphemeralStorage = { Size = 512 }
+          Role             = { Ref = "ExecutionRoleArn" }
 
           Code = {
             S3Bucket = { Ref = "CodeBucket" }
@@ -188,7 +204,9 @@ resource "aws_cloudformation_stack" "interaction" {
               Value = value
             }
           ]
-        }
+          }, var.reserved_concurrency == null ? {} : {
+          ReservedConcurrentExecutions = var.reserved_concurrency
+        })
       }
     }
 
@@ -204,8 +222,10 @@ resource "aws_cloudformation_stack" "interaction" {
 
   lifecycle {
     precondition {
-      condition     = tonumber(data.external.capacity.result.maximum_reservation) >= 100
-      error_message = "ServiceNow_Interaction_btsgsd-dev requires reserved concurrency 100. Available reservation: ${data.external.capacity.result.maximum_reservation}. Increase the regional Lambda concurrency quota or release other reservations before deployment."
+      condition = var.reserved_concurrency == null ? true : (
+        tonumber(data.external.capacity[0].result.maximum_reservation) >= var.reserved_concurrency
+      )
+      error_message = "Requested reserved concurrency exceeds available regional capacity. Increase the quota, release other reservations, or set reserved_concurrency to null."
     }
   }
 

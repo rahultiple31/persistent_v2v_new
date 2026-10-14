@@ -86,6 +86,12 @@ agentcore_gateway_enabled = true
 enabled_modules                          = ["lambda-nextthink-handoff"]
 servicenow_interaction_python_executable = "python"
 
+# Deploy without a guaranteed reservation of 100 while quota is unavailable.
+# null omits the CloudFormation concurrency property and uses the shared pool.
+# Do not use 0: it disables function invocation.
+# Restore 100 after increasing the quota or releasing other reservations.
+servicenow_interaction_reserved_concurrency = null
+
 # Use python3 instead on systems where that is the installed executable.
 # Optional overrides; the supplied handler defaults remain in effect otherwise:
 # servicenow_interaction_environment_variables = {
@@ -95,6 +101,12 @@ servicenow_interaction_python_executable = "python"
 
 # Nextthink Handoff manual deployment; no separate tfvars file is needed.
 nexthink_handoff_python_executable = "python"
+
+# Use the shared unreserved pool without guaranteeing 200 concurrent executions.
+# null omits the reservation property and skips the reservation capacity check.
+# Do not use 0: it disables function invocation.
+# Restore 200 after increasing the quota or releasing other reservations.
+nexthink_handoff_reserved_concurrency = null
 
 # The supplied handler's default HTTP read timeout is 10 seconds; the Lambda
 # timeout is 8 seconds. Optional shorter HTTP timeouts reduce that risk, but

@@ -93,10 +93,40 @@ variable "servicenow_interaction_python_executable" {
   default     = "python3"
 }
 
+variable "servicenow_interaction_reserved_concurrency" {
+  description = "Reserved concurrency for ServiceNow Interaction; null uses the shared unreserved pool."
+  type        = number
+  default     = 100
+  nullable    = true
+
+  validation {
+    condition = var.servicenow_interaction_reserved_concurrency == null ? true : (
+      var.servicenow_interaction_reserved_concurrency >= 1 &&
+      floor(var.servicenow_interaction_reserved_concurrency) == var.servicenow_interaction_reserved_concurrency
+    )
+    error_message = "Use null or a positive whole number."
+  }
+}
+
 variable "nexthink_handoff_python_executable" {
   description = "Python executable for the read-only Nexthink concurrency check."
   type        = string
   default     = "python3"
+}
+
+variable "nexthink_handoff_reserved_concurrency" {
+  description = "Reserved concurrency for Nexthink Handoff; null uses the shared unreserved pool."
+  type        = number
+  default     = 200
+  nullable    = true
+
+  validation {
+    condition = var.nexthink_handoff_reserved_concurrency == null ? true : (
+      var.nexthink_handoff_reserved_concurrency >= 1 &&
+      floor(var.nexthink_handoff_reserved_concurrency) == var.nexthink_handoff_reserved_concurrency
+    )
+    error_message = "Use null or a positive whole number."
+  }
 }
 
 variable "nexthink_handoff_environment_variables" {
