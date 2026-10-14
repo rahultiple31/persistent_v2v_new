@@ -17,6 +17,7 @@ parameters:
     default: connect
     values:
       - connect
+      - data_table
       - lambda
       - proxy
       - v2v
@@ -41,7 +42,11 @@ variables:
   deploymentRegion: 'us-east-1'
   workingDirectory: 'environments/${{ parameters.targetEnvironment }}'
   backendBucket: 'bts-cloud-terraform-tfstate'
-  backendKey: 'terraform-state/${{ parameters.targetEnvironment }}/us-east-1/${{ parameters.targetModule }}/terraform.tfstate'
+  # Tables are already owned by Connect; both choices must lock the same state.
+  ${{ if eq(parameters.targetModule, 'data_table') }}:
+    backendKey: 'terraform-state/${{ parameters.targetEnvironment }}/us-east-1/connect/terraform.tfstate'
+  ${{ else }}:
+    backendKey: 'terraform-state/${{ parameters.targetEnvironment }}/us-east-1/${{ parameters.targetModule }}/terraform.tfstate'
   backendRegion: 'us-east-1'
   planArtifactName: 'terraform-plan-${{ parameters.targetEnvironment }}-us-east-1-${{ parameters.targetModule }}'
 
@@ -70,6 +75,11 @@ stages:
 
           - script: |
               set -euo pipefail
+
+              if [ '${{ parameters.targetModule }}' = 'data_table' ] && [ '${{ parameters.targetEnvironment }}' != 'dev' ]; then
+                echo "The data_table choice is supported only for dev, where data_table.tf is defined."
+                exit 1
+              fi
 
               echo "Checked-out source commit: $(git rev-parse HEAD)"
               echo "Pipeline source commit: $BUILD_SOURCEVERSION"
@@ -120,7 +130,20 @@ stages:
               python3 -m pip install --upgrade pip
               python3 -m pip install checkov
               checkov -d ../.. --framework terraform --soft-fail
-              terraform plan -var='enabled_modules=["${{ parameters.targetModule }}"]' -out=tfplan
+              TERRAFORM_PLAN_ARGS=(-var='enabled_modules=["${{ parameters.targetModule }}"]')
+              if [ '${{ parameters.targetModule }}' = 'data_table' ]; then
+                # Retain Connect configuration in its shared state and focus on
+                # the five table stacks and their required instance dependency.
+                TERRAFORM_PLAN_ARGS=(
+                  -var='enabled_modules=["connect"]'
+                  -target=aws_cloudformation_stack.customer_number_data_table
+                  -target=aws_cloudformation_stack.hr_transfer_data_table
+                  -target=aws_cloudformation_stack.survey_data_table
+                  -target=aws_cloudformation_stack.veeva_transfer_data_table
+                  -target=aws_cloudformation_stack.top_level_blocker_data_table
+                )
+              fi
+              terraform plan "${TERRAFORM_PLAN_ARGS[@]}" -out=tfplan
 
               PLAN_ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)/terraform-plan"
               mkdir -p "$PLAN_ARTIFACT_DIR"

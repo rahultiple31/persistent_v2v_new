@@ -15,7 +15,8 @@ module in `modules/connect`.
 
 The pipeline also selects one infrastructure module per run. Each selected
 module uses its own Terraform state file in S3 using the environment, region,
-and module order.
+and module order. The Dev `data_table` choice shares the `connect` state because
+those tables are also managed by the full Connect deployment.
 
 ## Region
 
@@ -189,10 +190,23 @@ deploying. No new pipeline choice is added by this change.
 The pipeline in `azure-pipelines.yml` supports these parameters:
 
 - `targetEnvironment`: `dev` or `dev-nsso`
-- `targetModule`: `connect`, `lambda`, `proxy`, or `v2v`
+- `targetModule`: `connect`, `data_table`, `lambda`, `proxy`, `v2v`,
+  `s3_connect_reporting`, `lambda-ctr-survey`, `lambda-connect-daily-ctr-export`,
+  `lambda-ctr-raw`, `iam-ctr`, or `lambda-snow-btsgsd-dev`
 - `terraformAction`: `plan` or `apply`
 
 The deployment region is fixed to `us-east-1` for both environments.
+
+To deploy the five tables in `environments/dev/data_table.tf`, select
+`targetEnvironment=dev`, `targetModule=data_table`, and `terraformAction=apply`
+from `main`. Select `plan` first to review the proposed changes. This choice
+uses `terraform-state/dev/us-east-1/connect/terraform.tfstate` and targets the
+five CloudFormation table stacks plus their required Connect instance dependency.
+The table names are `CustomerNumberDataTable`, `BTS_GSD-HR_Transfer`,
+`BTSGSD-Survey-DataTable`, `BTS_GSD-Veeva_Transfer`, and `TopLevelBlockerMessage`.
+It uses the existing OIDC credentials, approval environment, and saved-plan
+apply stage. It is not available for `dev-nsso`. Use the `connect` choice when
+deploying contact-flow changes, including updated table lookups.
 
 The proxy target requires EC2 network bootstrap permissions, including
 `ec2:CreateVpc` and `ec2:AllocateAddress`. Previously documented AWS Organizations

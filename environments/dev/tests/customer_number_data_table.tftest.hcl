@@ -45,6 +45,35 @@ variables {
   dev_ai_admin_security_profile_enabled = false
 }
 
+run "data_table_target_plan" {
+  command = plan
+
+  variables {
+    enabled_modules = ["connect"]
+  }
+
+  plan_options {
+    target = [
+      aws_cloudformation_stack.customer_number_data_table,
+      aws_cloudformation_stack.hr_transfer_data_table,
+      aws_cloudformation_stack.survey_data_table,
+      aws_cloudformation_stack.veeva_transfer_data_table,
+      aws_cloudformation_stack.top_level_blocker_data_table
+    ]
+  }
+
+  assert {
+    condition = (
+      length(aws_cloudformation_stack.customer_number_data_table) == 1 &&
+      length(aws_cloudformation_stack.hr_transfer_data_table) == 1 &&
+      length(aws_cloudformation_stack.survey_data_table) == 1 &&
+      length(aws_cloudformation_stack.veeva_transfer_data_table) == 1 &&
+      length(aws_cloudformation_stack.top_level_blocker_data_table) == 1
+    )
+    error_message = "The pipeline data_table selection must plan all five existing table stack addresses using the Connect configuration."
+  }
+}
+
 run "table_records_and_flow_reference" {
   command = apply
 
