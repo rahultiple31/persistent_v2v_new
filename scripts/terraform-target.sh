@@ -7,7 +7,7 @@ DEPLOYMENT_REGION="${3:-us-east-1}"
 
 # Friendly pipeline choice for the existing full Connect deployment.
 case "$DEPLOYMENT_TARGET" in
-  'amazon connect')
+  Connect_integrations)
     DEPLOYMENT_TARGET="connect"
     ;;
 esac

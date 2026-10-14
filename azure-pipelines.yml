@@ -17,7 +17,7 @@ parameters:
     default: connect
     values:
       - connect
-      - "amazon connect"
+      - Connect_integrations
       - data_table
       - agentcore_gateway
       - lambda
