@@ -129,6 +129,21 @@ module "connect_us_east_1" {
   customer_number_data_table_id     = local.customer_number_data_table_id
 }
 
+module "customer_details_view" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../modules/connect_views"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  connect_instance_arn = module.connect_us_east_1[0].instance_arn
+  stack_name           = "btsgsd-dev-Customer-Details-View"
+  view_name            = "Customer Details"
+  view_template        = file("${path.module}/metadata/views/customer_details.json")
+  common_tags          = local.common_tags
+}
+
 module "abbvie_views" {
   count  = local.deploy_connect ? 1 : 0
   source = "../../modules/abbvie_views"
@@ -138,7 +153,7 @@ module "abbvie_views" {
   }
 
   connect_instance_arn      = module.connect_us_east_1[0].instance_arn
-  customer_details_view_arn = var.abbvie_views_view_arn
+  customer_details_view_arn = module.customer_details_view[0].view_latest_arn
 
   flow_content = file(
     "${path.module}/metadata/contact-flows/abbvie_views.json"

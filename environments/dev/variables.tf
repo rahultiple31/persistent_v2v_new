@@ -648,12 +648,6 @@ variable "dev_ai_tools" {
   }
 }
 
-variable "abbvie_views_view_arn" {
-  description = "Version-qualified Customer Details View ARN from the Dev Connect instance."
-  type        = string
-  default     = ""
-}
-
 variable "connect_integrations_enabled" {
   description = "Create or retain the Connect MCP integration; false removes only the integration stack."
   type        = bool

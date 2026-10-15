@@ -151,8 +151,3 @@ secrets_manager_secrets = {
 secrets_manager_existing_arns = {
   # "Nextthink/Clientid/Secretkey" = "<actual existing secret ARN>"
 }
-
-# Required before deploying AbbVie_Views with the connect selection.
-# Set the actual version-qualified Customer Details View ARN from instance
-# c227a737-3e4f-4c64-8397-2d37e318801d; the source export used a different instance.
-abbvie_views_view_arn = ""

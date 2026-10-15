@@ -117,6 +117,17 @@ output "agentcore_gateway" {
   value       = try(module.agentcore_gateway[0].deployment, null)
 }
 
+output "customer_details_view" {
+  description = "Customer Details view identifiers."
+
+  value = try({
+    id         = module.customer_details_view[0].view_id
+    arn        = module.customer_details_view[0].view_arn
+    latest_arn = module.customer_details_view[0].view_latest_arn
+    name       = module.customer_details_view[0].view_name
+  }, null)
+}
+
 output "abbvie_views" {
   description = "AbbVie_Views contact flow details."
 
