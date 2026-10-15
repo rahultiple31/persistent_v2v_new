@@ -125,22 +125,22 @@ nexthink_handoff_reserved_concurrency = null
 
 # Use the dedicated secrets_manager Terraform state for this deployment.
 secrets_manager_secrets = {
-  "servicenow/stage" = {
+  "servicenow/stage-dev" = {
     username = "SVC-HCLDESK"
     password = "Ma%Ns7U]w0+D@hwMtPcK@y"
   }
 
-  "servicenow/prod" = {
+  "servicenow/prod-dev" = {
     username = "SVC-HCLDESK"
     password = "K@tTenFeest0909!"
   }
 
-  "servicenow/details" = {
+  "servicenow/details-dev" = {
     username = "SVC-HCLDESK"
     password = "HS0]Bu(dTu.Zu#aiy57Rp8"
   }
 
-  "Nextthink/Clientid/Secretkey" = {
+  "Nextthink/Clientid/Secretkey-dev" = {
     client_id     = "fc261bfec6164bfdbd4efe467782feb8"
     client_secret = "hux82NQlYW4VmY-jfjMokXFUnWdBaWdMbs2G5_MAzE197pWkjEdXTb9COpe27O3L"
   }
