@@ -43,6 +43,7 @@ case "$DEPLOYMENT_TARGET" in
       -target=aws_cloudformation_stack.survey_data_table
       -target=aws_cloudformation_stack.veeva_transfer_data_table
       -target=aws_cloudformation_stack.top_level_blocker_data_table
+      -target=aws_cloudformation_stack.bts_gsd_customer_number_data_table
     )
     ;;
   agentcore_gateway)

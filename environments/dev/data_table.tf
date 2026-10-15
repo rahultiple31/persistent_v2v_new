@@ -790,3 +790,202 @@ output "top_level_blocker_data_table" {
     id   = local.top_level_blocker_data_table_id
   }, null)
 }
+
+# Composite primary key: country + system_phonenumber.
+# Flow lookups must supply both attributes because phone numbers repeat.
+# All columns remain TEXT; strip Excel's leading apostrophe from phone numbers.
+locals {
+  bts_gsd_customer_number_csv = <<-CSV
+"country","system_phonenumber","amazon_speaking_engine","amazon_speaking_style","amazon_voice","hr_contact","language_code","language_name","medcom_contact","region","veeva_contact"
+"","'+12","neural","conversational","Aditi","","hi-IN","Hindi","","",""
+"Argentina","'+548002661683","neural","conversational","Katie","'+5408003454866","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"Argentina","'+576014192633","neural","conversational","Katie","'+5408003454866","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"Bahamas","'+18336980331","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"Bahamas","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"Barbados","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"Canada","'+18004078577","neural","conversational","Katie","'+18553007019","en-US","English","","NORAM",""
+"Chile","'+56800395181","neural","conversational","Katie","'+56800914883","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"Chile","'+576014192633","neural","conversational","Katie","'+56800914883","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"Colombia","'+5718000128353","neural","conversational","Katie","'+57018005189572","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"Colombia","'+576014192633","neural","conversational","Katie","'+57018005189572","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"Costa Rica","'+576014192633","neural","conversational","Katie","'+5068000320022","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"Curacao","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"Dominican Republic","'+18001485151","neural","conversational","Katie","'+18665486437","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"Dominican Republic","'+576014192633","neural","conversational","Katie","'+18665486437","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"El Salvador","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"Guatemala","'+576014192633","neural","conversational","Katie","'+50224582811","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"Honduras","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"Jamaica","'+1833698332","neural","conversational","Katie","'+18552013947","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"Jamaica","'+576014192633","neural","conversational","Katie","'+18552013947","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"Mexico","'+528000835964","neural","conversational","Katie","'+528008770373","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"Nicaragua","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"Panama","'+50769789714","neural","conversational","Katie","'+5078000086","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"Peru","'+5180077559","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"Puerto Rico","'+18663806011","neural","conversational","Katie","'+18553075401","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"Trinidad and Tobago","'+576014192633","neural","conversational","Katie","'+18665462622","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+"United States","'+18335162999","neural","conversational","Katie","'+18446634748","en-US","English","'+13152949458","NORAM","'+13124799473"
+"Uruguay","'+576014192633","neural","conversational","Katie","'+5980004135985411","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
+"USA","'+18002524415","neural","conversational","Katie","'+18446634748","en-US","English","","NORAM",""
+"Venezuela","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
+CSV
+
+  bts_gsd_customer_number_raw_rows = csvdecode(
+    trimspace(local.bts_gsd_customer_number_csv)
+  )
+
+  bts_gsd_customer_number_columns = keys(
+    local.bts_gsd_customer_number_raw_rows[0]
+  )
+
+  bts_gsd_customer_number_primary_columns = [
+    "country",
+    "system_phonenumber",
+  ]
+
+  bts_gsd_customer_number_rows = {
+    for row in local.bts_gsd_customer_number_raw_rows :
+    jsonencode([
+      row.country,
+      trimprefix(trimspace(row.system_phonenumber), "'"),
+      ]) => {
+      for column, value in row :
+      column => (
+        contains(
+          ["system_phonenumber", "hr_contact", "medcom_contact", "veeva_contact"],
+          column
+        )
+        ? trimprefix(trimspace(value), "'")
+        : value
+      )
+    }
+  }
+
+  bts_gsd_customer_number_template = {
+    AWSTemplateFormatVersion = "2010-09-09"
+    Description              = "BTS_GSD-CustomerNumber routing configuration."
+
+    Parameters = {
+      InstanceArn = {
+        Type = "String"
+      }
+    }
+
+    Resources = merge(
+      {
+        CustomerNumberTable = {
+          Type = "AWS::Connect::DataTable"
+          Properties = {
+            InstanceArn    = { Ref = "InstanceArn" }
+            Name           = "BTS_GSD-CustomerNumber"
+            Description    = "Routing configuration by country and system phone number."
+            Status         = "PUBLISHED"
+            TimeZone       = "UTC"
+            ValueLockLevel = "NONE"
+
+            Tags = [
+              for key, value in merge(local.common_tags, {
+                Name = "BTS_GSD-CustomerNumber"
+                }) : {
+                Key   = key
+                Value = value
+              }
+            ]
+          }
+        }
+      },
+      {
+        for column in local.bts_gsd_customer_number_columns :
+        "Attribute${replace(column, "_", "")}" => {
+          Type = "AWS::Connect::DataTableAttribute"
+          Properties = {
+            InstanceArn  = { Ref = "InstanceArn" }
+            DataTableArn = { "Fn::GetAtt" = ["CustomerNumberTable", "Arn"] }
+            Name         = column
+            ValueType    = "TEXT"
+            Primary      = contains(local.bts_gsd_customer_number_primary_columns, column)
+          }
+        }
+      },
+      {
+        for row_key, row in local.bts_gsd_customer_number_rows :
+        "Record${md5(row_key)}" => {
+          Type = "AWS::Connect::DataTableRecord"
+          Properties = {
+            InstanceArn  = { Ref = "InstanceArn" }
+            DataTableArn = { "Fn::GetAtt" = ["CustomerNumberTable", "Arn"] }
+
+            DataTableRecord = {
+              PrimaryValues = [
+                for column in local.bts_gsd_customer_number_primary_columns : {
+                  AttributeId = {
+                    "Fn::GetAtt" = [
+                      "Attribute${replace(column, "_", "")}",
+                      "AttributeId",
+                    ]
+                  }
+                  AttributeValue = row[column]
+                }
+              ]
+
+              Values = [
+                for column in local.bts_gsd_customer_number_columns : {
+                  AttributeId = {
+                    "Fn::GetAtt" = [
+                      "Attribute${replace(column, "_", "")}",
+                      "AttributeId",
+                    ]
+                  }
+                  AttributeValue = row[column]
+                }
+                if !contains(local.bts_gsd_customer_number_primary_columns, column)
+              ]
+            }
+          }
+        }
+      }
+    )
+
+    Outputs = {
+      DataTableArn = {
+        Value = {
+          "Fn::GetAtt" = ["CustomerNumberTable", "Arn"]
+        }
+      }
+    }
+  }
+}
+
+resource "aws_cloudformation_stack" "bts_gsd_customer_number_data_table" {
+  count    = local.deploy_connect ? 1 : 0
+  provider = aws.us_east_1
+
+  name          = "btsgsd-dev-BTS-GSD-CustomerNumber"
+  template_body = jsonencode(local.bts_gsd_customer_number_template)
+
+  parameters = {
+    InstanceArn = module.connect_us_east_1[0].instance_arn
+  }
+
+  tags = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition = (
+        module.connect_us_east_1[0].instance_arn ==
+        "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
+      )
+      error_message = "BTS_GSD-CustomerNumber must use the confirmed Dev Connect instance."
+    }
+  }
+}
+
+output "bts_gsd_customer_number_data_table" {
+  value = try({
+    name = "BTS_GSD-CustomerNumber"
+    arn  = aws_cloudformation_stack.bts_gsd_customer_number_data_table[0].outputs["DataTableArn"]
+    id = element(
+      reverse(split("/", aws_cloudformation_stack.bts_gsd_customer_number_data_table[0].outputs["DataTableArn"])),
+      0
+    )
+  }, null)
+}
