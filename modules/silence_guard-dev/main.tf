@@ -9,6 +9,10 @@ terraform {
       source  = "hashicorp/archive"
       version = "~> 2.0"
     }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.13"
+    }
   }
 }
 
@@ -90,6 +94,17 @@ resource "aws_s3_object" "code" {
   depends_on = [aws_s3_bucket_public_access_block.code]
 }
 
+# Allow the new execution role to propagate before creating the Lambda.
+resource "time_sleep" "execution_role_ready" {
+  create_duration = "60s"
+
+  triggers = {
+    role_id = aws_iam_role.execution.unique_id
+  }
+
+  depends_on = [aws_iam_role_policy.logging]
+}
+
 resource "aws_cloudformation_stack" "lambda" {
   name = "silence-guard-dev-lambda"
   tags = var.common_tags
@@ -151,7 +166,7 @@ resource "aws_cloudformation_stack" "lambda" {
     }
   })
 
-  depends_on = [aws_iam_role_policy.logging]
+  depends_on = [time_sleep.execution_role_ready]
 }
 
 resource "aws_lambda_permission" "connect" {
