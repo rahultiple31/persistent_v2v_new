@@ -542,6 +542,42 @@ module "secrets_manager" {
   common_tags = local.common_tags
 }
 
+# Deploys with the btsgsd-intent-kb selection.
+module "s3_intent_kb" {
+  count  = contains(local.enabled_module_set, "btsgsd-intent-kb") ? 1 : 0
+  source = "../../modules/s3_intent_kb"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  bucket_name = "btsgsd-intent-kb"
+}
+
+# Deploys with the lex_bot selection.
+# Creates a blank DRAFT bot; no custom intents or published versions.
+module "lex_bot" {
+  count  = contains(local.enabled_module_set, "lex_bot") ? 1 : 0
+  source = "../../modules/lex_bot"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  bot_name = "btsgsd-IT-Support_Agent-dev"
+}
+
+module "cloudwatch_log_group" {
+  count  = contains(local.enabled_module_set, "cloudwatch_log_group") ? 1 : 0
+  source = "../../modules/cloudwatch_log_group"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  log_group_name = "/aws/connect/ai-agent-logs-dev"
+}
+
 import {
   for_each = contains(local.enabled_module_set, "secrets_manager") ? var.secrets_manager_existing_arns : {}
 

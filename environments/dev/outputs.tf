@@ -126,3 +126,10 @@ output "secrets_manager_arns" {
   description = "Managed secret ARNs."
   value       = try(module.secrets_manager[0].secret_arns, null)
 }
+
+output "ai_agent_log_group" {
+  value = try({
+    name = module.cloudwatch_log_group[0].name
+    arn  = module.cloudwatch_log_group[0].arn
+  }, null)
+}

@@ -32,6 +32,9 @@ parameters:
       - lambda-servicenow-interaction
       - lambda-nextthink-handoff
       - secrets_manager
+      - cloudwatch_log_group
+      - btsgsd-intent-kb
+      - lex_bot
 
   - name: terraformAction
     displayName: Terraform action

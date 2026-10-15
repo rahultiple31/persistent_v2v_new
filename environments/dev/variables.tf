@@ -66,7 +66,10 @@ variable "enabled_modules" {
         "lambda-servicenow-interaction",
         "lambda-nextthink-handoff",
         "iam-ctr",
-        "secrets_manager"
+        "secrets_manager",
+        "cloudwatch_log_group",
+        "btsgsd-intent-kb",
+        "lex_bot"
       ])
     )) == 0
     error_message = "enabled_modules contains an unsupported module name."
