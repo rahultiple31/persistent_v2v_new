@@ -2,11 +2,15 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.100"
+      version = "~> 6.21.0"
     }
     archive = {
       source  = "hashicorp/archive"
       version = "~> 2.0"
+    }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.13"
     }
   }
 }
@@ -71,7 +75,7 @@ resource "aws_iam_role_policy" "execution" {
         Resource = format(
           "arn:%s:wisdom:%s:%s:session/%s/*",
           data.aws_partition.current.partition,
-          data.aws_region.current.name,
+          data.aws_region.current.region,
           data.aws_caller_identity.current.account_id,
           var.assistant_id
         )
@@ -80,104 +84,56 @@ resource "aws_iam_role_policy" "execution" {
   })
 }
 
-resource "aws_s3_bucket" "code" {
-  bucket_prefix = "update-session-attributes-dev-code-"
-  tags          = var.common_tags
-}
+# Allow IAM propagation before the first function creation.
+resource "time_sleep" "execution_role_ready" {
+  create_duration = "60s"
 
-resource "aws_s3_bucket_public_access_block" "code" {
-  bucket = aws_s3_bucket.code.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_object" "code" {
-  bucket                 = aws_s3_bucket.code.id
-  key                    = "lambda/${data.archive_file.code.output_sha256}.zip"
-  source                 = data.archive_file.code.output_path
-  source_hash            = data.archive_file.code.output_base64sha256
-  content_type           = "application/zip"
-  server_side_encryption = "AES256"
-
-  lifecycle {
-    create_before_destroy = true
+  triggers = {
+    role_id = aws_iam_role.execution.unique_id
   }
 
-  depends_on = [aws_s3_bucket_public_access_block.code]
+  depends_on = [aws_iam_role_policy.execution]
 }
 
-# CloudFormation follows the repository's Python 3.14 deployment pattern.
-# Reserved concurrency 300 requires sufficient regional Lambda capacity.
-resource "aws_cloudformation_stack" "lambda" {
-  name = "${local.function_name}-lambda"
+resource "aws_lambda_function" "this" {
+  function_name                  = local.function_name
+  role                           = aws_iam_role.execution.arn
+  runtime                        = "python3.14"
+  architectures                  = ["x86_64"]
+  handler                        = "lambda_function.handler"
+  package_type                   = "Zip"
+  filename                       = data.archive_file.code.output_path
+  source_code_hash               = data.archive_file.code.output_base64sha256
+  memory_size                    = 128
+  timeout                        = 8
+  reserved_concurrent_executions = 300
+
+  ephemeral_storage {
+    size = 512
+  }
+
+  logging_config {
+    log_format = "Text"
+    log_group  = aws_cloudwatch_log_group.this.name
+  }
+
   tags = var.common_tags
 
-  template_body = jsonencode({
-    AWSTemplateFormatVersion = "2010-09-09"
+  depends_on = [
+    time_sleep.execution_role_ready,
+    aws_cloudwatch_log_group.this,
+  ]
+}
 
-    Resources = {
-      Function = {
-        Type = "AWS::Lambda::Function"
-
-        Properties = {
-          FunctionName                 = local.function_name
-          Runtime                      = "python3.14"
-          Architectures                = ["x86_64"]
-          Handler                      = "lambda_function.handler"
-          PackageType                  = "Zip"
-          Role                         = aws_iam_role.execution.arn
-          MemorySize                   = 128
-          Timeout                      = 8
-          ReservedConcurrentExecutions = 300
-
-          EphemeralStorage = {
-            Size = 512
-          }
-
-          Code = {
-            S3Bucket = aws_s3_object.code.bucket
-            S3Key    = aws_s3_object.code.key
-          }
-
-          LoggingConfig = {
-            LogFormat = "Text"
-            LogGroup  = aws_cloudwatch_log_group.this.name
-          }
-
-          RuntimeManagementConfig = {
-            UpdateRuntimeOn = "Auto"
-          }
-
-          Tags = [
-            for key, value in var.common_tags : {
-              Key   = key
-              Value = value
-            }
-          ]
-        }
-      }
-    }
-
-    Outputs = {
-      FunctionName = {
-        Value = { Ref = "Function" }
-      }
-      FunctionArn = {
-        Value = { "Fn::GetAtt" = ["Function", "Arn"] }
-      }
-    }
-  })
-
-  depends_on = [aws_iam_role_policy.execution]
+resource "aws_lambda_runtime_management_config" "this" {
+  function_name     = aws_lambda_function.this.function_name
+  update_runtime_on = "Auto"
 }
 
 resource "aws_lambda_permission" "connect" {
   statement_id   = "AllowAmazonConnect"
   action         = "lambda:InvokeFunction"
-  function_name  = aws_cloudformation_stack.lambda.outputs["FunctionName"]
+  function_name  = aws_lambda_function.this.function_name
   principal      = "connect.amazonaws.com"
   source_arn     = var.connect_instance_arn
   source_account = data.aws_caller_identity.current.account_id
@@ -185,7 +141,7 @@ resource "aws_lambda_permission" "connect" {
 
 resource "aws_connect_lambda_function_association" "this" {
   instance_id  = element(reverse(split("/", var.connect_instance_arn)), 0)
-  function_arn = aws_cloudformation_stack.lambda.outputs["FunctionArn"]
+  function_arn = aws_lambda_function.this.arn
 
   depends_on = [aws_lambda_permission.connect]
 }

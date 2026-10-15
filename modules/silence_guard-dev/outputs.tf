@@ -1,9 +1,9 @@
 output "function_name" {
-  value = aws_cloudformation_stack.lambda.outputs["FunctionName"]
+  value = aws_lambda_function.this.function_name
 }
 
 output "function_arn" {
-  value = aws_cloudformation_stack.lambda.outputs["FunctionArn"]
+  value = aws_lambda_function.this.arn
 }
 
 output "log_group_name" {
