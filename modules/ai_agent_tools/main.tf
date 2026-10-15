@@ -1,8 +1,8 @@
-# Tool names are case-sensitive and must match the gateway.
+# Normalize agent-facing names; preserve exact gateway names and case in ToolId.
 locals {
   tool_configurations = [
     for name in sort(tolist(var.tool_names)) : {
-      ToolName = name
+      ToolName = lower(replace(name, "/[^A-Za-z0-9]+/", "_"))
       ToolType = "MODEL_CONTEXT_PROTOCOL"
       ToolId   = "gateway_${var.namespace}__${name}"
     }
