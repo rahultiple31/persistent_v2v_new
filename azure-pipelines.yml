@@ -36,6 +36,8 @@ parameters:
       - btsgsd-intent-kb
       - lex_bot
       - ai_agent_tools
+      - silence_guard-dev
+      - UpdateSessionAttributes-dev
 
   - name: terraformAction
     displayName: Terraform action

@@ -583,6 +583,33 @@ module "lex_bot" {
   bot_name = "btsgsd-IT-Support_Agent-dev"
 }
 
+# Invoke this Lambda after the Connect assistant block in the contact flow.
+module "UpdateSessionAttributes-dev" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../modules/UpdateSessionAttributes-dev"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  connect_instance_arn = module.connect_us_east_1[0].instance_arn
+  assistant_id         = local.dev_ai_assistant_id
+  common_tags          = local.common_tags
+}
+
+# Deploys with the connect selection.
+module "silence_guard-dev" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../modules/silence_guard-dev"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  connect_instance_arn = module.connect_us_east_1[0].instance_arn
+  common_tags          = local.common_tags
+}
+
 module "cloudwatch_log_group" {
   count  = contains(local.enabled_module_set, "cloudwatch_log_group") ? 1 : 0
   source = "../../modules/cloudwatch_log_group"
