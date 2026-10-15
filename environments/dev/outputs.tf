@@ -117,6 +117,16 @@ output "agentcore_gateway" {
   value       = try(module.agentcore_gateway[0].deployment, null)
 }
 
+output "abbvie_views" {
+  description = "AbbVie_Views contact flow details."
+
+  value = try({
+    id   = module.abbvie_views[0].flow_id
+    arn  = module.abbvie_views[0].flow_arn
+    name = module.abbvie_views[0].flow_name
+  }, null)
+}
+
 output "connect_integrations" {
   description = "Dev Connect MCP integration, or null when disabled."
   value       = try(module.connect_Integrations[0].deployment, null)

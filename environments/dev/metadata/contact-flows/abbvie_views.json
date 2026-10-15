@@ -1,0 +1,127 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "7789d6bd-8d55-425b-b093-116e047c8cf1",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": 40,
+      "y": 40
+    },
+    "ActionMetadata": {
+      "24d9f3a3-8769-4d26-a5bd-58d966fa8af9": {
+        "position": {
+          "x": 581.6,
+          "y": 124.8
+        }
+      },
+      "7789d6bd-8d55-425b-b093-116e047c8cf1": {
+        "position": {
+          "x": 263.2,
+          "y": 83.2
+        },
+        "parameters": {
+          "ViewResource": {
+            "Id": {
+              "displayName": "Customer Details"
+            }
+          },
+          "InvocationTimeLimitSeconds": {
+            "unit": 60
+          },
+          "ViewData": {
+            "CallerName": {
+              "useDynamic": true
+            },
+            "Customer_Prefferred_Language": {
+              "useDynamic": true
+            },
+            "Dialed_Number": {
+              "useDynamic": true
+            },
+            "Email": {
+              "useDynamic": true
+            },
+            "Intent": {
+              "useDynamic": true
+            },
+            "UPI": {
+              "useDynamic": true
+            },
+            "UserId": {
+              "useDynamic": true
+            },
+            "UserStatus": {
+              "useDynamic": true
+            },
+            "VerificationStatus": {
+              "useDynamic": true
+            },
+            "VerifiedVia": {
+              "useDynamic": true
+            },
+            "CallSummary": {
+              "useDynamic": true
+            },
+            "ScreenPopURL": {
+              "useDynamic": true
+            }
+          }
+        }
+      }
+    },
+    "Annotations": [],
+    "name": "AbbVie_Views",
+    "description": "",
+    "type": "contactFlow",
+    "status": "PUBLISHED",
+    "hash": {}
+  },
+  "Actions": [
+    {
+      "Parameters": {},
+      "Identifier": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+      "Type": "EndFlowExecution",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "ViewResource": {
+          "Id": "__CUSTOMER_DETAILS_VIEW_ARN__"
+        },
+        "InvocationTimeLimitSeconds": "600",
+        "ViewData": {
+          "CallerName": "$.Attributes.CallerName",
+          "Customer_Prefferred_Language": "$.Attributes.Customer_Prefferred_Language",
+          "Dialed_Number": "$.CustomerEndpoint.Address",
+          "Email": "$.Attributes.Email",
+          "Intent": "$.Attributes.Intent",
+          "UPI": "$.Attributes.UPI",
+          "UserId": "$.Attributes.UserId",
+          "UserStatus": "$.Attributes.UserStatus",
+          "VerificationStatus": "$.Attributes.VerificationStatus",
+          "VerifiedVia": "$.Attributes.VerifiedVia",
+          "CallSummary": "$.Attributes.CallSummary",
+          "ScreenPopURL": "$.Attributes.ScreenPopURL"
+        }
+      },
+      "Identifier": "7789d6bd-8d55-425b-b093-116e047c8cf1",
+      "Type": "ShowView",
+      "Transitions": {
+        "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+        "Errors": [
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "ErrorType": "NoMatchingError"
+          },
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "ErrorType": "TimeLimitExceeded"
+          }
+        ]
+      }
+    }
+  ]
+}
