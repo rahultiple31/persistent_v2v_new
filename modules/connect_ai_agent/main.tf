@@ -117,6 +117,18 @@ locals {
             OrchestrationAIAgentConfiguration = merge(local.source_configuration, {
               ConnectInstanceArn      = var.connect_instance_arn
               OrchestrationAIPromptId = local.prompt_version_id
+
+              # Preserve built-in tools; replace matching IDs and append additions.
+              ToolConfigurations = concat(
+                [
+                  for tool in try(local.source_configuration.ToolConfigurations, []) : tool
+                  if !contains(
+                    [for added in var.tool_configurations : added.ToolId],
+                    try(tool.ToolId, "")
+                  )
+                ],
+                var.tool_configurations
+              )
             })
           }
         }

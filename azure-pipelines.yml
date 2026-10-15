@@ -35,6 +35,7 @@ parameters:
       - cloudwatch_log_group
       - btsgsd-intent-kb
       - lex_bot
+      - ai_agent_tools
 
   - name: terraformAction
     displayName: Terraform action

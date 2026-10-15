@@ -6,7 +6,7 @@ DEPLOYMENT_ENVIRONMENT="${2:?Environment is required}"
 DEPLOYMENT_REGION="${3:-us-east-1}"
 
 case "$DEPLOYMENT_TARGET" in
-  Connect_integrations|data_table|agentcore_gateway|lambda-servicenow-interaction|lambda-nextthink-handoff)
+  Connect_integrations|data_table|agentcore_gateway|ai_agent_tools|lambda-servicenow-interaction|lambda-nextthink-handoff)
     if [ "$DEPLOYMENT_ENVIRONMENT" != "dev" ]; then
       echo "$DEPLOYMENT_TARGET is supported only for dev." >&2
       return 1
@@ -20,6 +20,13 @@ TERRAFORM_PLAN_ARGS=(
 )
 
 case "$DEPLOYMENT_TARGET" in
+  ai_agent_tools)
+    TERRAFORM_STATE_MODULE="connect"
+    TERRAFORM_PLAN_ARGS=(
+      '-var=enabled_modules=["connect"]'
+      -target=module.btsgsd_support_agent
+    )
+    ;;
   Connect_integrations)
     TERRAFORM_STATE_MODULE="connect"
     TERRAFORM_PLAN_ARGS=(
@@ -62,7 +69,7 @@ TERRAFORM_BACKEND_KEY="terraform-state/$DEPLOYMENT_ENVIRONMENT/$DEPLOYMENT_REGIO
 
 preserve_terraform_target_outputs() {
   case "$DEPLOYMENT_TARGET" in
-    connect|agentcore_gateway|Connect_integrations)
+    connect|agentcore_gateway|Connect_integrations|ai_agent_tools)
       local gateway_audience_id
       gateway_audience_id="$(
         terraform output -json |

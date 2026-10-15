@@ -129,6 +129,20 @@ module "connect_us_east_1" {
   customer_number_data_table_id     = local.customer_number_data_table_id
 }
 
+module "support_agent_tools" {
+  count  = local.dev_support_ai_enabled ? 1 : 0
+  source = "../../modules/ai_agent_tools"
+
+  namespace = "gateway-quick-start-dev-tfkjeu6nxc"
+
+  # Exact gateway names from the current agentcore_gateway code.
+  tool_names = [
+    "nexthink-handoff___handoff",
+    "snow-interaction___Interaction__Interaction",
+    "snow-userlookup___UserLookUp___UserLookUp",
+  ]
+}
+
 module "btsgsd_support_agent" {
   count  = local.dev_support_ai_enabled ? 1 : 0
   source = "../../modules/connect_ai_agent"
@@ -150,8 +164,10 @@ module "btsgsd_support_agent" {
   prompt_yaml_file     = abspath("${path.module}/${var.dev_support_ai_prompt_file}")
   python_executable    = var.dev_support_ai_python_executable
   tags                 = local.dev_ai_tags
+  tool_configurations  = module.support_agent_tools[0].tool_configurations
 
   depends_on = [
+    module.connect_Integrations,
     aws_cloudformation_stack.dev_ai_domain,
     aws_s3_bucket_public_access_block.dev_ai_template,
     aws_s3_bucket_server_side_encryption_configuration.dev_ai_template

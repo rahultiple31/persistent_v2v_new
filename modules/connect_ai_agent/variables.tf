@@ -82,3 +82,15 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "tool_configurations" {
+  description = "Additional existing MCP tools attached to this AI agent."
+
+  type = list(object({
+    ToolName = string
+    ToolType = string
+    ToolId   = string
+  }))
+
+  default = []
+}
