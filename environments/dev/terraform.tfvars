@@ -86,7 +86,7 @@ agentcore_gateway_enabled = true
 connect_integrations_enabled = true
 
 # Manual deployments use a state key dedicated to the selected module.
-enabled_modules                          = ["lambda-nextthink-handoff"]
+enabled_modules                          = ["secrets_manager"]
 servicenow_interaction_python_executable = "python"
 
 # Deploy without a guaranteed reservation of 100 while quota is unavailable.
@@ -122,3 +122,32 @@ nexthink_handoff_reserved_concurrency = null
 # Set only if the existing secret uses a customer-managed KMS key.
 # The key policy must also permit the execution role to decrypt.
 # nexthink_handoff_secret_kms_key_arn = "arn:aws:kms:us-east-1:518902362956:key/<key-id>"
+
+# Use the dedicated secrets_manager Terraform state for this deployment.
+secrets_manager_secrets = {
+  "servicenow/stage" = {
+    username = "SVC-HCLDESK"
+    password = "Ma%Ns7U]w0+D@hwMtPcK@y"
+  }
+
+  "servicenow/prod" = {
+    username = "SVC-HCLDESK"
+    password = "K@tTenFeest0909!"
+  }
+
+  "servicenow/details" = {
+    username = "SVC-HCLDESK"
+    password = "HS0]Bu(dTu.Zu#aiy57Rp8"
+  }
+
+  "Nextthink/Clientid/Secretkey" = {
+    client_id     = "fc261bfec6164bfdbd4efe467782feb8"
+    client_secret = "hux82NQlYW4VmY-jfjMokXFUnWdBaWdMbs2G5_MAzE197pWkjEdXTb9COpe27O3L"
+  }
+}
+
+# For secrets that already exist, add their actual ARNs before applying.
+# This avoids attempting to recreate existing secrets.
+secrets_manager_existing_arns = {
+  # "Nextthink/Clientid/Secretkey" = "<actual existing secret ARN>"
+}

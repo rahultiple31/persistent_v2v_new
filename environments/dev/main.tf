@@ -529,3 +529,22 @@ module "connect_Integrations" {
   gateway_url          = module.agentcore_gateway[0].deployment.url
   common_tags          = local.common_tags
 }
+
+module "secrets_manager" {
+  count  = contains(local.enabled_module_set, "secrets_manager") ? 1 : 0
+  source = "../../modules/secrets_manager"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  secrets     = var.secrets_manager_secrets
+  common_tags = local.common_tags
+}
+
+import {
+  for_each = contains(local.enabled_module_set, "secrets_manager") ? var.secrets_manager_existing_arns : {}
+
+  to = module.secrets_manager[0].aws_secretsmanager_secret.this[each.key]
+  id = each.value
+}

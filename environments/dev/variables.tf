@@ -46,14 +46,44 @@ variable "connect_name_suffix" {
 }
 
 variable "enabled_modules" {
-  description = "Infrastructure modules enabled for this Terraform state. Supported values: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd-dev, lambda-servicenow-interaction, lambda-nextthink-handoff, iam-ctr."
+  description = "Infrastructure modules enabled for this Terraform state."
   type        = list(string)
   default     = ["connect"]
 
   validation {
-    condition     = length(setsubtract(toset([for module_name in var.enabled_modules : lower(module_name)]), toset(["connect", "lambda", "proxy", "v2v", "s3_connect_reporting", "lambda-ctr-survey", "lambda-connect-daily-ctr-export", "lambda-ctr-raw", "lambda-snow-btsgsd-dev", "lambda-servicenow-interaction", "lambda-nextthink-handoff", "iam-ctr"]))) == 0
-    error_message = "enabled_modules supports: connect, lambda, proxy, v2v, s3_connect_reporting, lambda-ctr-survey, lambda-connect-daily-ctr-export, lambda-ctr-raw, lambda-snow-btsgsd-dev, lambda-servicenow-interaction, lambda-nextthink-handoff, iam-ctr."
+    condition = length(setsubtract(
+      toset([for name in var.enabled_modules : lower(name)]),
+      toset([
+        "connect",
+        "lambda",
+        "proxy",
+        "v2v",
+        "s3_connect_reporting",
+        "lambda-ctr-survey",
+        "lambda-connect-daily-ctr-export",
+        "lambda-ctr-raw",
+        "lambda-snow-btsgsd-dev",
+        "lambda-servicenow-interaction",
+        "lambda-nextthink-handoff",
+        "iam-ctr",
+        "secrets_manager"
+      ])
+    )) == 0
+    error_message = "enabled_modules contains an unsupported module name."
   }
+}
+
+variable "secrets_manager_secrets" {
+  description = "Secret payloads loaded from terraform.tfvars."
+  type        = map(map(string))
+  sensitive   = true
+  default     = {}
+}
+
+variable "secrets_manager_existing_arns" {
+  description = "Existing secret names and ARNs to import; leave empty for new secrets."
+  type        = map(string)
+  default     = {}
 }
 
 variable "common_tags" {

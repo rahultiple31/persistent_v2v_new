@@ -121,3 +121,8 @@ output "connect_integrations" {
   description = "Dev Connect MCP integration, or null when disabled."
   value       = try(module.connect_Integrations[0].deployment, null)
 }
+
+output "secrets_manager_arns" {
+  description = "Managed secret ARNs."
+  value       = try(module.secrets_manager[0].secret_arns, null)
+}
