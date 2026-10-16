@@ -17,6 +17,7 @@ parameters:
     default: connect
     values:
       - connect
+      - connect_views
       - Connect_integrations
       - data_table
       - agentcore_gateway
