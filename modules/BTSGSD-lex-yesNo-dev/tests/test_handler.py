@@ -8,7 +8,7 @@ from zipfile import ZipFile
 
 SOURCE = (
     Path(__file__).resolve().parents[3]
-    / "environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda/lambda_function.py"
+    / "environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda-dev_lambda/lambda_function.py"
 )
 spec = importlib.util.spec_from_file_location("lex_yesno_handler", SOURCE)
 handler = importlib.util.module_from_spec(spec)

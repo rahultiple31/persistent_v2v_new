@@ -2,17 +2,18 @@
 
 The dev Connect selection deploys `conversionOfQueueMetrics-dev` from
 `modules/conversionOfQueueMetrics-dev`. The handler source is
-`environments/dev/metadata/ivr_lambda/lambda_function.py`. Terraform reads the
+`environments/dev/metadata/conversionOfQueueMetrics-dev_lambda/lambda_function.py`. Terraform reads the
 prebuilt `lambda_function.zip` in the same directory using `filename` and
 `filebase64sha256`, then uploads it directly to Lambda. This module does not
-use `archive_file`. The ZIP is allowed by `.gitignore`; include it in the same
-commit as the source so pipeline checkouts contain the package.
+use `archive_file`. The dev pipeline builds the ZIP from the checked-out source
+before Terraform runs and preserves it in the plan artifact. Apply restores
+the exact planned ZIP. The ZIP is also allowed by `.gitignore` for local use.
 
 After changing the Python source, rebuild the ZIP from the repository root
-before Terraform plan/apply:
+before local Terraform plan/apply:
 
 ```bash
-python3 -m zipfile -c environments/dev/metadata/ivr_lambda/lambda_function.zip environments/dev/metadata/ivr_lambda/lambda_function.py
+python3 -m zipfile -c environments/dev/metadata/conversionOfQueueMetrics-dev_lambda/lambda_function.zip environments/dev/metadata/conversionOfQueueMetrics-dev_lambda/lambda_function.py
 ```
 
 The ZIP must contain `lambda_function.py` at its root. The handler remains

@@ -72,6 +72,27 @@ stages:
         steps:
           - checkout: self
 
+          - bash: |
+              set -euo pipefail
+
+              for package_dir in \
+                "metadata/BTSGSD-lex-yesNo-dev_lambda-dev_lambda" \
+                "metadata/conversionOfQueueMetrics-dev_lambda"
+              do
+                test -f "$package_dir/lambda_function.py"
+
+                python3 -m zipfile -c \
+                  "$package_dir/lambda_function.zip" \
+                  "$package_dir/lambda_function.py"
+
+                artifact_dir="$(Build.ArtifactStagingDirectory)/terraform-plan/$package_dir"
+                mkdir -p "$artifact_dir"
+                cp "$package_dir/lambda_function.zip" "$artifact_dir/"
+              done
+            displayName: Build and preserve Lambda ZIP packages
+            workingDirectory: $(workingDirectory)
+            condition: and(succeeded(), eq('${{ parameters.targetEnvironment }}', 'dev'))
+
           - task: TerraformInstaller@1
             displayName: Install Terraform
             inputs:
@@ -187,6 +208,23 @@ stages:
                 - download: current
                   displayName: Download Plan
                   artifact: $(planArtifactName)
+
+                - bash: |
+                    set -euo pipefail
+
+                    for package_dir in \
+                      "metadata/BTSGSD-lex-yesNo-dev_lambda-dev_lambda" \
+                      "metadata/conversionOfQueueMetrics-dev_lambda"
+                    do
+                      artifact_zip="$(Pipeline.Workspace)/$(planArtifactName)/$package_dir/lambda_function.zip"
+
+                      test -f "$artifact_zip"
+                      mkdir -p "$package_dir"
+                      cp "$artifact_zip" "$package_dir/lambda_function.zip"
+                    done
+                  displayName: Restore planned Lambda ZIP packages
+                  workingDirectory: $(workingDirectory)
+                  condition: and(succeeded(), eq('${{ parameters.targetEnvironment }}', 'dev'))
 
                 - script: |
                     set -euo pipefail

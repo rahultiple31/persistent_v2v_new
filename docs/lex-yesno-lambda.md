@@ -2,16 +2,18 @@
 
 The dev Connect selection deploys `BTSGSD-lex-yesNo-dev` through
 `module.lex_yesno`. Terraform consumes the prebuilt
-`environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda/lambda_function.zip`
+`environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda-dev_lambda/lambda_function.zip`
 using `filename` and `filebase64sha256`. There is no `archive_file` data source
-in this module. The ZIP is allowed by `.gitignore` and must be included in the
-same commit as its Python source.
+in this module. The dev pipeline builds the ZIP from the checked-out Python
+source before Terraform runs and includes it in the plan artifact. Apply
+restores that exact ZIP rather than rebuilding it. The ZIP is also allowed by
+`.gitignore` for local packaging.
 
 The ZIP contains `lambda_function.py` at its root. After editing the source,
-rebuild it from the repository root before planning:
+rebuild it from the repository root before planning locally:
 
 ```bash
-python3 -m zipfile -c environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda/lambda_function.zip environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda/lambda_function.py
+python3 -m zipfile -c environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda-dev_lambda/lambda_function.zip environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda-dev_lambda/lambda_function.py
 ```
 
 The function uses Python 3.13, x86_64, 128 MB memory, a 3-second timeout,

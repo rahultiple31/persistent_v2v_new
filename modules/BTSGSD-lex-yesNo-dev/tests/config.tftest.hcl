@@ -16,7 +16,7 @@ variables {
   function_name  = "BTSGSD-lex-yesNo-dev"
   iam_role_name  = "BTSGSD-lex-yesNo-role-ow5vzdof"
   log_group_name = "/aws/lambda/BTSGSD-lex-yesNo-dev"
-  zip_path       = "../../environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda/lambda_function.zip"
+  zip_path       = "../../environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda-dev_lambda/lambda_function.zip"
   layer_arn      = "arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroPython:32"
 
   environment_variables = {

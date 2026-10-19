@@ -34,7 +34,7 @@ webapp/frontend-config.js
 
 # Prebuilt Lambda deployment packages.
 !environments/dev/metadata/scr_lambda/lambda_function.zip
-!environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda/lambda_function.zip
+!environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda-dev_lambda/lambda_function.zip
 !environments/dev/metadata/BTSGSD-lex-QueueFlow-Callback-dev_lambda/lambda_function.zip
-!environments/dev/metadata/ivr_lambda/lambda_function.zip
+!environments/dev/metadata/conversionOfQueueMetrics-dev_lambda/lambda_function.zip
 __pycache__/

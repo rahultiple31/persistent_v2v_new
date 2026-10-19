@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from zipfile import ZipFile
 
 
-SOURCE = Path(__file__).resolve().parents[3] / "environments/dev/metadata/ivr_lambda/lambda_function.py"
+SOURCE = Path(__file__).resolve().parents[3] / "environments/dev/metadata/conversionOfQueueMetrics-dev_lambda/lambda_function.py"
 spec = importlib.util.spec_from_file_location("queue_metrics_handler", SOURCE)
 handler = importlib.util.module_from_spec(spec)
 with patch("boto3.resource"), patch.dict(os.environ, {"TableName": "queueInfo", "TTL_SECONDS": "86400"}):

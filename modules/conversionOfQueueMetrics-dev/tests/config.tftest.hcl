@@ -22,7 +22,7 @@ variables {
   function_name  = "conversionOfQueueMetrics-dev"
   iam_role_name  = "conversionOfQueueMetrics-role-ox32eazp"
   log_group_name = "/aws/lambda/conversionOfQueueMetrics-dev"
-  zip_path       = "../../environments/dev/metadata/ivr_lambda/lambda_function.zip"
+  zip_path       = "../../environments/dev/metadata/conversionOfQueueMetrics-dev_lambda/lambda_function.zip"
 
   environment_variables = {
     TableName   = "queueInfo"

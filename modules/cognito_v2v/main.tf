@@ -1,5 +1,3 @@
-data "aws_region" "current" {}
-
 resource "aws_cognito_user_pool" "this" {
   name = "${var.app_name}-UserPool"
 
@@ -95,7 +93,7 @@ resource "aws_cognito_identity_pool" "this" {
 
   cognito_identity_providers {
     client_id               = aws_cognito_user_pool_client.web.id
-    provider_name           = "cognito-idp.${data.aws_region.current.name}.amazonaws.com/${aws_cognito_user_pool.this.id}"
+    provider_name           = aws_cognito_user_pool.this.endpoint
     server_side_token_check = false
   }
 
