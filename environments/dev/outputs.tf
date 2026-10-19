@@ -82,7 +82,7 @@ output "regional_proxy" {
 output "connect_v2v_translation" {
   description = "Amazon Connect V2V translation solution outputs."
   value = {
-    backend_region                      = data.aws_region.current.name
+    backend_region                      = data.aws_region.current.region
     identity_pool_id                    = try(module.cognito_v2v[0].identity_pool_id, null)
     user_pool_id                        = try(module.cognito_v2v[0].user_pool_id, null)
     user_pool_web_client_id             = try(module.cognito_v2v[0].user_pool_web_client_id, null)

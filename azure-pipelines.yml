@@ -40,7 +40,7 @@ parameters:
       - silence_guard-dev
       - UpdateSessionAttributes-dev
       - conversionOfQueueMetrics-dev
-      - BTSGSD-lex-yesNo-dev_lambda-dev
+      - BTSGSD-lex-yesNo-dev
       - BTSGSD-lex-QueueFlow-Callback-dev
 
   - name: terraformAction

@@ -371,7 +371,7 @@ locals {
   name_prefix = lower(replace(coalesce(var.resource_name_prefix, "${var.project_name}-${var.environment}-${var.app_name}"), "_", "-"))
 
   frontend_config = {
-    backendRegion             = data.aws_region.current.name
+    backendRegion             = data.aws_region.current.region
     identityPoolId            = try(module.cognito_v2v[0].identity_pool_id, "")
     userPoolId                = try(module.cognito_v2v[0].user_pool_id, "")
     userPoolWebClientId       = try(module.cognito_v2v[0].user_pool_web_client_id, "")
