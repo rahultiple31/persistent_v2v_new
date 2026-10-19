@@ -39,12 +39,6 @@ locals {
       type     = "AGENT_TRANSFER"
     }
 
-    main_inbound = {
-      filename = "BTSGSD-Main-IB-Flow.json"
-      name     = "btsgsd-Main-IB-Flow"
-      type     = "CONTACT_FLOW"
-    }
-
     outbound_whisper = {
       filename = "BTSGSD-OutboundWhisperFlow.json"
       name     = "btsgsd-OutboundWhisperFlow"
@@ -75,12 +69,8 @@ locals {
     for key, flow in local.imported_flow_definitions : key => {
       name = flow.name
       type = flow.type
-      content = contains(["customer_queue", "main_inbound"], key) ? replace(
-        key == "main_inbound" ? replace(
-          file("${local.imported_flow_directory}/${flow.filename}"),
-          "e0917ae9-956c-4e02-b73f-43150201aa7f",
-          local.top_level_blocker_data_table_id
-          ) : replace(
+      content = key == "customer_queue" ? replace(
+        replace(
           file("${local.imported_flow_directory}/${flow.filename}"),
           "arn:aws:lambda:us-east-1:518902362956:function:conversionOfQueueMetrics",
           aws_connect_lambda_function_association.queue_metrics[0].function_arn
@@ -130,12 +120,51 @@ module "connect_us_east_1" {
 
   flow_dependency_python_executable = var.connect_flow_python_executable
   customer_queue_dependency_names   = var.connect_customer_queue_dependency_names
-  customer_number_data_table_id     = local.customer_number_data_table_id
-  agent_ui_flow_arn                 = module.abbvie_views[0].flow_arn
-  main_inbound_survey_flow_arn      = aws_connect_contact_flow.survey[0].arn
-  lookup_main_inbound_survey        = false
-  main_inbound_queue_arn            = module.connect_queue[0].queue_arn
-  lookup_main_inbound_queue         = false
+}
+
+module "btsgsd-Main-IB-Flow" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../modules/btsgsd-Main-IB-Flow"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  instance_arn = module.connect_us_east_1[0].instance_arn
+  flow_json    = file("${path.module}/metadata/contact-flows/BTSGSD-Main-IB-Flow.json")
+
+  latam_queue_name           = var.main_ib_latam_queue_name
+  phone_lookup_function_name = var.main_ib_phone_lookup_function_name
+
+  flow_dependencies = {
+    us_queue_arn            = module.connect_queue[0].queue_arn
+    customer_queue_flow_arn = module.connect_us_east_1[0].customer_queue_flow_arn
+    survey_flow_arn         = aws_connect_contact_flow.survey[0].arn
+    agent_ui_flow_arn       = module.abbvie_views[0].flow_arn
+
+    language_table_id = element(
+      reverse(split(
+        "/",
+        aws_cloudformation_stack.bts_gsd_customer_number_data_table[0].outputs["DataTableArn"]
+      )),
+      0
+    )
+
+    survey_table_id  = local.survey_data_table_id
+    blocker_table_id = local.top_level_blocker_data_table_id
+
+    session_attributes_lambda_arn = module.UpdateSessionAttributes-dev[0].lambda_arn
+    silence_guard_lambda_arn      = module.silence_guard-dev[0].function_arn
+    queue_metrics_lambda_arn      = module.conversion_of_queue_metrics[0].lambda_arn
+  }
+
+  tags = local.common_tags
+
+  depends_on = [
+    module.UpdateSessionAttributes-dev,
+    module.silence_guard-dev,
+    aws_connect_lambda_function_association.queue_metrics
+  ]
 }
 
 module "connect_views" {

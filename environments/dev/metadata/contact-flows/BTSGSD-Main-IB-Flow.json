@@ -346,11 +346,11 @@
         "isFriendlyName": true,
         "parameters": {
           "QueueId": {
-            "displayName": "BTSGSD-DEV SSO-US-MAIN-QUEUE"
+            "displayName": "BTSGSD-US-MAIN-QUEUE"
           }
         },
         "queue": {
-          "text": "BTSGSD-DEV SSO-US-MAIN-QUEUE"
+          "text": "BTSGSD-US-MAIN-QUEUE"
         }
       },
       "6f31bd10-1f4c-4217-ba0c-2afd13723828": {

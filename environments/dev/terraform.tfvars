@@ -13,7 +13,7 @@ connect_admin_email        = "lokesh.kothapally@abbvie.com"
 
 queue_name = "BTSGSD-DEV SSO-US-MAIN-QUEUE"
 # Replace this placeholder with the claimed Connect resource UUID before deployment.
-outbound_phone_number_id = "REPLACE_WITH_CLAIMED_PHONE_NUMBER_ID"
+outbound_phone_number_id = "53c5e026-80a2-4f69-bcdb-8c6daf27721f"
 
 # Resolve exported customer-queue dependencies to their existing Dev names.
 connect_customer_queue_dependency_names = {

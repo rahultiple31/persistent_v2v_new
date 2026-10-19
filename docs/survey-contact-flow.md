@@ -12,9 +12,8 @@ The configured voicemail module name override is reused. The source JSON is
 not rewritten by the resolver. Survey creation waits for the session-attributes
 Lambda module, including its Connect invocation permission and association.
 
-The main inbound flow receives the new survey ARN directly. The explicit
-`lookup_main_inbound_survey = false` switch prevents an existing-name lookup and
-keeps Terraform's data-source count known while that new ARN is still unknown.
+The [main inbound flow](main-inbound-flow.md) references this survey for transfer
+and the customer remaining hook. Its ARN is also exposed through `survey_flow_arn`.
 
 The supplied Lex bot alias, Q assistant and AI agent version, and voicemail
 timestamper Lambda ARN are retained. These resources must exist and have the

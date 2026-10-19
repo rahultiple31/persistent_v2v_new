@@ -12,8 +12,8 @@ The `connect` selection creates `module.connect_queue[0]` in
 - Outbound caller ID: the claimed phone-number UUID supplied through
   `outbound_phone_number_id`.
 
-The placeholder `REPLACE_WITH_CLAIMED_PHONE_NUMBER_ID` remains in dev tfvars as
-requested. Replace it with the actual Connect resource UUID before deployment.
+Dev tfvars supplies the claimed phone-number resource UUID. Verify it identifies
+the intended number in the Dev instance before deployment.
 The module rejects the placeholder and telephone-number text with a clear
 precondition error; it does not invent an ID or claim another phone number.
 
@@ -27,10 +27,8 @@ aws connect list-phone-numbers-v2 \
   --output text
 ```
 
-The Dev main inbound flow receives the managed queue ARN directly. Its explicit
-`lookup_main_inbound_queue = false` setting avoids looking up a new queue before
-it exists. Other callers of the Connect module keep the existing queue-name
-lookup unless they supply a managed ARN and disable that lookup.
+The [main inbound flow](main-inbound-flow.md) uses this module's queue ARN for
+US escalation. The `connect_queue` output also exposes the ARN for other consumers.
 
 Run the pipeline from `main`, environment `dev`, and choose
 `connect-queue` under Target module to target
@@ -43,9 +41,8 @@ contains the queue ARN/ID, hours ID and quick-connect IDs. Existing matching
 resources must be imported into these module addresses before managing them;
 the new module does not adopt or delete an existing queue automatically.
 
-The inbound JSON's existing local edits are preserved. This module wires the
-exported US main queue reference; other queues referenced by that JSON retain
-their supplied routing destinations.
+Use the full `connect` selection to deploy the inbound flow together with its
+queue, hours, quick connects and other dependencies.
 
 References: [Connect hours of operation](https://docs.aws.amazon.com/connect/latest/adminguide/set-hours-operation.html),
 [list-phone-numbers-v2](https://docs.aws.amazon.com/cli/latest/reference/connect/list-phone-numbers-v2.html).

@@ -13,6 +13,10 @@ mock_provider "aws" {
   mock_data "aws_iam_role" {
     defaults = { arn = "arn:aws:iam::518902362956:role/conversionOfQueueMetrics-role-ox32eazp" }
   }
+
+  mock_data "aws_lambda_function" {
+    defaults = { arn = "arn:aws:lambda:us-east-1:518902362956:function:SNOW_Abbvie" }
+  }
   mock_data "aws_connect_instance" {
     defaults = {
       id = "c227a737-3e4f-4c64-8397-2d37e318801d"
@@ -64,14 +68,15 @@ variables {
   outbound_phone_number_id              = "22222222-2222-2222-2222-222222222222"
 }
 
-run "new_survey_and_inbound_plan_together" {
+run "survey_queue_and_remaining_flows_plan" {
   command = plan
   variables { enabled_modules = ["connect"] }
 
   plan_options {
     target = [
       aws_connect_contact_flow.survey,
-      module.connect_us_east_1[0].aws_connect_contact_flow.imported_main_inbound
+      module.connect_queue,
+      module.connect_us_east_1[0].aws_connect_contact_flow.imported
     ]
   }
 
@@ -81,12 +86,12 @@ run "new_survey_and_inbound_plan_together" {
       aws_connect_contact_flow.survey[0].name == "BTSGSD-AIAgent-SurveyFlow" &&
       aws_connect_contact_flow.survey[0].type == "CONTACT_FLOW"
     )
-    error_message = "The survey and inbound flow must plan together while the new survey ARN is still unknown."
+    error_message = "The survey flow must remain independently deployable."
   }
 
   assert {
-    condition     = length(module.connect_queue) == 1
-    error_message = "The new queue and inbound flow must plan together before the queue ARN exists."
+    condition     = length(module.connect_queue) == 1 && !contains(keys(local.rendered_imported_contact_flows), "main_inbound")
+    error_message = "Keep the queue configured and avoid duplicating the standalone main inbound resource in the import map."
   }
 
   assert {

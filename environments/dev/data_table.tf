@@ -783,7 +783,7 @@ resource "aws_cloudformation_stack" "top_level_blocker_data_table" {
 }
 
 output "top_level_blocker_data_table" {
-  description = "TopLevelBlockerMessage identifiers for main inbound flow configuration."
+  description = "TopLevelBlockerMessage identifiers."
   value = try({
     name = "TopLevelBlockerMessage"
     arn  = aws_cloudformation_stack.top_level_blocker_data_table[0].outputs["DataTableArn"]

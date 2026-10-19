@@ -22,3 +22,8 @@ output "admin_user_id" {
   description = "Amazon Connect administrator user ID."
   value       = try(aws_connect_user.admin[0].user_id, null)
 }
+
+output "customer_queue_flow_arn" {
+  description = "Imported customer queue flow ARN for inbound flow hooks."
+  value       = try(aws_connect_contact_flow.imported["customer_queue"].arn, null)
+}

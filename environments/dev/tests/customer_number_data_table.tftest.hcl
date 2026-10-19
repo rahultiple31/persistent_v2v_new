@@ -3,6 +3,30 @@ mock_provider "aws" {}
 mock_provider "aws" {
   alias = "us_east_1"
 
+  mock_data "aws_partition" {
+    defaults = { partition = "aws" }
+  }
+
+  mock_data "aws_region" {
+    defaults = { region = "us-east-1", name = "us-east-1" }
+  }
+
+  mock_data "aws_caller_identity" {
+    defaults = { account_id = "518902362956" }
+  }
+
+  mock_data "aws_iam_role" {
+    defaults = { arn = "arn:aws:iam::518902362956:role/conversionOfQueueMetrics-role-ox32eazp" }
+  }
+
+  mock_data "aws_lambda_function" {
+    defaults = { arn = "arn:aws:lambda:us-east-1:518902362956:function:SNOW_Abbvie" }
+  }
+
+  mock_resource "aws_lambda_function" {
+    defaults = { arn = "arn:aws:lambda:us-east-1:518902362956:function:conversionOfQueueMetrics-dev" }
+  }
+
   mock_resource "aws_connect_instance" {
     defaults = {
       id  = "c227a737-3e4f-4c64-8397-2d37e318801d"
@@ -23,6 +47,10 @@ mock_provider "aws" {
   alias = "proxy_us_east_1"
 }
 
+mock_provider "awscc" { alias = "us_east_1" }
+mock_provider "time" {}
+mock_provider "archive" {}
+
 mock_provider "external" {
   mock_data "external" {
     defaults = {
@@ -39,6 +67,7 @@ variables {
   connect_instance_region               = "us-east-1"
   connect_admin_user_enabled            = false
   dev_ai_domain_enabled                 = false
+  dev_ai_assistant_id                   = "160889f7-d564-47fb-97db-94549fc55993"
   dev_ai_agent_enabled                  = false
   dev_support_ai_agent_enabled          = false
   dev_survey_ai_agent_enabled           = false
@@ -79,6 +108,18 @@ run "table_records_and_flow_reference" {
 
   variables {
     enabled_modules = ["connect"]
+  }
+
+  plan_options {
+    target = [
+      aws_cloudformation_stack.customer_number_data_table,
+      aws_cloudformation_stack.hr_transfer_data_table,
+      aws_cloudformation_stack.survey_data_table,
+      aws_cloudformation_stack.veeva_transfer_data_table,
+      aws_cloudformation_stack.top_level_blocker_data_table,
+      aws_connect_lambda_function_association.queue_metrics,
+      module.connect_us_east_1[0].aws_connect_contact_flow.imported
+    ]
   }
 
   override_resource {
@@ -166,7 +207,7 @@ run "table_records_and_flow_reference" {
       output.customer_number_data_table.id == "11111111-1111-1111-1111-111111111111" &&
       local.customer_number_data_table_id == output.customer_number_data_table.id
     )
-    error_message = "Export the created table ID and pass it to the main inbound module."
+    error_message = "Export the created customer-number table ID independently."
   }
 
   assert {
@@ -257,7 +298,7 @@ run "table_records_and_flow_reference" {
       output.survey_data_table.arn != output.customer_number_data_table.arn &&
       output.survey_data_table.arn != output.hr_transfer_data_table.arn &&
       alltrue([
-        for key in ["customer_queue", "main_inbound"] :
+        for key in ["customer_queue"] :
         strcontains(local.rendered_imported_contact_flows[key].content, output.survey_data_table.id) &&
         !strcontains(local.rendered_imported_contact_flows[key].content, "41573eb0-ae92-4b8a-bbe2-e4a32fb84801") &&
         can(jsondecode(local.rendered_imported_contact_flows[key].content).Actions[0].Type)
@@ -265,10 +306,10 @@ run "table_records_and_flow_reference" {
       alltrue([
         for key, flow in local.imported_flow_definitions :
         local.rendered_imported_contact_flows[key].content == file("${local.imported_flow_directory}/${flow.filename}")
-        if !contains(["customer_queue", "main_inbound"], key)
+        if key != "customer_queue"
       ])
     )
-    error_message = "Bind both survey lookups to the new independent table ID while retaining valid flow JSON and the other exports."
+    error_message = "Bind the customer-queue survey lookup to the independent table ID while retaining valid flow JSON and the other exports."
   }
   assert {
     condition = (
@@ -360,14 +401,9 @@ run "table_records_and_flow_reference" {
         output.survey_data_table.arn,
         output.veeva_transfer_data_table.arn,
         output.top_level_blocker_data_table.arn
-      ])) == 5 &&
-      [for action in jsondecode(local.rendered_imported_contact_flows.main_inbound.content).Actions : action.Parameters.DataTableId if action.Identifier == "TopLevelBlocker_Message"] == [output.top_level_blocker_data_table.id] &&
-      [for action in jsondecode(local.rendered_imported_contact_flows.main_inbound.content).Actions : action.Parameters.Queries[0].PrimaryValues[0].AttributeName if action.Identifier == "TopLevelBlocker_Message"] == ["system_phonenumber"] &&
-      [for action in jsondecode(local.rendered_imported_contact_flows.main_inbound.content).Actions : action.Parameters.Queries[0].PrimaryValues[0].Value if action.Identifier == "TopLevelBlocker_Message"] == ["$.SystemEndpoint.Address"] &&
-      [for action in jsondecode(local.rendered_imported_contact_flows.main_inbound.content).Actions : action.Parameters.Queries[0].Attributes if action.Identifier == "TopLevelBlocker_Message"] == [["toplevelblocker_message"]] &&
-      !strcontains(local.rendered_imported_contact_flows.main_inbound.content, "e0917ae9-956c-4e02-b73f-43150201aa7f")
+      ])) == 5
     )
-    error_message = "Bind the existing main inbound blocker lookup to the new independent table ID while preserving its key and message column."
+    error_message = "Keep the blocker table ID independent from the other tables."
   }
 }
 

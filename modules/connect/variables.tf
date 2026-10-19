@@ -162,43 +162,7 @@ variable "flow_dependency_python_executable" {
 }
 
 variable "customer_queue_dependency_names" {
-  description = "Optional mapping of exported prompt, data-table, flow-module, inbound queue and survey-flow names to their names in the target instance."
+  description = "Optional mapping of exported prompt, data-table and flow-module names to their names in the target instance."
   type        = map(string)
   default     = {}
-}
-
-variable "customer_number_data_table_id" {
-  description = "Target CustomerNumberDataTable identifier for the main inbound LangConfig lookup."
-  type        = string
-  default     = null
-}
-
-variable "agent_ui_flow_arn" {
-  description = "Target instance's agent UI contact-flow ARN for the imported main inbound flow."
-  type        = string
-  default     = null
-}
-
-variable "main_inbound_survey_flow_arn" {
-  description = "Managed survey flow ARN when lookup_main_inbound_survey is false."
-  type        = string
-  default     = null
-}
-
-variable "lookup_main_inbound_survey" {
-  description = "Look up an existing survey by name; false uses main_inbound_survey_flow_arn. Explicit so the lookup count is known before a new flow ARN exists."
-  type        = bool
-  default     = true
-}
-
-variable "main_inbound_queue_arn" {
-  description = "Managed inbound queue ARN when lookup_main_inbound_queue is false."
-  type        = string
-  default     = null
-}
-
-variable "lookup_main_inbound_queue" {
-  description = "Look up an existing inbound queue by name; false uses main_inbound_queue_arn so a newly created queue can be planned."
-  type        = bool
-  default     = true
 }
