@@ -45,6 +45,18 @@ variable "connect_name_suffix" {
   default     = "connect"
 }
 
+variable "queue_name" {
+  description = "Name of the managed Dev Connect inbound queue."
+  type        = string
+  default     = "BTSGSD-DEV SSO-US-MAIN-QUEUE"
+}
+
+variable "outbound_phone_number_id" {
+  description = "Claimed Amazon Connect phone-number resource UUID for +18335162999."
+  type        = string
+  default     = null
+}
+
 variable "enabled_modules" {
   description = "Infrastructure modules enabled for this Terraform state."
   type        = list(string)

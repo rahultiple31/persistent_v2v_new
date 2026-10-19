@@ -15,10 +15,12 @@ pipeline selection has been added.
 ## Main inbound flow dependencies
 
 The dev main inbound flow's `DefaultAgentUI` hook uses the managed `AbbVie_Views`
-flow ARN. The queue is looked up as `BTSGSD-US-MAIN-QUEUE` in the managed instance.
-If its Dev name differs, add an entry keyed by this exported name to
-`connect_customer_queue_dependency_names` in dev tfvars, preserving the existing
-prompt and flow-module mappings.
+flow ARN. Dev creates `BTSGSD-DEV SSO-US-MAIN-QUEUE` through `module.connect_queue` and
+passes its ARN directly to the inbound flow, with `lookup_main_inbound_queue`
+disabled. See [queue configuration](connect-queue.md) for the hours, quick
+connects and required claimed phone-number ID. Other Connect module callers can
+keep the existing name lookup and override `BTSGSD-US-MAIN-QUEUE` through
+`customer_queue_dependency_names`.
 
 Dev now creates `BTSGSD-AIAgent-SurveyFlow` from its supplied JSON and passes its
 ARN directly to the inbound flow. It does not look up a survey before creating

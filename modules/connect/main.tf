@@ -278,7 +278,10 @@ moved {
 # Main inbound depends on the imported customer-queue flow. A separate resource
 # avoids referencing another instance of the same for_each resource.
 data "aws_connect_queue" "main_inbound" {
-  count = contains(keys(var.imported_contact_flows), "main_inbound") ? 1 : 0
+  count = (
+    contains(keys(var.imported_contact_flows), "main_inbound") &&
+    var.lookup_main_inbound_queue
+  ) ? 1 : 0
 
   instance_id = aws_connect_instance.this.id
   name = lookup(
@@ -303,6 +306,12 @@ data "aws_connect_contact_flow" "main_inbound_survey" {
 }
 
 locals {
+  main_inbound_queue_arn = (
+    var.lookup_main_inbound_queue
+    ? try(data.aws_connect_queue.main_inbound[0].arn, null)
+    : var.main_inbound_queue_arn
+  )
+
   main_inbound_survey_arn = (
     var.lookup_main_inbound_survey
     ? try(data.aws_connect_contact_flow.main_inbound_survey[0].arn, null)
@@ -333,7 +342,7 @@ resource "aws_connect_contact_flow" "imported_main_inbound" {
           var.customer_number_data_table_id == null ? "" : var.customer_number_data_table_id
         ),
         "arn:aws:connect:us-east-1:518902362956:instance/0cc3e955-8cdd-4a82-b6fe-7593e1674ffa/queue/23f32241-4ba1-43bb-9b31-5b4fa7e028f4",
-        data.aws_connect_queue.main_inbound[0].arn
+        local.main_inbound_queue_arn == null ? "" : local.main_inbound_queue_arn
       ),
       "arn:aws:connect:us-east-1:518902362956:instance/0cc3e955-8cdd-4a82-b6fe-7593e1674ffa/contact-flow/3ac7b9d3-411e-4762-9d86-d74c70b54a94",
       local.main_inbound_survey_arn == null ? "" : local.main_inbound_survey_arn
@@ -357,6 +366,13 @@ resource "aws_connect_contact_flow" "imported_main_inbound" {
         (var.main_inbound_survey_flow_arn == null ? false : startswith(var.main_inbound_survey_flow_arn, "${aws_connect_instance.this.arn}/contact-flow/"))
       )
       error_message = "Supply main_inbound_survey_flow_arn belonging to the target Connect instance when lookup_main_inbound_survey is false."
+    }
+    precondition {
+      condition = (
+        var.lookup_main_inbound_queue ||
+        (var.main_inbound_queue_arn == null ? false : startswith(var.main_inbound_queue_arn, "${aws_connect_instance.this.arn}/queue/"))
+      )
+      error_message = "Supply main_inbound_queue_arn belonging to the target Connect instance when lookup_main_inbound_queue is false."
     }
     precondition {
       condition     = !strcontains(each.value.content, "__MAIN_CUSTOMER_QUEUE_FLOW_ARN__") || contains(keys(var.imported_contact_flows), "customer_queue")

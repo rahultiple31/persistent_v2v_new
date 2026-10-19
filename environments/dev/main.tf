@@ -134,6 +134,8 @@ module "connect_us_east_1" {
   agent_ui_flow_arn                 = module.abbvie_views[0].flow_arn
   main_inbound_survey_flow_arn      = aws_connect_contact_flow.survey[0].arn
   lookup_main_inbound_survey        = false
+  main_inbound_queue_arn            = module.connect_queue[0].queue_arn
+  lookup_main_inbound_queue         = false
 }
 
 module "connect_views" {

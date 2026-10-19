@@ -190,3 +190,15 @@ variable "lookup_main_inbound_survey" {
   type        = bool
   default     = true
 }
+
+variable "main_inbound_queue_arn" {
+  description = "Managed inbound queue ARN when lookup_main_inbound_queue is false."
+  type        = string
+  default     = null
+}
+
+variable "lookup_main_inbound_queue" {
+  description = "Look up an existing inbound queue by name; false uses main_inbound_queue_arn so a newly created queue can be planned."
+  type        = bool
+  default     = true
+}
