@@ -32,7 +32,12 @@ The Dev main inbound flow receives the managed queue ARN directly. Its explicit
 it exists. Other callers of the Connect module keep the existing queue-name
 lookup unless they supply a managed ARN and disable that lookup.
 
-Run the existing pipeline from `main`, environment `dev`, module `connect`.
+Run the pipeline from `main`, environment `dev`, and choose
+`connect-queue` under Target module to target
+`module.connect_queue` (queue, hours, quick connects and their dependencies).
+This selection uses `enabled_modules=["connect"]` and the existing backend key
+`terraform-state/dev/us-east-1/connect/terraform.tfstate`. It is Dev-only.
+The `connect` selection also includes this queue in a full Connect deployment.
 Review action `plan` before running action `apply`. The output `connect_queue`
 contains the queue ARN/ID, hours ID and quick-connect IDs. Existing matching
 resources must be imported into these module addresses before managing them;

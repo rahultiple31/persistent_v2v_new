@@ -6,7 +6,7 @@ DEPLOYMENT_ENVIRONMENT="${2:?Environment is required}"
 DEPLOYMENT_REGION="${3:-us-east-1}"
 
 case "$DEPLOYMENT_TARGET" in
-  Connect_integrations|data_table|agentcore_gateway|ai_agent_tools|lambda-servicenow-interaction|lambda-nextthink-handoff|silence_guard-dev|UpdateSessionAttributes-dev|conversionOfQueueMetrics-dev|BTSGSD-lex-yesNo-dev|BTSGSD-lex-QueueFlow-Callback-dev)
+  connect-queue|Connect_integrations|data_table|agentcore_gateway|ai_agent_tools|lambda-servicenow-interaction|lambda-nextthink-handoff|silence_guard-dev|UpdateSessionAttributes-dev|conversionOfQueueMetrics-dev|BTSGSD-lex-yesNo-dev|BTSGSD-lex-QueueFlow-Callback-dev)
     if [ "$DEPLOYMENT_ENVIRONMENT" != "dev" ]; then
       echo "$DEPLOYMENT_TARGET is supported only for dev." >&2
       return 1
@@ -20,6 +20,13 @@ TERRAFORM_PLAN_ARGS=(
 )
 
 case "$DEPLOYMENT_TARGET" in
+  connect-queue)
+    TERRAFORM_STATE_MODULE="connect"
+    TERRAFORM_PLAN_ARGS=(
+      '-var=enabled_modules=["connect"]'
+      -target=module.connect_queue
+    )
+    ;;
   silence_guard-dev|UpdateSessionAttributes-dev|conversionOfQueueMetrics-dev|BTSGSD-lex-yesNo-dev|BTSGSD-lex-QueueFlow-Callback-dev)
     TERRAFORM_STATE_MODULE="connect"
     TERRAFORM_MODULE_NAME="$DEPLOYMENT_TARGET"
