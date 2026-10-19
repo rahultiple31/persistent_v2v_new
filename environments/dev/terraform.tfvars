@@ -11,6 +11,12 @@ connect_admin_last_name    = "Kothapally"
 connect_admin_username     = "lokesh.kothapally@abbvie.com"
 connect_admin_email        = "lokesh.kothapally@abbvie.com"
 
+# Resolve exported customer-queue dependencies to their existing Dev names.
+connect_customer_queue_dependency_names = {
+  "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us" = "VMX3_Main_VM_Module_btsgsd-dev-us-east-1"
+  "CustomerQueueMOH"                                   = "CustomerQueue.wav"
+}
+
 common_tags = {
   CostCenter = "contact-center"
   Owner      = "platform-engineering"
