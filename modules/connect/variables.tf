@@ -162,13 +162,19 @@ variable "flow_dependency_python_executable" {
 }
 
 variable "customer_queue_dependency_names" {
-  description = "Optional mapping of exported prompt, data-table and flow-module names to their names in the target instance."
+  description = "Optional mapping of exported prompt, data-table, flow-module, inbound queue and survey-flow names to their names in the target instance."
   type        = map(string)
   default     = {}
 }
 
 variable "customer_number_data_table_id" {
   description = "Target CustomerNumberDataTable identifier for the main inbound LangConfig lookup."
+  type        = string
+  default     = null
+}
+
+variable "agent_ui_flow_arn" {
+  description = "Target instance's agent UI contact-flow ARN for the imported main inbound flow."
   type        = string
   default     = null
 }

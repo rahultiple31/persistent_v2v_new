@@ -12,6 +12,20 @@ The `AbbVie_Views` contact flow uses the new module's `view_latest_arn` output.
 The existing pipeline's `connect` selection includes this module; no standalone
 pipeline selection has been added.
 
+## Main inbound flow dependencies
+
+The dev main inbound flow's `DefaultAgentUI` hook uses the managed `AbbVie_Views`
+flow ARN. The Connect module also replaces the exported queue and survey ARNs
+with resources looked up in the managed instance. The default lookup names are
+`BTSGSD-US-MAIN-QUEUE` and `BTSGSD-AIAgent-SurveyFlow`; both resources must already
+exist in that instance. If their Dev names differ, add entries keyed by these
+exported names to `connect_customer_queue_dependency_names` in dev tfvars,
+preserving the existing prompt and flow-module mappings.
+
+These replacements correct identified cross-instance references. AWS still
+validates the remaining exported Lambda, Lex, assistant, and other flow settings
+during deployment. Generate a fresh pipeline plan after committing these fixes.
+
 ## Existing deployments
 
 The previous configuration managed this view through the CloudFormation stack

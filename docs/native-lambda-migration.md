@@ -50,9 +50,10 @@ either `targetModule: silence_guard-dev` or
 `terraformAction: apply`. Existing functions should be updated, not replaced.
 Do not reuse a plan from before migration.
 
-`UpdateSessionAttributes-dev` still requests reserved concurrency **300**.
-AWS must have sufficient regional reservation capacity. The guard uses the
-shared unreserved pool and retains `STRICT_MODE=false`.
+`UpdateSessionAttributes-dev` uses the shared unreserved concurrency pool
+(`reserved_concurrent_executions = -1`) so deployment does not require a
+300-execution reservation. The guard also uses the shared pool and retains
+`STRICT_MODE=false`.
 
 ## Subsequent deployments
 
@@ -84,7 +85,7 @@ python3 -m unittest discover -s modules/UpdateSessionAttributes-dev/tests -v
 ```
 
 The function uses Python 3.14, 128 MB memory, an 8-second timeout, 512 MB
-ephemeral storage, reserved concurrency 300, active X-Ray tracing, and 14-day
+ephemeral storage, shared unreserved concurrency, active X-Ray tracing, and 14-day
 CloudWatch log retention. Its environment sets `NAMESPACE=Custom`,
 `LOG_LEVEL=INFO`, `API_TIMEOUT=1.5`, and `API_MAX_ATTEMPTS=2`.
 Existing permissions remain limited to this Connect instance and Q assistant;

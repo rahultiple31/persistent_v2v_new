@@ -105,7 +105,7 @@ resource "aws_lambda_function" "this" {
   source_code_hash               = filebase64sha256(var.zip_path)
   memory_size                    = 128
   timeout                        = 8
-  reserved_concurrent_executions = 300
+  reserved_concurrent_executions = -1
 
   ephemeral_storage {
     size = 512

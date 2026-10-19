@@ -127,6 +127,7 @@ module "connect_us_east_1" {
   flow_dependency_python_executable = var.connect_flow_python_executable
   customer_queue_dependency_names   = var.connect_customer_queue_dependency_names
   customer_number_data_table_id     = local.customer_number_data_table_id
+  agent_ui_flow_arn                 = module.abbvie_views[0].flow_arn
 }
 
 module "connect_views" {

@@ -181,7 +181,7 @@ variable "connect_flow_python_executable" {
 }
 
 variable "connect_customer_queue_dependency_names" {
-  description = "Optional exported-name to Dev-name mapping for customer-queue prompts, data tables and flow modules."
+  description = "Optional exported-name to Dev-name mapping for customer-queue prompts, data tables, flow modules, the inbound queue and survey flow."
   type        = map(string)
   default     = {}
 }

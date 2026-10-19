@@ -277,6 +277,28 @@ moved {
 
 # Main inbound depends on the imported customer-queue flow. A separate resource
 # avoids referencing another instance of the same for_each resource.
+data "aws_connect_queue" "main_inbound" {
+  count = contains(keys(var.imported_contact_flows), "main_inbound") ? 1 : 0
+
+  instance_id = aws_connect_instance.this.id
+  name = lookup(
+    var.customer_queue_dependency_names,
+    "BTSGSD-US-MAIN-QUEUE",
+    "BTSGSD-US-MAIN-QUEUE"
+  )
+}
+
+data "aws_connect_contact_flow" "main_inbound_survey" {
+  count = contains(keys(var.imported_contact_flows), "main_inbound") ? 1 : 0
+
+  instance_id = aws_connect_instance.this.id
+  name = lookup(
+    var.customer_queue_dependency_names,
+    "BTSGSD-AIAgent-SurveyFlow",
+    "BTSGSD-AIAgent-SurveyFlow"
+  )
+}
+
 resource "aws_connect_contact_flow" "imported_main_inbound" {
   for_each = {
     for key, flow in var.imported_contact_flows : key => flow
@@ -289,12 +311,24 @@ resource "aws_connect_contact_flow" "imported_main_inbound" {
   description = "Imported flow: ${each.value.name}"
   content = replace(
     replace(
-      each.value.content,
-      "__MAIN_CUSTOMER_QUEUE_FLOW_ARN__",
-      try(aws_connect_contact_flow.imported["customer_queue"].arn, "")
+      replace(
+        replace(
+          replace(
+            each.value.content,
+            "__MAIN_CUSTOMER_QUEUE_FLOW_ARN__",
+            try(aws_connect_contact_flow.imported["customer_queue"].arn, "")
+          ),
+          "__CUSTOMER_NUMBER_DATA_TABLE_ID__",
+          var.customer_number_data_table_id == null ? "" : var.customer_number_data_table_id
+        ),
+        "arn:aws:connect:us-east-1:518902362956:instance/0cc3e955-8cdd-4a82-b6fe-7593e1674ffa/queue/23f32241-4ba1-43bb-9b31-5b4fa7e028f4",
+        data.aws_connect_queue.main_inbound[0].arn
+      ),
+      "arn:aws:connect:us-east-1:518902362956:instance/0cc3e955-8cdd-4a82-b6fe-7593e1674ffa/contact-flow/3ac7b9d3-411e-4762-9d86-d74c70b54a94",
+      data.aws_connect_contact_flow.main_inbound_survey[0].arn
     ),
-    "__CUSTOMER_NUMBER_DATA_TABLE_ID__",
-    var.customer_number_data_table_id == null ? "" : var.customer_number_data_table_id
+    "arn:aws:connect:us-east-1:518902362956:instance/0cc3e955-8cdd-4a82-b6fe-7593e1674ffa/contact-flow/7f068b9c-c1bc-4a43-a26d-a317570a8cd4",
+    var.agent_ui_flow_arn == null ? "" : var.agent_ui_flow_arn
   )
 
   tags = merge(local.tags, {
@@ -313,6 +347,13 @@ resource "aws_connect_contact_flow" "imported_main_inbound" {
     precondition {
       condition     = !strcontains(each.value.content, "__CUSTOMER_NUMBER_DATA_TABLE_ID__") || var.customer_number_data_table_id != null
       error_message = "The main inbound LangConfig lookup requires customer_number_data_table_id."
+    }
+    precondition {
+      condition = (
+        !strcontains(each.value.content, "arn:aws:connect:us-east-1:518902362956:instance/0cc3e955-8cdd-4a82-b6fe-7593e1674ffa/contact-flow/7f068b9c-c1bc-4a43-a26d-a317570a8cd4") ||
+        (var.agent_ui_flow_arn == null ? false : startswith(var.agent_ui_flow_arn, "${aws_connect_instance.this.arn}/contact-flow/"))
+      )
+      error_message = "The main inbound agent UI hook requires agent_ui_flow_arn belonging to the target Connect instance."
     }
     precondition {
       condition = (
