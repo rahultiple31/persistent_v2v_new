@@ -40,11 +40,11 @@ run "hours_quick_connects_and_outbound_configuration" {
       toset(keys(aws_connect_quick_connect.help_desk)) == toset(["FF Help Desk", "HR Help Desk"]) &&
       alltrue([for qc in aws_connect_quick_connect.help_desk :
         one(qc.quick_connect_config).quick_connect_type == "PHONE_NUMBER" &&
-        one(one(qc.quick_connect_config).phone_config).phone_number == "+18335162999"
+        one(one(qc.quick_connect_config).phone_config).phone_number == "+18557113853"
       ]) &&
       toset(aws_connect_queue.queue.quick_connect_ids) == toset(values(output.quick_connect_ids))
     )
-    error_message = "Both phone quick connects must be attached to the queue and dial +18335162999."
+    error_message = "Both phone quick connects must be attached to the queue and dial +18557113853."
   }
 
   assert {
@@ -67,6 +67,6 @@ run "reject_placeholder_phone_id" {
 
 run "reject_phone_number_as_resource_id" {
   command = plan
-  variables { outbound_phone_number_id = "+18335162999" }
+  variables { outbound_phone_number_id = "+18557113853" }
   expect_failures = [aws_connect_queue.queue]
 }

@@ -7,7 +7,7 @@ The `connect` selection creates `module.connect_queue[0]` in
 - Hours: `btsgsd-Dev-HoursOfOperation_EN_ES_PT`, every day from 12:00 AM to
   12:00 AM in `America/New_York`.
 - Tags: `Env=Dev` and `Org=btsgsd`, plus the existing common tags.
-- Quick connects: `FF Help Desk` and `HR Help Desk`, both dialing `+18335162999`.
+- Quick connects: `FF Help Desk` and `HR Help Desk`, both dialing `+18557113853`.
 - Outbound caller flow: the existing `Default outbound` flow in that instance.
 - Outbound caller ID: the claimed phone-number UUID supplied through
   `outbound_phone_number_id`.
@@ -23,7 +23,7 @@ With the pipeline AWS credentials available, retrieve the ID using:
 aws connect list-phone-numbers-v2 \
   --target-arn arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d \
   --region us-east-1 \
-  --query "ListPhoneNumbersSummaryList[?PhoneNumber=='+18335162999'].PhoneNumberId" \
+  --query "ListPhoneNumbersSummaryList[?PhoneNumber=='+18557113853'].PhoneNumberId" \
   --output text
 ```
 

@@ -48,7 +48,7 @@ resource "aws_connect_quick_connect" "help_desk" {
   quick_connect_config {
     quick_connect_type = "PHONE_NUMBER"
     phone_config {
-      phone_number = "+18335162999"
+      phone_number = "+18557113853"
     }
   }
   tags = var.tags
@@ -71,7 +71,7 @@ resource "aws_connect_queue" "queue" {
   lifecycle {
     precondition {
       condition     = can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.outbound_phone_number_id))
-      error_message = "Set outbound_phone_number_id to the claimed Amazon Connect resource UUID for +18335162999; the placeholder and telephone number cannot be used as the ID."
+      error_message = "Set outbound_phone_number_id to the claimed Amazon Connect resource UUID for +18557113853; the placeholder and telephone number cannot be used as the ID."
     }
   }
 }

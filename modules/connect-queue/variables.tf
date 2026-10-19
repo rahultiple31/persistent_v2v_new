@@ -9,7 +9,7 @@ variable "queue_name" {
 }
 
 variable "outbound_phone_number_id" {
-  description = "Connect resource UUID for +18335162999, already claimed and associated with the instance."
+  description = "Connect resource UUID for +18557113853, already claimed and associated with the instance."
   type        = string
 }
 

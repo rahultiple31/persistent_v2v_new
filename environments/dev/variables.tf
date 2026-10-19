@@ -52,7 +52,7 @@ variable "queue_name" {
 }
 
 variable "outbound_phone_number_id" {
-  description = "Claimed Amazon Connect phone-number resource UUID for +18335162999."
+  description = "Claimed Amazon Connect phone-number resource UUID for +18557113853."
   type        = string
   default     = null
 }
