@@ -84,13 +84,13 @@ locals {
 }
 
 resource "aws_s3_bucket" "v2v" {
-  bucket        = "${local.app_name_lower}-v2vbucket-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
+  bucket        = "${local.app_name_lower}-v2vbucket-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}"
   force_destroy = var.force_destroy_buckets
   tags          = var.common_tags
 }
 
 resource "aws_s3_bucket" "v2v_logs" {
-  bucket        = "${local.app_name_lower}-v2vlogbucket-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
+  bucket        = "${local.app_name_lower}-v2vlogbucket-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.region}"
   force_destroy = var.force_destroy_buckets
   tags          = var.common_tags
 }

@@ -1,6 +1,6 @@
 # Dev main inbound flow
 
-`module.main_inbound[0]` in `environments/dev/main.tf` creates `btsgsd-Main-IB-Flow` in
+`module.btsgsd-Main-IB-Flow[0]` in `environments/dev/main.tf` creates `btsgsd-Main-IB-Flow` in
 `btsgsd-dev-us-east-1` using the attached 65-action JSON saved at
 `environments/dev/metadata/contact-flows/BTSGSD-Main-IB-Flow.json`.
 
@@ -24,7 +24,7 @@ These existing dependencies must be available:
 
 The flow is new and has no existing Terraform state entry, so no migration file
 or moved block is added. Its resource address is
-`module.main_inbound[0].aws_connect_contact_flow.this`.
+`module.btsgsd-Main-IB-Flow[0].aws_connect_contact_flow.this`.
 
 Commit the changes and run the pipeline from `main`, environment `dev`, target
 module `connect`, action `plan`. Review the plan, then run action `apply` to

@@ -101,10 +101,10 @@ variables {
 run "main_inbound_module_is_included" {
   command = plan
   variables { enabled_modules = ["connect"] }
-  plan_options { target = [module.main_inbound] }
+  plan_options { target = [module.btsgsd-Main-IB-Flow] }
 
   assert {
-    condition     = length(module.main_inbound) == 1
+    condition     = length(module.btsgsd-Main-IB-Flow) == 1
     error_message = "The Connect selection must include the main inbound module."
   }
 }
@@ -113,7 +113,7 @@ run "non_connect_skips_main_inbound" {
   command = plan
   variables { enabled_modules = [] }
   assert {
-    condition     = length(module.main_inbound) == 0 && output.main_inbound_flow_arn == null
+    condition     = length(module.btsgsd-Main-IB-Flow) == 0 && output.main_inbound_flow_arn == null
     error_message = "Other deployment selections must skip the inbound flow module."
   }
 }

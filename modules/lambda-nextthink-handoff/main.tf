@@ -68,7 +68,7 @@ data "external" "capacity" {
   ]
 
   query = {
-    region        = data.aws_region.current.name
+    region        = data.aws_region.current.region
     account_id    = data.aws_caller_identity.current.account_id
     function_name = local.function_name
   }
@@ -126,7 +126,7 @@ resource "aws_iam_role_policy" "execution" {
           Resource = var.secret_kms_key_arn
           Condition = {
             StringEquals = {
-              "kms:ViaService"                  = "secretsmanager.${data.aws_region.current.name}.amazonaws.com"
+              "kms:ViaService"                  = "secretsmanager.${data.aws_region.current.region}.amazonaws.com"
               "kms:EncryptionContext:SecretARN" = data.aws_secretsmanager_secret.credentials.arn
             }
           }

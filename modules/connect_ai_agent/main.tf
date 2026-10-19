@@ -24,7 +24,7 @@ data "external" "source" {
     assistant_id         = var.assistant_id
     connect_instance_arn = var.connect_instance_arn
     account_id           = data.aws_caller_identity.current.account_id
-    region               = data.aws_region.current.name
+    region               = data.aws_region.current.region
     aws_profile          = var.aws_profile
     source_name          = var.source_agent_name
     source_prompt_name   = var.source_prompt_name == null ? "" : var.source_prompt_name
@@ -187,7 +187,7 @@ resource "aws_cloudformation_stack" "agent" {
   tags = local.tags
   template_url = format(
     "https://s3.%s.%s/%s/%s",
-    data.aws_region.current.name,
+    data.aws_region.current.region,
     data.aws_partition.current.dns_suffix,
     aws_s3_object.template.bucket,
     aws_s3_object.template.key
