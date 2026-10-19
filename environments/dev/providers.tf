@@ -14,7 +14,16 @@ terraform {
       source  = "hashicorp/archive"
       version = "~> 2.0"
     }
+    awscc = {
+      source  = "hashicorp/awscc"
+      version = "~> 1.0"
+    }
   }
+}
+
+provider "awscc" {
+  alias  = "us_east_1"
+  region = "us-east-1"
 }
 
 provider "aws" {

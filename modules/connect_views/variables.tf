@@ -1,29 +1,16 @@
 variable "connect_instance_arn" {
-  description = "Amazon Connect instance ARN in which to create the view."
-  type        = string
-
-  validation {
-    condition = can(regex(
-      "^arn:[^:]+:connect:[^:]+:[0-9]{12}:instance/[0-9a-fA-F-]{36}$",
-      var.connect_instance_arn
-    ))
-    error_message = "Provide a valid Amazon Connect instance ARN."
-  }
-}
-
-variable "stack_name" {
-  description = "CloudFormation stack name for the Connect view."
+  description = "Existing Amazon Connect instance ARN."
   type        = string
 }
 
 variable "view_name" {
-  description = "Customer-managed view display name."
+  description = "Amazon Connect view name."
   type        = string
   default     = "Customer Details"
 }
 
 variable "view_template" {
-  description = "View layout JSON with Head and Body; Connect generates its input schema."
+  description = "JSON view layout containing Head and Body, loaded with file()."
   type        = string
 
   validation {
@@ -31,12 +18,12 @@ variable "view_template" {
       can(jsondecode(var.view_template).Head) &&
       can(jsondecode(var.view_template).Body)
     )
-    error_message = "Supply a view layout template containing Head and Body, rather than an input schema."
+    error_message = "view_template must be a JSON view layout containing Head and Body."
   }
 }
 
 variable "common_tags" {
-  description = "Tags applied to the stack and view."
+  description = "Tags applied to the view."
   type        = map(string)
   default     = {}
 }

@@ -117,14 +117,13 @@ output "agentcore_gateway" {
   value       = try(module.agentcore_gateway[0].deployment, null)
 }
 
-output "customer_details_view" {
-  description = "Customer Details view identifiers."
+output "connect_views" {
+  description = "Customer Details view identifiers, or null when Connect is disabled."
 
   value = try({
-    id         = module.customer_details_view[0].view_id
-    arn        = module.customer_details_view[0].view_arn
-    latest_arn = module.customer_details_view[0].view_latest_arn
-    name       = module.customer_details_view[0].view_name
+    view_id         = module.connect_views[0].view_id
+    view_arn        = module.connect_views[0].view_arn
+    view_latest_arn = module.connect_views[0].view_latest_arn
   }, null)
 }
 
