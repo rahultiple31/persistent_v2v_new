@@ -48,13 +48,13 @@ _SESSION_ARN_RE = re.compile(
 
 def _get_session_ids(instance_arn, contact_id):
     """Return (assistant_id, session_id) of the Q in Connect session on the contact."""
-    contact = _connect.describe_contact(InstanceId=instance_arn, ContactId=contact_id).get("Contact", {})
+    contact = _connect.describe_contact(InstanceId=instance_arn, ContactId=contact_id).get("Contact") or {}
     session_arn = (contact.get("WisdomInfo") or {}).get("SessionArn")
     if not session_arn:
         raise RuntimeError("Contact has no WisdomInfo.SessionArn - run the 'Connect assistant' block first")
-    match = _SESSION_ARN_RE.match(session_arn)
+    match = _SESSION_ARN_RE.fullmatch(session_arn)
     if not match:
-        raise ValueError(f"Unrecognised Q in Connect session ARN: {session_arn!r}")
+        raise ValueError("Unrecognised Q in Connect session ARN")
     return match["assistant_id"], match["session_id"]
 
 
@@ -68,11 +68,20 @@ def handler(event, _context):
         contact_data = details["ContactData"]
         instance_arn = contact_data["InstanceARN"]
         contact_id = contact_data["ContactId"]
-    except (KeyError, TypeError):
+        parameters = details.get("Parameters") or {}
+    except (KeyError, TypeError, AttributeError):
         logger.error("Malformed event - not an Amazon Connect contact-flow invocation")
         return _error("InvalidEvent")
 
-    parameters = details.get("Parameters") or {}
+    if (
+        not isinstance(instance_arn, str)
+        or not instance_arn.strip()
+        or not isinstance(contact_id, str)
+        or not contact_id.strip()
+        or not isinstance(parameters, dict)
+    ):
+        logger.error("Invalid contact identifiers or invocation parameters")
+        return _error("InvalidEvent")
 
     # Empty values are SKIPPED, not sent: the API rejects "" and would fail the
     # whole call, losing every other key. A skipped key renders blank in the
@@ -100,14 +109,13 @@ def handler(event, _context):
         )
     except ClientError as e:
         err = e.response.get("Error", {})
-        logger.error("UpdateSessionData failed for contact %s: %s - %s",
-                     contact_id, err.get("Code"), err.get("Message"))
+        logger.error("AWS API failed for contact %s: %s", contact_id, err.get("Code"))
         return _error(err.get("Code", "ClientError"))
     except ParamValidationError as e:
-        logger.error("Invalid request parameters for contact %s: %s", contact_id, e)
+        logger.error("Invalid request parameters for contact %s", contact_id)
         return _error("ParamValidationError")
     except BotoCoreError as e:
-        logger.error("AWS call failed for contact %s: %s - %s", contact_id, type(e).__name__, e)
+        logger.error("AWS call failed for contact %s: %s", contact_id, type(e).__name__)
         return _error(type(e).__name__)
     except (ValueError, RuntimeError) as e:
         logger.error("Session lookup failed for contact %s: %s", contact_id, e)

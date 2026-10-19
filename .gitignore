@@ -31,3 +31,7 @@ webapp/node_modules/
 webapp/dist/
 webapp/.vite/
 webapp/frontend-config.js
+
+# Prebuilt deployment package consumed directly by UpdateSessionAttributes-dev.
+!environments/dev/metadata/scr_lambda/lambda_function.zip
+__pycache__/

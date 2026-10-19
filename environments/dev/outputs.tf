@@ -154,3 +154,18 @@ output "ai_agent_log_group" {
     arn  = module.cloudwatch_log_group[0].arn
   }, null)
 }
+
+output "lambda_name" {
+  description = "UpdateSessionAttributes-dev function name, or null when Connect is disabled."
+  value       = try(module.UpdateSessionAttributes-dev[0].lambda_name, null)
+}
+
+output "lambda_arn" {
+  description = "UpdateSessionAttributes-dev function ARN, or null when Connect is disabled."
+  value       = try(module.UpdateSessionAttributes-dev[0].lambda_arn, null)
+}
+
+output "lambda_role_arn" {
+  description = "UpdateSessionAttributes-dev execution role ARN, or null when Connect is disabled."
+  value       = try(module.UpdateSessionAttributes-dev[0].iam_role_arn, null)
+}

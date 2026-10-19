@@ -4,10 +4,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.21.0"
     }
-    archive = {
-      source  = "hashicorp/archive"
-      version = "~> 2.0"
-    }
     time = {
       source  = "hashicorp/time"
       version = "~> 0.13"
@@ -20,18 +16,13 @@ data "aws_region" "current" {}
 data "aws_partition" "current" {}
 
 locals {
-  function_name = "UpdateSessionAttributes-dev"
-}
-
-data "archive_file" "code" {
-  type        = "zip"
-  source_dir  = "${path.module}/src"
-  output_path = "${path.root}/${local.function_name}.zip"
+  function_name = var.function_name
 }
 
 resource "aws_cloudwatch_log_group" "this" {
-  name = "/aws/lambda/${local.function_name}"
-  tags = var.common_tags
+  name              = "/aws/lambda/${local.function_name}"
+  retention_in_days = 14
+  tags              = var.common_tags
 }
 
 resource "aws_iam_role" "execution" {
@@ -47,6 +38,11 @@ resource "aws_iam_role" "execution" {
   })
 
   tags = var.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "xray" {
+  role       = aws_iam_role.execution.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AWSXRayDaemonWriteAccess"
 }
 
 resource "aws_iam_role_policy" "execution" {
@@ -92,7 +88,10 @@ resource "time_sleep" "execution_role_ready" {
     role_id = aws_iam_role.execution.unique_id
   }
 
-  depends_on = [aws_iam_role_policy.execution]
+  depends_on = [
+    aws_iam_role_policy.execution,
+    aws_iam_role_policy_attachment.xray,
+  ]
 }
 
 resource "aws_lambda_function" "this" {
@@ -102,19 +101,32 @@ resource "aws_lambda_function" "this" {
   architectures                  = ["x86_64"]
   handler                        = "lambda_function.handler"
   package_type                   = "Zip"
-  filename                       = data.archive_file.code.output_path
-  source_code_hash               = data.archive_file.code.output_base64sha256
+  filename                       = var.zip_path
+  source_code_hash               = filebase64sha256(var.zip_path)
   memory_size                    = 128
   timeout                        = 8
-  reserved_concurrent_executions = -1
+  reserved_concurrent_executions = 300
 
   ephemeral_storage {
     size = 512
   }
 
+  tracing_config {
+    mode = "Active"
+  }
+
   logging_config {
     log_format = "Text"
     log_group  = aws_cloudwatch_log_group.this.name
+  }
+
+  environment {
+    variables = {
+      NAMESPACE        = "Custom"
+      LOG_LEVEL        = "INFO"
+      API_TIMEOUT      = "1.5"
+      API_MAX_ATTEMPTS = "2"
+    }
   }
 
   tags = var.common_tags

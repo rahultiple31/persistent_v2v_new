@@ -625,6 +625,8 @@ module "UpdateSessionAttributes-dev" {
     aws = aws.us_east_1
   }
 
+  function_name        = "UpdateSessionAttributes-dev"
+  zip_path             = "${path.module}/metadata/scr_lambda/lambda_function.zip"
   connect_instance_arn = module.connect_us_east_1[0].instance_arn
   assistant_id         = local.dev_ai_assistant_id
   common_tags          = local.common_tags
