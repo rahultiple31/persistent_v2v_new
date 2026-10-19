@@ -645,6 +645,85 @@ module "silence_guard-dev" {
   common_tags          = local.common_tags
 }
 
+# Deploys with the existing Connect selection.
+module "conversion_of_queue_metrics" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../modules/conversionOfQueueMetrics-dev"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  function_name  = "conversionOfQueueMetrics-dev"
+  iam_role_name  = "conversionOfQueueMetrics-role-ox32eazp"
+  log_group_name = "/aws/lambda/conversionOfQueueMetrics-dev"
+  zip_path       = "${path.module}/metadata/conversionOfQueueMetrics-dev_lambda/lambda_function.zip"
+
+  environment_variables = {
+    TableName   = "queueInfo"
+    LOG_LEVEL   = "DEBUG"
+    TTL_SECONDS = "86400"
+  }
+
+  common_tags = local.common_tags
+}
+
+# Deploys with the existing Connect selection.
+module "lex_queueflow_callback" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../modules/BTSGSD-lex-QueueFlow-Callback-dev"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  function_name  = "BTSGSD-lex-QueueFlow-Callback-dev"
+  iam_role_name  = "BTSGSD-lex-QueueFlow-Callback-role-i0v0kqis"
+  log_group_name = "/aws/lambda/BTSGSD-lex-QueueFlow-Callback-dev"
+
+  zip_path = "${path.module}/metadata/BTSGSD-lex-QueueFlow-Callback-dev_lambda/lambda_function.zip"
+
+  layer_arn = "arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroPython:32"
+
+  environment_variables = {
+    LOWER_THRESHOLD         = "0.4"
+    UPPER_THRESHOLD         = "0.7"
+    LOG_LEVEL               = "DEBUG"
+    AWS_LAMBDA_EXEC_WRAPPER = "/opt/otel-instrument"
+  }
+
+  lex_bot_alias_arn = var.lex_queueflow_callback_bot_alias_arn
+  common_tags       = local.common_tags
+}
+
+# Deploys with the existing Connect selection.
+module "lex_yesno" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../modules/BTSGSD-lex-yesNo-dev"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  function_name  = "BTSGSD-lex-yesNo-dev"
+  iam_role_name  = "BTSGSD-lex-yesNo-role-ow5vzdof"
+  log_group_name = "/aws/lambda/BTSGSD-lex-yesNo-dev"
+
+  zip_path = "${path.module}/metadata/BTSGSD-lex-yesNo-dev_lambda-dev_lambda/lambda_function.zip"
+
+  layer_arn = "arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroPython:32"
+
+  environment_variables = {
+    LOWER_THRESHOLD         = "0.4"
+    UPPER_THRESHOLD         = "0.7"
+    LOG_LEVEL               = "DEBUG"
+    AWS_LAMBDA_EXEC_WRAPPER = "/opt/otel-instrument"
+  }
+
+  lex_bot_alias_arn = var.lex_yesno_bot_alias_arn
+  common_tags       = local.common_tags
+}
+
 module "cloudwatch_log_group" {
   count  = contains(local.enabled_module_set, "cloudwatch_log_group") ? 1 : 0
   source = "../../modules/cloudwatch_log_group"

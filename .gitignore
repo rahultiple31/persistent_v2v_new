@@ -32,6 +32,9 @@ webapp/dist/
 webapp/.vite/
 webapp/frontend-config.js
 
-# Prebuilt deployment package consumed directly by UpdateSessionAttributes-dev.
+# Prebuilt Lambda deployment packages.
 !environments/dev/metadata/scr_lambda/lambda_function.zip
+!environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda/lambda_function.zip
+!environments/dev/metadata/BTSGSD-lex-QueueFlow-Callback-dev_lambda/lambda_function.zip
+!environments/dev/metadata/ivr_lambda/lambda_function.zip
 __pycache__/

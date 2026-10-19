@@ -169,3 +169,39 @@ output "lambda_role_arn" {
   description = "UpdateSessionAttributes-dev execution role ARN, or null when Connect is disabled."
   value       = try(module.UpdateSessionAttributes-dev[0].iam_role_arn, null)
 }
+
+output "conversion_of_queue_metrics_lambda_name" {
+  value = try(module.conversion_of_queue_metrics[0].lambda_name, null)
+}
+
+output "conversion_of_queue_metrics_lambda_arn" {
+  value = try(module.conversion_of_queue_metrics[0].lambda_arn, null)
+}
+
+output "conversion_of_queue_metrics_iam_role_arn" {
+  value = try(module.conversion_of_queue_metrics[0].iam_role_arn, null)
+}
+
+output "lex_queueflow_callback_lambda_name" {
+  value = try(module.lex_queueflow_callback[0].lambda_name, null)
+}
+
+output "lex_queueflow_callback_lambda_arn" {
+  value = try(module.lex_queueflow_callback[0].lambda_arn, null)
+}
+
+output "lex_queueflow_callback_iam_role_arn" {
+  value = try(module.lex_queueflow_callback[0].iam_role_arn, null)
+}
+
+output "lex_yesno_lambda_name" {
+  value = try(module.lex_yesno[0].lambda_name, null)
+}
+
+output "lex_yesno_lambda_arn" {
+  value = try(module.lex_yesno[0].lambda_arn, null)
+}
+
+output "lex_yesno_iam_role_arn" {
+  value = try(module.lex_yesno[0].iam_role_arn, null)
+}

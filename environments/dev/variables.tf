@@ -654,6 +654,18 @@ variable "connect_integrations_enabled" {
   default     = true
 }
 
+variable "lex_queueflow_callback_bot_alias_arn" {
+  description = "Optional Lex V2 bot alias ARN allowed to invoke the callback Lambda."
+  type        = string
+  default     = null
+}
+
+variable "lex_yesno_bot_alias_arn" {
+  description = "Optional Lex V2 bot alias ARN allowed to invoke the Yes/No Lambda."
+  type        = string
+  default     = null
+}
+
 variable "proxy_log_retention_days" {
   description = "CloudWatch Logs retention period for proxy logs."
   type        = number
