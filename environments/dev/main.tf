@@ -29,7 +29,7 @@ locals {
 
     customer_queue = {
       filename = "BTSGSD_Abbvie_CustomerQueueFlow.json"
-      name     = "btsgsd_Abbvie_CustomerQueueFlow"
+      name     = "BTSGSD_Abbvie_CustomerQueueFlow"
       type     = "CUSTOMER_QUEUE"
     }
 
@@ -80,7 +80,11 @@ locals {
           file("${local.imported_flow_directory}/${flow.filename}"),
           "e0917ae9-956c-4e02-b73f-43150201aa7f",
           local.top_level_blocker_data_table_id
-        ) : file("${local.imported_flow_directory}/${flow.filename}"),
+          ) : replace(
+          file("${local.imported_flow_directory}/${flow.filename}"),
+          "arn:aws:lambda:us-east-1:518902362956:function:conversionOfQueueMetrics",
+          aws_connect_lambda_function_association.queue_metrics[0].function_arn
+        ),
         "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
         local.survey_data_table_id
       ) : file("${local.imported_flow_directory}/${flow.filename}")
@@ -128,6 +132,8 @@ module "connect_us_east_1" {
   customer_queue_dependency_names   = var.connect_customer_queue_dependency_names
   customer_number_data_table_id     = local.customer_number_data_table_id
   agent_ui_flow_arn                 = module.abbvie_views[0].flow_arn
+  main_inbound_survey_flow_arn      = aws_connect_contact_flow.survey[0].arn
+  lookup_main_inbound_survey        = false
 }
 
 module "connect_views" {

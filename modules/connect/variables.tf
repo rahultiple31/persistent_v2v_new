@@ -178,3 +178,15 @@ variable "agent_ui_flow_arn" {
   type        = string
   default     = null
 }
+
+variable "main_inbound_survey_flow_arn" {
+  description = "Managed survey flow ARN when lookup_main_inbound_survey is false."
+  type        = string
+  default     = null
+}
+
+variable "lookup_main_inbound_survey" {
+  description = "Look up an existing survey by name; false uses main_inbound_survey_flow_arn. Explicit so the lookup count is known before a new flow ARN exists."
+  type        = bool
+  default     = true
+}

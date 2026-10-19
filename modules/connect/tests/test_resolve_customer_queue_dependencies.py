@@ -78,6 +78,46 @@ class DependencyResolutionTests(unittest.TestCase):
         for name in ("CustomerQueueMOH", "BTSGSD-Survey-DataTable", MODULE_NAME):
             self.assertIn(name, str(caught.exception))
 
+    def test_survey_resolves_module_and_table_preserves_flow_graph(self):
+        source = (
+            REPO_DIR / "environments/dev/metadata/contact-flows"
+            / "BTSGSD-AIAgent-SurveyFlow.json"
+        ).read_text(encoding="utf-8-sig")
+        original = json.loads(source)
+        identifiers = {action["Identifier"] for action in original["Actions"]}
+        self.assertEqual(len(identifiers), len(original["Actions"]))
+        self.assertEqual(len(identifiers), 20)
+        self.assertIn(original["StartAction"], identifiers)
+        self.assertEqual(set(original["Metadata"]["ActionMetadata"]), identifiers)
+        for action in original["Actions"]:
+            transitions = action["Transitions"]
+            targets = [transitions.get("NextAction")]
+            targets += [t["NextAction"] for t in transitions.get("Errors", [])]
+            targets += [t["NextAction"] for t in transitions.get("Conditions", [])]
+            for target in filter(None, targets):
+                self.assertIn(target, identifiers)
+
+        self.query["content"] = source
+        self.query["name_overrides"] = json.dumps({
+            MODULE_NAME: "VMX3_Main_VM_Module_btsgsd-dev-us-east-1"
+        })
+        self.inventory["list-contact-flow-modules"][0]["Name"] = (
+            "VMX3_Main_VM_Module_btsgsd-dev-us-east-1"
+        )
+        output = json.loads(resolver.resolve(self.query, self.load)["content"])
+        self.assertEqual(output["StartAction"], original["StartAction"])
+        for before, after in zip(original["Actions"], output["Actions"]):
+            self.assertEqual(before["Identifier"], after["Identifier"])
+            self.assertEqual(before["Transitions"], after["Transitions"])
+            if before["Type"] == "InvokeFlowModule":
+                self.assertEqual(after["Parameters"]["FlowModuleId"], "dev-module:$LATEST")
+            elif before["Type"] == "EvaluateDataTableValues":
+                self.assertEqual(after["Parameters"]["DataTableId"], "dev-table")
+                self.assertEqual(before["Parameters"]["Queries"], after["Parameters"]["Queries"])
+            else:
+                self.assertEqual(before, after)
+        self.assertEqual(self.query["content"], source)
+
     def test_duplicate_names_do_not_choose_arbitrary_resource(self):
         self.inventory["list-prompts"].append(
             copy.deepcopy(self.inventory["list-prompts"][0])

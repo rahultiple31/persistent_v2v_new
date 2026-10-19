@@ -39,10 +39,27 @@ The handler accepts Amazon Connect invocation parameters `invocationType`,
 `queue_time`, and `positionInQueue`. `putQueue` stores entry time and TTL;
 `getEWT` subtracts elapsed time from `queue_time` and returns flat string values.
 
-The exported contact flows currently reference `conversionOfQueueMetrics`
-without the `-dev` suffix. This change creates the requested `-dev` function;
-flow references, Connect Lambda association, and invocation permissions must
-be configured before those flows can invoke the new function.
+The `BTSGSD_Abbvie_CustomerQueueFlow` deployment renders the supplied JSON's
+`conversionOfQueueMetrics` reference as `conversionOfQueueMetrics-dev`.
+Terraform grants Connect invocation permission scoped to the managed instance
+and account, then associates the Lambda with that instance. The rendered flow
+references the association's function ARN so dependency resolution waits for
+that association. The stored JSON retains the original export.
+
+The flow keeps its existing resource address,
+`module.connect_us_east_1[0].aws_connect_contact_flow.imported["customer_queue"]`.
+The display name is now exactly `BTSGSD_Abbvie_CustomerQueueFlow`.
+Existing prompt, voicemail module, and data-table resolution still uses
+`connect_customer_queue_dependency_names` and the managed survey table.
+The Lex bot aliases in the export must exist and be associated with the instance.
+
+Deploy from `main` using pipeline environment `dev`, module `connect`, and action
+`plan`; review the changes, then run with action `apply` for a fresh plan and
+deployment. If the metrics Lambda association is already present outside this
+Terraform state, import it into
+`aws_connect_lambda_function_association.queue_metrics[0]` using the Connect
+backend before applying. Reuse or import an existing matching Lambda permission
+instead of creating a duplicate statement.
 
 Outputs are `conversion_of_queue_metrics_lambda_name`,
 `conversion_of_queue_metrics_lambda_arn`, and

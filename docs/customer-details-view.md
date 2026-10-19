@@ -15,12 +15,16 @@ pipeline selection has been added.
 ## Main inbound flow dependencies
 
 The dev main inbound flow's `DefaultAgentUI` hook uses the managed `AbbVie_Views`
-flow ARN. The Connect module also replaces the exported queue and survey ARNs
-with resources looked up in the managed instance. The default lookup names are
-`BTSGSD-US-MAIN-QUEUE` and `BTSGSD-AIAgent-SurveyFlow`; both resources must already
-exist in that instance. If their Dev names differ, add entries keyed by these
-exported names to `connect_customer_queue_dependency_names` in dev tfvars,
-preserving the existing prompt and flow-module mappings.
+flow ARN. The queue is looked up as `BTSGSD-US-MAIN-QUEUE` in the managed instance.
+If its Dev name differs, add an entry keyed by this exported name to
+`connect_customer_queue_dependency_names` in dev tfvars, preserving the existing
+prompt and flow-module mappings.
+
+Dev now creates `BTSGSD-AIAgent-SurveyFlow` from its supplied JSON and passes its
+ARN directly to the inbound flow. It does not look up a survey before creating
+it. Other Connect module callers retain the existing survey-name lookup by
+default, or can set `lookup_main_inbound_survey = false` and supply
+`main_inbound_survey_flow_arn`. See [survey deployment](survey-contact-flow.md).
 
 These replacements correct identified cross-instance references. AWS still
 validates the remaining exported Lambda, Lex, assistant, and other flow settings

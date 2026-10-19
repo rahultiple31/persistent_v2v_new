@@ -1,0 +1,756 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "7e800fa7-d77e-4f74-ba6b-9177f7a74cf7",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": -442.4,
+      "y": 688.8
+    },
+    "ActionMetadata": {
+      "21bc5940-af45-4063-a477-fdcc48e140a2": {
+        "position": {
+          "x": 978.4,
+          "y": 455.2
+        },
+        "children": [
+          "47e64d25-b7b8-4fb4-96c4-27681c6c1006"
+        ],
+        "parameters": {
+          "OrchestrationAIAgentConfiguration": {
+            "AgentAssistanceAgentVersionArn": {
+              "useAIAgentDropdown": true,
+              "aiAgentName": "BTSGSD-AI-Survey-Agent"
+            }
+          }
+        },
+        "fragments": {
+          "SetContactData": "47e64d25-b7b8-4fb4-96c4-27681c6c1006"
+        },
+        "useAIAgentDropdown": true,
+        "aiAgentName": "BTSGSD-AI-Survey-Agent"
+      },
+      "47e64d25-b7b8-4fb4-96c4-27681c6c1006": {
+        "position": {
+          "x": 978.4,
+          "y": 455.2
+        },
+        "dynamicParams": []
+      },
+      "Get customer input": {
+        "position": {
+          "x": 1889.6,
+          "y": 338.4
+        },
+        "isFriendlyName": true,
+        "children": [
+          "Get customer input-ZKl9XGJij8",
+          "Get customer input-MNajh3dY2Z"
+        ],
+        "parameters": {
+          "WisdomAssistantArn": {
+            "useAIAgentDropdown": true,
+            "aiAgentName": "BTSGSD-AI-Survey-Agent",
+            "aiAgentVersionArn": "arn:aws:wisdom:us-east-1:518902362956:ai-agent/160889f7-d564-47fb-97db-94549fc55993/3019fa9e-8e2a-4243-b5e1-a9e89e3cfec8:8"
+          }
+        },
+        "fragments": {
+          "SetContactData": "Get customer input-ZKl9XGJij8"
+        },
+        "useAIAgentDropdown": true,
+        "aiAgentName": "BTSGSD-AI-Survey-Agent",
+        "aiAgentVersionArn": "arn:aws:wisdom:us-east-1:518902362956:ai-agent/160889f7-d564-47fb-97db-94549fc55993/3019fa9e-8e2a-4243-b5e1-a9e89e3cfec8:8"
+      },
+      "Get customer input-ZKl9XGJij8": {
+        "position": {
+          "x": 1889.6,
+          "y": 338.4
+        },
+        "isFriendlyName": true,
+        "dynamicParams": []
+      },
+      "Get customer input-MNajh3dY2Z": {
+        "position": {
+          "x": 1889.6,
+          "y": 338.4
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "LexV2Bot": {
+            "AliasArn": {
+              "displayName": "Dev",
+              "useLexBotDropdown": true,
+              "lexV2BotName": "BTSGSD-AIAgent-Survey"
+            }
+          }
+        },
+        "dynamicMetadata": {
+          "x-amz-lex:q-in-connect:session-arn": false,
+          "x-amz-lex:audio:start-timeout-ms:*:*": false,
+          "x-amz-lex:audio:end-timeout-ms:*:*": false,
+          "x-amz-lex:audio:max-length-ms:*:*": false,
+          "x-amz-lex:q-in-connect:ai-agent-arn": false
+        },
+        "useLexBotDropdown": true,
+        "lexV2BotName": "BTSGSD-AIAgent-Survey",
+        "lexV2BotAliasName": "Dev",
+        "conditionMetadata": []
+      },
+      "434e2264-7479-44fd-8a48-914e8a67ae69": {
+        "position": {
+          "x": 464,
+          "y": 876.8
+        },
+        "parameters": {
+          "Attributes": {
+            "surveyStartTime": {
+              "useDynamic": true
+            }
+          }
+        },
+        "dynamicParams": [
+          "surveyStartTime"
+        ]
+      },
+      "17e07364-091d-4858-aabe-c43e54ea49af": {
+        "position": {
+          "x": 259.2,
+          "y": 656.8
+        },
+        "parameters": {
+          "LambdaFunctionARN": {
+            "displayName": "VMX3-VoicemailTimestamper-abbvie-sd-contactcenter-dev-us"
+          }
+        },
+        "dynamicMetadata": {}
+      },
+      "7e800fa7-d77e-4f74-ba6b-9177f7a74cf7": {
+        "position": {
+          "x": -288.8,
+          "y": 692
+        }
+      },
+      "7e47cc3f-667b-4244-85b1-4753d3a2666b": {
+        "position": {
+          "x": 11.2,
+          "y": 664.8
+        },
+        "parameters": {
+          "Attributes": {
+            "lang": {
+              "useDynamic": true
+            }
+          }
+        },
+        "dynamicParams": [
+          "lang"
+        ]
+      },
+      "f0f61663-556a-4e60-856e-4865791eecc2": {
+        "position": {
+          "x": 3849.6,
+          "y": 484
+        }
+      },
+      "03b93754-f615-406a-ae14-ae6aae18f498": {
+        "position": {
+          "x": 3838.4,
+          "y": 218.4
+        },
+        "parameters": {
+          "FlowModuleId": {
+            "displayName": "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us",
+            "Alias": {
+              "displayName": "$LATEST"
+            }
+          }
+        },
+        "contactFlowModuleName": "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us"
+      },
+      "voicemail attributes": {
+        "position": {
+          "x": 3623.2,
+          "y": 8.8
+        },
+        "isFriendlyName": true,
+        "dynamicParams": []
+      },
+      "6061270a-1f23-4bd1-b844-3203a128a508": {
+        "position": {
+          "x": 731.2,
+          "y": 655.2
+        },
+        "parameters": {
+          "DataTableId": {
+            "displayName": "BTSGSD-Survey-DataTable"
+          }
+        }
+      },
+      "Update session data": {
+        "position": {
+          "x": 1330.4,
+          "y": 438.4
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "LambdaFunctionARN": {
+            "displayName": "UpdateSessionAttributes"
+          },
+          "LambdaInvocationAttributes": {
+            "CallerAni": {
+              "useDynamic": true
+            },
+            "agentC": {
+              "useDynamic": true
+            }
+          }
+        },
+        "dynamicMetadata": {
+          "language_name": false,
+          "customer_address": false,
+          "CallerAni": true,
+          "agentC": true
+        }
+      },
+      "406ba542-148a-4f66-b3d4-b2da6ec82695": {
+        "position": {
+          "x": 4260.8,
+          "y": 558.4
+        }
+      },
+      "099b126e-602a-45a5-9961-d2a6d9ccec5d": {
+        "position": {
+          "x": 2975.2,
+          "y": 639.2
+        }
+      },
+      "3de75dd0-90ca-4eef-b3a9-9948343f4999": {
+        "position": {
+          "x": 3334.4,
+          "y": 642.4
+        },
+        "dynamicParams": []
+      },
+      "b0c62f90-947f-4930-99d7-cc6b7b8fac26": {
+        "position": {
+          "x": 3168.8,
+          "y": 12.8
+        }
+      },
+      "236e5f46-2960-4dd5-a372-72acfa0287d6": {
+        "position": {
+          "x": 2268,
+          "y": 260
+        },
+        "parameters": {
+          "Attributes": {
+            "SurveyIntent": {
+              "useDynamic": true
+            },
+            "SurveyQ1": {
+              "useDynamic": true
+            },
+            "SurveyQ2": {
+              "useDynamic": true
+            },
+            "SurveyQ3": {
+              "useDynamic": true
+            }
+          }
+        },
+        "dynamicParams": [
+          "SurveyIntent",
+          "SurveyQ1",
+          "SurveyQ2",
+          "SurveyQ3"
+        ]
+      },
+      "9e9d19b9-c0af-403f-b940-7b32a5903114": {
+        "position": {
+          "x": 2735.2,
+          "y": 66.4
+        },
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "64cda886-bd4b-4e8b-855b-a5882b522fb9",
+            "operator": {
+              "name": "Contains",
+              "value": "Contains",
+              "shortDisplay": "contains"
+            },
+            "value": "want"
+          },
+          {
+            "id": "1422cf20-6173-4eff-bc48-7b539f23e534",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "wantTOleaveRecommendation"
+          },
+          {
+            "id": "69641dad-0644-4a28-b00d-ca477e213112",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "wantToleaveRecommendation"
+          },
+          {
+            "id": "283bea65-00ed-4973-af73-8b7c1c26ff1b",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "wantToLeaveRecommendation"
+          }
+        ]
+      }
+    },
+    "Annotations": [
+      {
+        "type": "default",
+        "id": "d62b4d2d-dcd2-4cca-9bcc-6dac1981f73f",
+        "content": "AbbVie_Survey: \n\nSurvey flow , will ask questions and customer should response in Yes/No .",
+        "actionId": "",
+        "isFolded": false,
+        "position": {
+          "x": 292,
+          "y": 333
+        },
+        "size": {
+          "height": 295,
+          "width": 300
+        }
+      }
+    ],
+    "name": "BTSGSD-AIAgent-SurveyFlow",
+    "description": "",
+    "type": "contactFlow",
+    "status": "PUBLISHED",
+    "hash": {}
+  },
+  "Actions": [
+    {
+      "Parameters": {
+        "WisdomAssistantArn": "arn:aws:wisdom:us-east-1:518902362956:assistant/160889f7-d564-47fb-97db-94549fc55993",
+        "OrchestrationAIAgentConfiguration": {
+          "AgentAssistanceAgentVersionArn": "arn:aws:wisdom:us-east-1:518902362956:ai-agent/160889f7-d564-47fb-97db-94549fc55993/3019fa9e-8e2a-4243-b5e1-a9e89e3cfec8:8"
+        }
+      },
+      "Identifier": "21bc5940-af45-4063-a477-fdcc48e140a2",
+      "Type": "CreateWisdomSession",
+      "Transitions": {
+        "NextAction": "47e64d25-b7b8-4fb4-96c4-27681c6c1006",
+        "Errors": [
+          {
+            "NextAction": "Update session data",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "WisdomSessionArn": "$.Wisdom.SessionArn"
+      },
+      "Identifier": "47e64d25-b7b8-4fb4-96c4-27681c6c1006",
+      "Type": "UpdateContactData",
+      "Transitions": {
+        "NextAction": "Update session data",
+        "Errors": [
+          {
+            "NextAction": "Update session data",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "WisdomAssistantArn": "arn:aws:wisdom:us-east-1:518902362956:assistant/160889f7-d564-47fb-97db-94549fc55993"
+      },
+      "Identifier": "Get customer input",
+      "Type": "CreateWisdomSession",
+      "Transitions": {
+        "NextAction": "Get customer input-ZKl9XGJij8",
+        "Errors": [
+          {
+            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "WisdomSessionArn": "$.Wisdom.SessionArn"
+      },
+      "Identifier": "Get customer input-ZKl9XGJij8",
+      "Type": "UpdateContactData",
+      "Transitions": {
+        "NextAction": "Get customer input-MNajh3dY2Z",
+        "Errors": [
+          {
+            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SSML": "<speak>$.DataTables.LanguageCheck.surveyBot_initialize</speak>",
+        "LexV2Bot": {
+          "AliasArn": "arn:aws:lex:us-east-1:518902362956:bot-alias/LW428B2LK5/6APIQ3LRFO"
+        },
+        "LexSessionAttributes": {
+          "x-amz-lex:q-in-connect:session-arn": "$.Wisdom.SessionArn",
+          "x-amz-lex:audio:start-timeout-ms:*:*": "5000",
+          "x-amz-lex:audio:end-timeout-ms:*:*": "1500",
+          "x-amz-lex:audio:max-length-ms:*:*": "30000",
+          "x-amz-lex:q-in-connect:ai-agent-arn": "arn:aws:wisdom:us-east-1:518902362956:ai-agent/160889f7-d564-47fb-97db-94549fc55993/3019fa9e-8e2a-4243-b5e1-a9e89e3cfec8:8"
+        }
+      },
+      "Identifier": "Get customer input-MNajh3dY2Z",
+      "Type": "ConnectParticipantWithLexBot",
+      "Transitions": {
+        "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+        "Errors": [
+          {
+            "NextAction": "236e5f46-2960-4dd5-a372-72acfa0287d6",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "surveyStartTime": "$.External.vmx3_timestamp"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "434e2264-7479-44fd-8a48-914e8a67ae69",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "6061270a-1f23-4bd1-b844-3203a128a508",
+        "Errors": [
+          {
+            "NextAction": "6061270a-1f23-4bd1-b844-3203a128a508",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "LambdaFunctionARN": "arn:aws:lambda:us-east-1:518902362956:function:VMX3-VoicemailTimestamper-abbvie-sd-contactcenter-dev-us",
+        "InvocationTimeLimitSeconds": "3",
+        "InvocationType": "SYNCHRONOUS",
+        "ResponseValidation": {
+          "ResponseType": "STRING_MAP"
+        }
+      },
+      "Identifier": "17e07364-091d-4858-aabe-c43e54ea49af",
+      "Type": "InvokeLambdaFunction",
+      "Transitions": {
+        "NextAction": "434e2264-7479-44fd-8a48-914e8a67ae69",
+        "Errors": [
+          {
+            "NextAction": "434e2264-7479-44fd-8a48-914e8a67ae69",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "7e800fa7-d77e-4f74-ba6b-9177f7a74cf7",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "7e47cc3f-667b-4244-85b1-4753d3a2666b"
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "journey": "$.Attributes.journey | SurveyFlow",
+          "lang": "$.Attributes.Customer_Prefferred_Language"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "7e47cc3f-667b-4244-85b1-4753d3a2666b",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "17e07364-091d-4858-aabe-c43e54ea49af",
+        "Errors": [
+          {
+            "NextAction": "17e07364-091d-4858-aabe-c43e54ea49af",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak>$.DataTables.LanguageCheck.Closing</speak>"
+      },
+      "Identifier": "f0f61663-556a-4e60-856e-4865791eecc2",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
+        "Errors": [
+          {
+            "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowModuleId": "4648e1d4-37fb-438b-a47e-65f04a67718b:$LATEST"
+      },
+      "Identifier": "03b93754-f615-406a-ae14-ae6aae18f498",
+      "Type": "InvokeFlowModule",
+      "Transitions": {
+        "NextAction": "f0f61663-556a-4e60-856e-4865791eecc2",
+        "Errors": [
+          {
+            "NextAction": "f0f61663-556a-4e60-856e-4865791eecc2",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "f0f61663-556a-4e60-856e-4865791eecc2",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "voiceMailFrom": "surveyFlow"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "voicemail attributes",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "03b93754-f615-406a-ae14-ae6aae18f498",
+        "Errors": [
+          {
+            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "DataTableId": "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
+        "Queries": [
+          {
+            "QueryName": "LanguageCheck",
+            "Attributes": [
+              "surveyBot_initialize",
+              "sureveyFlow_1",
+              "Closing",
+              "sureveyFlow_error"
+            ],
+            "PrimaryValues": [
+              {
+                "AttributeName": "Language",
+                "Value": "$.Attributes.lang"
+              }
+            ]
+          }
+        ]
+      },
+      "Identifier": "6061270a-1f23-4bd1-b844-3203a128a508",
+      "Type": "EvaluateDataTableValues",
+      "Transitions": {
+        "NextAction": "21bc5940-af45-4063-a477-fdcc48e140a2",
+        "Errors": [
+          {
+            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "LambdaFunctionARN": "arn:aws:lambda:us-east-1:518902362956:function:UpdateSessionAttributes",
+        "InvocationTimeLimitSeconds": "3",
+        "InvocationType": "SYNCHRONOUS",
+        "LambdaInvocationAttributes": {
+          "language_name": "$.Attributes.lang",
+          "customer_address": "$.CustomerEndpoint.Address",
+          "CallerAni": "$.CustomerEndpoint.Address",
+          "agentC": "$.Attributes.agentC"
+        },
+        "ResponseValidation": {
+          "ResponseType": "STRING_MAP"
+        }
+      },
+      "Identifier": "Update session data",
+      "Type": "InvokeLambdaFunction",
+      "Transitions": {
+        "NextAction": "Get customer input",
+        "Errors": [
+          {
+            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "406ba542-148a-4f66-b3d4-b2da6ec82695",
+      "Type": "DisconnectParticipant",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak>$.DataTables.LanguageCheck.sureveyFlow_error</speak>"
+      },
+      "Identifier": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "3de75dd0-90ca-4eef-b3a9-9948343f4999",
+        "Errors": [
+          {
+            "NextAction": "3de75dd0-90ca-4eef-b3a9-9948343f4999",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "journey": "$.Attributes.journey | Error Occured"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "3de75dd0-90ca-4eef-b3a9-9948343f4999",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
+        "Errors": [
+          {
+            "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak>$.DataTables.LanguageCheck.sureveyFlow_1</speak>"
+      },
+      "Identifier": "b0c62f90-947f-4930-99d7-cc6b7b8fac26",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "voicemail attributes",
+        "Errors": [
+          {
+            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "SurveyIntent": "$.Lex.SessionAttributes.SurveyIntent",
+          "SurveyQ1": "$.Lex.SessionAttributes.SurveyQ1",
+          "SurveyQ2": "$.Lex.SessionAttributes.SurveyQ2",
+          "SurveyQ3": "$.Lex.SessionAttributes.SurveyQ3"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "236e5f46-2960-4dd5-a372-72acfa0287d6",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "9e9d19b9-c0af-403f-b940-7b32a5903114",
+        "Errors": [
+          {
+            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ComparisonValue": "$.Attributes.SurveyIntent"
+      },
+      "Identifier": "9e9d19b9-c0af-403f-b940-7b32a5903114",
+      "Type": "Compare",
+      "Transitions": {
+        "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
+        "Conditions": [
+          {
+            "NextAction": "b0c62f90-947f-4930-99d7-cc6b7b8fac26",
+            "Condition": {
+              "Operator": "TextContains",
+              "Operands": [
+                "want"
+              ]
+            }
+          },
+          {
+            "NextAction": "b0c62f90-947f-4930-99d7-cc6b7b8fac26",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "wantTOleaveRecommendation"
+              ]
+            }
+          },
+          {
+            "NextAction": "b0c62f90-947f-4930-99d7-cc6b7b8fac26",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "wantToleaveRecommendation"
+              ]
+            }
+          },
+          {
+            "NextAction": "b0c62f90-947f-4930-99d7-cc6b7b8fac26",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "wantToLeaveRecommendation"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
+            "ErrorType": "NoMatchingCondition"
+          }
+        ]
+      }
+    }
+  ]
+}

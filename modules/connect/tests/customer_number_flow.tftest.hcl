@@ -130,3 +130,31 @@ run "reject_agent_ui_from_source_instance" {
 
   expect_failures = [aws_connect_contact_flow.imported_main_inbound["main_inbound"]]
 }
+
+run "managed_survey_skips_lookup_and_updates_inbound" {
+  command = apply
+
+  variables {
+    lookup_main_inbound_survey   = false
+    main_inbound_survey_flow_arn = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/contact-flow/66666666-6666-6666-6666-666666666666"
+  }
+
+  assert {
+    condition = (
+      length(data.aws_connect_contact_flow.main_inbound_survey) == 0 &&
+      [for action in jsondecode(aws_connect_contact_flow.imported_main_inbound["main_inbound"].content).Actions : action.Parameters.ContactFlowId if action.Identifier == "Survey FLow"] == [var.main_inbound_survey_flow_arn]
+    )
+    error_message = "The inbound flow must use the newly managed survey ARN without looking up a flow that does not exist yet."
+  }
+}
+
+run "managed_survey_requires_target_instance_arn" {
+  command = plan
+
+  variables {
+    lookup_main_inbound_survey   = false
+    main_inbound_survey_flow_arn = "arn:aws:connect:us-east-1:518902362956:instance/0cc3e955-8cdd-4a82-b6fe-7593e1674ffa/contact-flow/3ac7b9d3-411e-4762-9d86-d74c70b54a94"
+  }
+
+  expect_failures = [aws_connect_contact_flow.imported_main_inbound["main_inbound"]]
+}
