@@ -112,6 +112,12 @@ servicenow_interaction_reserved_concurrency = null
 #   SN_CTI_RULE = "cti_gsd"
 # }
 
+snow_lambda_environment_variables = {
+  AWS_LAMBDA_EXEC_WRAPPER = "/opt/otel-instrument"
+  SN_INSTANCE            = "abbvienow"
+  SN_SECRET_NAME         = "servicenow/prod"
+}
+
 # Nextthink Handoff manual deployment; no separate tfvars file is needed.
 nexthink_handoff_python_executable = "python"
 

@@ -55,6 +55,16 @@ resource "aws_iam_role_policy" "logging" {
   })
 }
 
+resource "aws_iam_role_policy_attachment" "monitoring" {
+  for_each = toset([
+    "arn:aws:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy",
+    "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+  ])
+
+  role       = aws_iam_role.execution.name
+  policy_arn = each.value
+}
+
 resource "aws_s3_bucket" "code" {
   bucket_prefix = "${lower(replace(var.function_name, "_", "-"))}-code-"
   tags          = var.common_tags
@@ -113,10 +123,23 @@ locals {
     Role                    = { Ref = "ExecutionRoleArn" }
     Code                    = { S3Bucket = { Ref = "CodeBucket" }, S3Key = { Ref = "CodeKey" } }
     Tags                    = [for key, value in var.common_tags : { Key = key, Value = value }]
+
+    Layers = [
+      "arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroPython:32"
+    ]
+
+    TracingConfig = {
+      Mode = "Active"
+    }
+
+    Environment = {
+      Variables = merge(var.environment_variables, {
+        AWS_LAMBDA_EXEC_WRAPPER              = "/opt/otel-instrument"
+        OTEL_AWS_APPLICATION_SIGNALS_ENABLED = "true"
+      })
+    }
     }, var.reserved_concurrency == null ? {} : {
     ReservedConcurrentExecutions = var.reserved_concurrency
-    }, length(var.environment_variables) == 0 ? {} : {
-    Environment = { Variables = var.environment_variables }
   })
 
   capacity = one(data.external.capacity[*].result)
@@ -181,5 +204,8 @@ resource "aws_cloudformation_stack" "snow" {
     }
   }
 
-  depends_on = [aws_iam_role_policy.logging]
+  depends_on = [
+    aws_iam_role_policy.logging,
+    aws_iam_role_policy_attachment.monitoring
+  ]
 }
