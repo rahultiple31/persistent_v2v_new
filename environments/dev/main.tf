@@ -272,6 +272,29 @@ module "btsgsd_ai_survey_agent" {
   ]
 }
 
+# Uses the existing survey agent's published prompt and Connect instance.
+moved {
+  from = module.sso_us_ai_survey_agent
+  to   = module.BTSGSD-SSO-US-AI-Survey-Agent
+}
+
+module "BTSGSD-SSO-US-AI-Survey-Agent" {
+  count  = local.dev_survey_ai_enabled ? 1 : 0
+  source = "../../modules/BTSGSD-SSO-US-AI-Survey-Agent"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  assistant_id         = local.dev_ai_assistant_id
+  connect_instance_arn = module.connect_us_east_1[0].instance_arn
+
+  orchestration_prompt_id = join(":", [
+    module.btsgsd_ai_survey_agent[0].deployment["PromptId"],
+    module.btsgsd_ai_survey_agent[0].deployment["PromptVersion"]
+  ])
+}
+
 module "lambda_us_east_1" {
   count  = local.deploy_lambda ? 1 : 0
   source = "../../modules/lambda"

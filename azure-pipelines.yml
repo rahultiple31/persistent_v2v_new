@@ -37,6 +37,7 @@ parameters:
       - btsgsd-intent-kb
       - lex_bot
       - ai_agent_tools
+      - BTSGSD-SSO-US-AI-Survey-Agent
       - silence_guard-dev
       - UpdateSessionAttributes-dev
       - conversionOfQueueMetrics-dev
