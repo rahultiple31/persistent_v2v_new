@@ -9,7 +9,7 @@ variable "flow_json" {
 
 variable "latam_queue_name" {
   type    = string
-  default = "BTSGSD-LATAM-MAIN-QUEUE"
+  default = "BTSGSD-DEV-SSO-LATAM-MAIN-QUEUE"
 }
 
 variable "phone_lookup_function_name" {

@@ -15,7 +15,7 @@ original resource labels; runtime references are rendered in Terraform.
 
 These existing dependencies must be available:
 
-- LATAM queue `BTSGSD-LATAM-MAIN-QUEUE` in the Dev instance, configurable through
+- LATAM queue `BTSGSD-DEV-SSO-LATAM-MAIN-QUEUE` in the Dev instance, configurable through
   `main_ib_latam_queue_name`.
 - Phone lookup Lambda `SNOW_Abbvie`, configurable through
   `main_ib_phone_lookup_function_name`.

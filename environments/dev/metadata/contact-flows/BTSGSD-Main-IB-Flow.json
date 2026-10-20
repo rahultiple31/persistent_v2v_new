@@ -385,11 +385,11 @@
         "isFriendlyName": true,
         "parameters": {
           "QueueId": {
-            "displayName": "BTSGSD-LATAM-MAIN-QUEUE"
+            "displayName": "BTSGSD-DEV-SSO-LATAM-MAIN-QUEUE"
           }
         },
         "queue": {
-          "text": "BTSGSD-LATAM-MAIN-QUEUE"
+          "text": "BTSGSD-DEV-SSO-LATAM-MAIN-QUEUE"
         }
       },
       "error message 2": {
