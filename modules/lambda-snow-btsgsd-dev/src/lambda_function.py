@@ -41,9 +41,10 @@ def _flag(name, default="false"):
 
 
 # --- Configuration -----------------------------------------------------------
-SN_INSTANCE = os.environ["SN_INSTANCE"]
+# Defaults allow SnapStart initialization without environment overrides.
+SN_INSTANCE = os.environ.get("SN_INSTANCE", "abbvienow")
 SN_USER_TABLE = os.environ.get("SN_USER_TABLE", "sys_user")
-SN_SECRET_NAME = os.environ["SN_SECRET_NAME"]
+SN_SECRET_NAME = os.environ.get("SN_SECRET_NAME", "servicenow/prod")
 SN_SECRET_USERNAME_KEY = os.environ.get("SN_SECRET_USERNAME_KEY", "username")
 SN_SECRET_PASSWORD_KEY = os.environ.get("SN_SECRET_PASSWORD_KEY", "password")
 # Gateway / agent calls: Connect kills a Lambda at 8s: worst case 3s + 0.2s + 3s = 6.2s.

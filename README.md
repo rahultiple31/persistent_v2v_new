@@ -178,10 +178,11 @@ terraform -chdir=environments/dev apply snow-dev.tfplan
 ```
 
 Use `python3` instead of `python` where appropriate. Optional
-`snow_lambda_environment_variables` can supply `SN_INSTANCE` and `SN_SECRET_NAME`;
-without them the supplied handler returns `Not Set`. This handler only prints
-configuration and returns a response; it does not call ServiceNow or read a
-Secrets Manager secret. Invoke the `VersionArn` from the `snow_lambda_dev` output
+`snow_lambda_environment_variables` can override `SN_INSTANCE` and `SN_SECRET_NAME`.
+Without overrides, the handler uses `abbvienow` and `servicenow/prod`, respectively,
+so no environment-variable block is required for initialization. The handler reads
+credentials from Secrets Manager and looks up users in ServiceNow. Invoke the
+`VersionArn` from the `snow_lambda_dev` output
 to use SnapStart. The new name uses a separate stack and does not resolve or
 remove the old failed `SNOW-btsgsd-lambda` stack. Generate a fresh plan before
 deploying. No new pipeline choice is added by this change.
