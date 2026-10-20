@@ -39,7 +39,7 @@ resource "aws_lexv2models_bot" "this" {
   idle_session_ttl_in_seconds = 300
 
   data_privacy {
-    child_directed = false
+    child_directed = var.child_directed
   }
 
   depends_on = [aws_iam_role_policy.speech]

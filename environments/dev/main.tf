@@ -661,8 +661,9 @@ module "lex_yesno_bot" {
     aws = aws.us_east_1
   }
 
-  bot_name   = "BTSGSD-SSO-US-yesNo"
-  locale_ids = ["en_US", "pt_BR", "es_419"]
+  bot_name       = "BTSGSD-SSO-US-yesNo"
+  locale_ids     = ["en_US", "pt_BR", "es_419"]
+  child_directed = true
 }
 
 module "lex_customer_queue_flow_bot" {
@@ -673,8 +674,9 @@ module "lex_customer_queue_flow_bot" {
     aws = aws.us_east_1
   }
 
-  bot_name   = "BTSGSD-SSO-US-customerQueueFlowBot"
-  locale_ids = ["en_US", "pt_BR", "es_419"]
+  bot_name       = "BTSGSD-SSO-US-customerQueueFlowBot"
+  locale_ids     = ["en_US", "pt_BR", "es_419"]
+  child_directed = true
 }
 
 module "lex_aiagent_survey_bot" {
@@ -685,8 +687,9 @@ module "lex_aiagent_survey_bot" {
     aws = aws.us_east_1
   }
 
-  bot_name   = "BTSGSD-SSO-US-AIAgent-Survey"
-  locale_ids = ["en_US", "pt_BR", "es_419"]
+  bot_name       = "BTSGSD-SSO-US-AIAgent-Survey"
+  locale_ids     = ["en_US", "pt_BR", "es_419"]
+  child_directed = true
 }
 
 # Invoke this Lambda after the Connect assistant block in the contact flow.

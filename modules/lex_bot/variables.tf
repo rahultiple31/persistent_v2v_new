@@ -3,6 +3,12 @@ variable "bot_name" {
   type        = string
 }
 
+variable "child_directed" {
+  description = "Whether the bot is subject to COPPA."
+  type        = bool
+  default     = false
+}
+
 variable "locale_ids" {
   description = "Languages added to the blank bot."
   type        = set(string)
