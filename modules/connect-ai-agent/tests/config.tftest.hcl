@@ -41,9 +41,21 @@ run "survey_agent_configuration" {
       awscc_wisdom_ai_agent.survey_agent.configuration.orchestration_ai_agent_configuration.tool_configurations[0].tool_name == "UpdateLanguage" &&
       jsondecode(awscc_wisdom_ai_agent.survey_agent.configuration.orchestration_ai_agent_configuration.tool_configurations[0].input_schema).required == ["LanguageDetected"] &&
       awscc_wisdom_ai_agent.survey_agent.configuration.orchestration_ai_agent_configuration.tool_configurations[1].tool_name == "UpdateSurveyResults" &&
-      toset(jsondecode(awscc_wisdom_ai_agent.survey_agent.configuration.orchestration_ai_agent_configuration.tool_configurations[1].input_schema).required) == toset(["SurveyIntent", "SurveyQ1", "SurveyQ2", "SurveyQ3"])
+      toset(jsondecode(awscc_wisdom_ai_agent.survey_agent.configuration.orchestration_ai_agent_configuration.tool_configurations[1].input_schema).required) == toset(["SurveyIntent", "SurveyQ1", "SurveyQ2", "SurveyQ3", "LanguageDetected"])
     )
     error_message = "Attach both Return of Control tools with the exact required schema fields."
+  }
+
+  assert {
+    condition = (
+      alltrue([
+        for question in ["SurveyQ1", "SurveyQ2", "SurveyQ3"] :
+        toset(jsondecode(awscc_wisdom_ai_agent.survey_agent.configuration.orchestration_ai_agent_configuration.tool_configurations[1].input_schema).properties[question].enum) == toset(["yes", "no", "-"])
+      ]) &&
+      toset(jsondecode(awscc_wisdom_ai_agent.survey_agent.configuration.orchestration_ai_agent_configuration.tool_configurations[1].input_schema).properties.SurveyIntent.enum) == toset(["surveyCompleted", "wantToleaveRecommendation"]) &&
+      jsondecode(awscc_wisdom_ai_agent.survey_agent.configuration.orchestration_ai_agent_configuration.tool_configurations[1].input_schema).properties.LanguageDetected.type == "string"
+    )
+    error_message = "The results tool must accept retry exhaustion and detected language from the survey prompt."
   }
 
   assert {

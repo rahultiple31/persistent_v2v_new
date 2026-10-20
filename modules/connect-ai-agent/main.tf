@@ -112,8 +112,9 @@ resource "awscc_wisdom_ai_agent" "survey_agent" {
 
           instruction = {
             instruction = <<-EOT
-              Use this tool when the survey reaches a final outcome.
+              Use this tool only once, when the survey reaches its final outcome.
 
+              Resolve all three questions and the comments question first.
               Save the survey results collected during the conversation.
 
               Populate:
@@ -121,9 +122,11 @@ resource "awscc_wisdom_ai_agent" "survey_agent" {
               - SurveyQ1
               - SurveyQ2
               - SurveyQ3
+              - LanguageDetected
 
               Do not invent values.
               Only save responses explicitly provided by the customer.
+              Use - only after the question's retry limit is reached.
 
               SurveyIntent must be either:
               - surveyCompleted
@@ -132,6 +135,9 @@ resource "awscc_wisdom_ai_agent" "survey_agent" {
               SurveyQ1, SurveyQ2 and SurveyQ3 must be:
               - yes
               - no
+              - "-"
+
+              LanguageDetected must be a BCP-47 locale code.
 
               After using this tool, return control to the contact flow.
             EOT
@@ -143,25 +149,34 @@ resource "awscc_wisdom_ai_agent" "survey_agent" {
               SurveyIntent = {
                 type        = "string"
                 description = "Survey outcome"
+                enum        = ["surveyCompleted", "wantToleaveRecommendation"]
               }
               SurveyQ2 = {
                 type        = "string"
-                description = "Question 2 response"
+                description = "Question 2 response; - means retry limit reached."
+                enum        = ["yes", "no", "-"]
               }
               SurveyQ1 = {
                 type        = "string"
-                description = "Question 1 response"
+                description = "Question 1 response; - means retry limit reached."
+                enum        = ["yes", "no", "-"]
               }
               SurveyQ3 = {
                 type        = "string"
-                description = "Question 3 response"
+                description = "Question 3 response; - means retry limit reached."
+                enum        = ["yes", "no", "-"]
+              }
+              LanguageDetected = {
+                type        = "string"
+                description = "Detected BCP-47 locale, such as en-US, es-MX or pt-BR."
               }
             }
             required = [
               "SurveyIntent",
               "SurveyQ1",
               "SurveyQ2",
-              "SurveyQ3"
+              "SurveyQ3",
+              "LanguageDetected"
             ]
           })
         }

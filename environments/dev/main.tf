@@ -272,7 +272,20 @@ module "btsgsd_ai_survey_agent" {
   ]
 }
 
-# Native AWSCC agent; reuses the existing assistant and published survey prompt.
+# Publish the survey prompt under the existing assistant.
+module "survey_ai_prompt" {
+  count  = local.dev_survey_ai_enabled ? 1 : 0
+  source = "../../modules/connect-ai-prompt"
+
+  providers = {
+    awscc = awscc.us_east_1
+  }
+
+  assistant_id     = local.dev_ai_assistant_id
+  prompt_yaml_file = "${path.module}/metadata/prompts/BTSGSD-SSO-US-AI-Survey-Prompt.yaml"
+}
+
+# Keep the existing agent address and attach the published survey prompt.
 module "connect_ai_agent" {
   count  = local.dev_survey_ai_enabled ? 1 : 0
   source = "../../modules/connect-ai-agent"
@@ -282,13 +295,9 @@ module "connect_ai_agent" {
     awscc = awscc.us_east_1
   }
 
-  assistant_id         = local.dev_ai_assistant_id
-  connect_instance_arn = module.connect_us_east_1[0].instance_arn
-
-  orchestration_prompt_id = join(":", [
-    module.btsgsd_ai_survey_agent[0].deployment["PromptId"],
-    module.btsgsd_ai_survey_agent[0].deployment["PromptVersion"]
-  ])
+  assistant_id            = local.dev_ai_assistant_id
+  connect_instance_arn    = module.connect_us_east_1[0].instance_arn
+  orchestration_prompt_id = module.survey_ai_prompt[0].versioned_prompt_id
 }
 
 module "lambda_us_east_1" {
