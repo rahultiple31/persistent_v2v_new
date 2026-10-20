@@ -653,6 +653,42 @@ module "lex_bot" {
   bot_name = "btsgsd-IT-Support_Agent-dev"
 }
 
+module "lex_yesno_bot" {
+  count  = contains(local.enabled_module_set, "lex_bot") ? 1 : 0
+  source = "../../modules/lex_bot"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  bot_name   = "BTSGSD-SSO-US-yesNo"
+  locale_ids = ["en_US", "pt_BR", "es_419"]
+}
+
+module "lex_customer_queue_flow_bot" {
+  count  = contains(local.enabled_module_set, "lex_bot") ? 1 : 0
+  source = "../../modules/lex_bot"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  bot_name   = "BTSGSD-SSO-US-customerQueueFlowBot"
+  locale_ids = ["en_US", "pt_BR", "es_419"]
+}
+
+module "lex_aiagent_survey_bot" {
+  count  = contains(local.enabled_module_set, "lex_bot") ? 1 : 0
+  source = "../../modules/lex_bot"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  bot_name   = "BTSGSD-SSO-US-AIAgent-Survey"
+  locale_ids = ["en_US", "pt_BR", "es_419"]
+}
+
 # Invoke this Lambda after the Connect assistant block in the contact flow.
 module "UpdateSessionAttributes-dev" {
   count  = local.deploy_connect ? 1 : 0
