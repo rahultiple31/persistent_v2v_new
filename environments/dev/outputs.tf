@@ -1,5 +1,5 @@
 output "main_inbound_flow_arn" {
-  value = try(module.main_inbound[0].flow_arn, null)
+  value = try(module.btsgsd-Main-IB-Flow[0].flow_arn, null)
 }
 
 output "dev_ai_domain" {

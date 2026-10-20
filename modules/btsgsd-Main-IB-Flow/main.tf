@@ -111,6 +111,8 @@ resource "aws_connect_contact_flow" "this" {
   ]
 
   lifecycle {
+    prevent_destroy = true
+
     precondition {
       condition     = var.instance_arn == "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
       error_message = "Deploy the main inbound flow only to btsgsd-dev-us-east-1."
