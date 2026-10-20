@@ -23,6 +23,18 @@ output "btsgsd_ai_survey_agent" {
   value       = try(module.btsgsd_ai_survey_agent[0].deployment, null)
 }
 
+output "sso_survey_ai_agent_id" {
+  value = try(module.connect_ai_agent[0].ai_agent_id, null)
+}
+
+output "sso_survey_ai_agent_arn" {
+  value = try(module.connect_ai_agent[0].ai_agent_arn, null)
+}
+
+output "sso_survey_ai_agent_version_arn" {
+  value = try(module.connect_ai_agent[0].ai_agent_version_arn, null)
+}
+
 output "dev_ai_admin_security_profile" {
   description = "Existing Admin profile assigned to custom AI agents during apply, or null when disabled."
   value = local.dev_ai_admin_security_profile_enabled ? {

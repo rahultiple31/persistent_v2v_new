@@ -37,7 +37,7 @@ parameters:
       - btsgsd-intent-kb
       - lex_bot
       - ai_agent_tools
-      - BTSGSD-SSO-US-AI-Survey-Agent
+      - delete-BTSGSD-SSO-US-AI-Survey-Agent
       - silence_guard-dev
       - UpdateSessionAttributes-dev
       - conversionOfQueueMetrics-dev
@@ -164,6 +164,7 @@ stages:
               checkov -d ../.. --framework terraform --soft-fail
               preserve_terraform_target_outputs
               terraform plan "${TERRAFORM_PLAN_ARGS[@]}" -out=tfplan
+              validate_terraform_target_plan tfplan
 
               PLAN_ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)/terraform-plan"
               mkdir -p "$PLAN_ARTIFACT_DIR"

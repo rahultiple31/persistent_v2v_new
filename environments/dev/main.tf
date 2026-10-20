@@ -272,18 +272,14 @@ module "btsgsd_ai_survey_agent" {
   ]
 }
 
-# Uses the existing survey agent's published prompt and Connect instance.
-moved {
-  from = module.sso_us_ai_survey_agent
-  to   = module.BTSGSD-SSO-US-AI-Survey-Agent
-}
-
-module "BTSGSD-SSO-US-AI-Survey-Agent" {
+# Native AWSCC agent; reuses the existing assistant and published survey prompt.
+module "connect_ai_agent" {
   count  = local.dev_survey_ai_enabled ? 1 : 0
-  source = "../../modules/BTSGSD-SSO-US-AI-Survey-Agent"
+  source = "../../modules/connect-ai-agent"
 
   providers = {
-    aws = aws.us_east_1
+    aws   = aws.us_east_1
+    awscc = awscc.us_east_1
   }
 
   assistant_id         = local.dev_ai_assistant_id

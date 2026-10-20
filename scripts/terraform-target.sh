@@ -6,7 +6,7 @@ DEPLOYMENT_ENVIRONMENT="${2:?Environment is required}"
 DEPLOYMENT_REGION="${3:-us-east-1}"
 
 case "$DEPLOYMENT_TARGET" in
-  connect-queue|Connect_integrations|data_table|agentcore_gateway|ai_agent_tools|BTSGSD-SSO-US-AI-Survey-Agent|lambda-servicenow-interaction|lambda-nextthink-handoff|silence_guard-dev|UpdateSessionAttributes-dev|conversionOfQueueMetrics-dev|BTSGSD-lex-yesNo-dev|BTSGSD-lex-QueueFlow-Callback-dev)
+  connect-queue|Connect_integrations|data_table|agentcore_gateway|ai_agent_tools|delete-BTSGSD-SSO-US-AI-Survey-Agent|lambda-servicenow-interaction|lambda-nextthink-handoff|silence_guard-dev|UpdateSessionAttributes-dev|conversionOfQueueMetrics-dev|BTSGSD-lex-yesNo-dev|BTSGSD-lex-QueueFlow-Callback-dev)
     if [ "$DEPLOYMENT_ENVIRONMENT" != "dev" ]; then
       echo "$DEPLOYMENT_TARGET is supported only for dev." >&2
       return 1
@@ -42,7 +42,7 @@ case "$DEPLOYMENT_TARGET" in
       "-target=module.$TERRAFORM_MODULE_NAME"
     )
     ;;
-  BTSGSD-SSO-US-AI-Survey-Agent)
+  delete-BTSGSD-SSO-US-AI-Survey-Agent)
     TERRAFORM_STATE_MODULE="connect"
     TERRAFORM_PLAN_ARGS=(
       '-var=enabled_modules=["connect"]'
@@ -96,6 +96,33 @@ case "$DEPLOYMENT_TARGET" in
 esac
 
 TERRAFORM_BACKEND_KEY="terraform-state/$DEPLOYMENT_ENVIRONMENT/$DEPLOYMENT_REGION/$TERRAFORM_STATE_MODULE/terraform.tfstate"
+
+validate_terraform_target_plan() {
+  case "$DEPLOYMENT_TARGET" in
+    delete-BTSGSD-SSO-US-AI-Survey-Agent)
+      terraform show -json "${1:-tfplan}" |
+        python3 -c '
+import json
+import sys
+
+plan = json.load(sys.stdin)
+prefix = "module.BTSGSD-SSO-US-AI-Survey-Agent["
+deletions = []
+for change in plan.get("resource_changes", []):
+    actions = change["change"]["actions"]
+    if actions in (["no-op"], ["read"]):
+        continue
+    address = change["address"]
+    if not address.startswith(prefix) or actions != ["delete"]:
+        print(f"Deletion plan rejected: {address}: {actions}", file=sys.stderr)
+        sys.exit(1)
+    deletions.append(address)
+print(f"Validated survey-agent cleanup: {len(deletions)} resources to delete.")
+' || return 1
+      ;;
+  esac
+  return 0
+}
 
 preserve_terraform_target_outputs() {
   case "$DEPLOYMENT_TARGET" in

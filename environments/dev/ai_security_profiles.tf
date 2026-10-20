@@ -33,7 +33,6 @@ resource "terraform_data" "dev_ai_admin_security_profiles" {
     python           = var.dev_ai_security_profile_python_executable
     script_hash      = filesha256("${path.module}/../../modules/connect_ai_agent/assign_admin_security_profile.py")
     survey_agent     = try(module.btsgsd_ai_survey_agent[0].deployment, null)
-    sso_survey_agent = try(module.BTSGSD-SSO-US-AI-Survey-Agent[0].agent_version_arn, null)
     support_agent    = try(module.btsgsd_support_agent[0].deployment, null)
     legacy_agent     = try(aws_cloudformation_stack.dev_ai_agent[0].outputs, null)
   }
