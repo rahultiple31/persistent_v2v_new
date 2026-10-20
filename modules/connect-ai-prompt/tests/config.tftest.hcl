@@ -26,7 +26,7 @@ run "survey_prompt_is_published" {
       awscc_wisdom_ai_prompt.survey.name == "BTSGSD-SSO-US-AI-Survey-Prompt" &&
       awscc_wisdom_ai_prompt.survey.type == "ORCHESTRATION" &&
       awscc_wisdom_ai_prompt.survey.api_format == "MESSAGES" &&
-      awscc_wisdom_ai_prompt.survey.model_id == "global.anthropic.claude-4-5-haiku-20251001-v1:0" &&
+      awscc_wisdom_ai_prompt.survey.model_id == "global.anthropic.claude-haiku-4-5-20251001-v1:0" &&
       awscc_wisdom_ai_prompt.survey.assistant_id == var.assistant_id
     )
     error_message = "Publish the survey orchestration prompt using the requested global Haiku model and existing assistant."

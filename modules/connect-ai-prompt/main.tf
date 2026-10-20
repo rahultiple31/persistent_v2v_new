@@ -24,7 +24,7 @@ resource "awscc_wisdom_ai_prompt" "survey" {
   template_type = "TEXT"
 
   # Amazon Connect model identifier for Claude 4.5 Haiku, Global.
-  model_id = "us.anthropic.claude-4-5-haiku-20251001-v1:0"
+  model_id = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
 
   template_configuration = {
     text_full_ai_prompt_edit_template_configuration = {
