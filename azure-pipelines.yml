@@ -33,6 +33,7 @@ parameters:
       - lambda-servicenow-interaction
       - lambda-nextthink-handoff
       - secrets_manager
+      - dynamodb
       - cloudwatch_log_group
       - btsgsd-intent-kb
       - lex_bot

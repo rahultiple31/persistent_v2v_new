@@ -2,6 +2,18 @@ output "main_inbound_flow_arn" {
   value = try(module.btsgsd-Main-IB-Flow[0].flow_arn, null)
 }
 
+output "queue_info_table_name" {
+  value = try(module.queue_info_dynamodb[0].table_name, null)
+}
+
+output "queue_info_table_arn" {
+  value = try(module.queue_info_dynamodb[0].table_arn, null)
+}
+
+output "queue_info_table_id" {
+  value = try(module.queue_info_dynamodb[0].table_id, null)
+}
+
 output "dev_ai_domain" {
   description = "Dev AI domain name, assistant identifiers and associated Connect instance ARN, or null when domain creation is disabled."
   value       = try(aws_cloudformation_stack.dev_ai_domain[0].outputs, null)

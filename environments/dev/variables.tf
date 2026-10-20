@@ -81,7 +81,8 @@ variable "enabled_modules" {
         "secrets_manager",
         "cloudwatch_log_group",
         "btsgsd-intent-kb",
-        "lex_bot"
+        "lex_bot",
+        "dynamodb"
       ])
     )) == 0
     error_message = "enabled_modules contains an unsupported module name."

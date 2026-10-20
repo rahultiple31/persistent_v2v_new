@@ -828,6 +828,17 @@ module "lex_yesno" {
   common_tags       = local.common_tags
 }
 
+module "queue_info_dynamodb" {
+  count  = contains(local.enabled_module_set, "dynamodb") ? 1 : 0
+  source = "../../modules/dynamodb"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  table_name = "BTSGSD-SSO-US-queueInfo"
+}
+
 module "cloudwatch_log_group" {
   count  = contains(local.enabled_module_set, "cloudwatch_log_group") ? 1 : 0
   source = "../../modules/cloudwatch_log_group"
