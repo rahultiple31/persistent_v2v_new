@@ -169,10 +169,11 @@ resource "aws_cloudformation_stack" "survey" {
 # Assign the existing Admin profile through AWS CLI on the Ubuntu pipeline runner.
 resource "terraform_data" "admin_assignment" {
   triggers_replace = {
-    template_hash = sha256(local.template)
-    agent_arn     = aws_cloudformation_stack.survey.outputs["AgentArn"]
-    version_arn   = local.agent_version_arn
-    profile_id    = data.aws_connect_security_profile.admin.security_profile_id
+    assignment_revision = "unversioned-agent-arn-v1"
+    template_hash       = sha256(local.template)
+    agent_arn           = aws_cloudformation_stack.survey.outputs["AgentArn"]
+    version_arn         = local.agent_version_arn
+    profile_id          = data.aws_connect_security_profile.admin.security_profile_id
   }
 
   provisioner "local-exec" {
@@ -208,7 +209,7 @@ resource "terraform_data" "admin_assignment" {
     environment = {
       AWS_REGION        = data.aws_region.current.region
       INSTANCE_ID       = local.instance_id
-      AGENT_LATEST_ARN  = "${aws_cloudformation_stack.survey.outputs["AgentArn"]}:$LATEST"
+      AGENT_LATEST_ARN  = aws_cloudformation_stack.survey.outputs["AgentArn"]
       AGENT_VERSION_ARN = local.agent_version_arn
       ADMIN_PROFILE_ID  = data.aws_connect_security_profile.admin.security_profile_id
       SECURITY_PROFILES = jsonencode([
