@@ -29,7 +29,7 @@ locals {
 
     customer_queue = {
       filename = "BTSGSD_Abbvie_CustomerQueueFlow.json"
-      name     = "btsgsd_Abbvie_CustomerQueueFlow"
+      name     = "BTSGSD_Abbvie_CustomerQueueFlow"
       type     = "CUSTOMER_QUEUE"
     }
 
@@ -122,7 +122,7 @@ module "connect_us_east_1" {
   customer_queue_dependency_names   = var.connect_customer_queue_dependency_names
 }
 
-module "btsgsd-Main-IB-Flow" {
+module "main_inbound" {
   count  = local.deploy_connect ? 1 : 0
   source = "../../modules/btsgsd-Main-IB-Flow"
 

@@ -96,7 +96,7 @@ run "survey_queue_and_remaining_flows_plan" {
 
   assert {
     condition = (
-      local.rendered_imported_contact_flows.customer_queue.name == "btsgsd_Abbvie_CustomerQueueFlow" &&
+      local.rendered_imported_contact_flows.customer_queue.name == "BTSGSD_Abbvie_CustomerQueueFlow" &&
       local.rendered_imported_contact_flows.customer_queue.type == "CUSTOMER_QUEUE" &&
       length(aws_lambda_permission.queue_metrics_connect) == 1 &&
       length(aws_connect_lambda_function_association.queue_metrics) == 1 &&

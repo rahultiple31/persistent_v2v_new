@@ -248,11 +248,6 @@ resource "aws_connect_contact_flow" "imported" {
   })
 
   lifecycle {
-    ignore_changes = [
-      name,
-      description
-    ]
-
     precondition {
       condition     = var.expected_instance_arn == null ? true : aws_connect_instance.this.arn == var.expected_instance_arn
       error_message = "The managed Connect instance does not match expected_instance_arn. Verify the backend/state before applying."
