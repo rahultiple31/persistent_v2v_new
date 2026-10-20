@@ -39,7 +39,7 @@ The handler accepts Amazon Connect invocation parameters `invocationType`,
 `queue_time`, and `positionInQueue`. `putQueue` stores entry time and TTL;
 `getEWT` subtracts elapsed time from `queue_time` and returns flat string values.
 
-The `BTSGSD_Abbvie_CustomerQueueFlow` deployment renders the supplied JSON's
+The `btsgsd_Abbvie_CustomerQueueFlow` deployment renders the supplied JSON's
 `conversionOfQueueMetrics` reference as `conversionOfQueueMetrics-dev`.
 Terraform grants Connect invocation permission scoped to the managed instance
 and account, then associates the Lambda with that instance. The rendered flow
@@ -48,7 +48,7 @@ that association. The stored JSON retains the original export.
 
 The flow keeps its existing resource address,
 `module.connect_us_east_1[0].aws_connect_contact_flow.imported["customer_queue"]`.
-The display name is now exactly `BTSGSD_Abbvie_CustomerQueueFlow`.
+The display name is exactly `btsgsd_Abbvie_CustomerQueueFlow`, matching the existing Dev flow.
 Existing prompt, voicemail module, and data-table resolution still uses
 `connect_customer_queue_dependency_names` and the managed survey table.
 The Lex bot aliases in the export must exist and be associated with the instance.

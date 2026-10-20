@@ -29,7 +29,7 @@ locals {
 
     customer_queue = {
       filename = "BTSGSD_Abbvie_CustomerQueueFlow.json"
-      name     = "BTSGSD_Abbvie_CustomerQueueFlow"
+      name     = "btsgsd_Abbvie_CustomerQueueFlow"
       type     = "CUSTOMER_QUEUE"
     }
 
