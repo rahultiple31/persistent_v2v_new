@@ -108,6 +108,17 @@ stages:
             inputs:
               terraformVersion: $(terraformVersion)
 
+          # Upload the complete V2V terraform.tfvars to:
+          # Azure DevOps > Pipelines > Library > Secure files
+          # Name it v2v-terraform.tfvars and authorize this pipeline.
+          # Include cognito_domain_prefix, connect_instance_region,
+          # connect_instance_url, translation_enabled, and other V2V settings.
+          - task: DownloadSecureFile@1
+            name: v2vTfvars
+            displayName: Download secure V2V Terraform configuration
+            inputs:
+              secureFile: v2v-terraform.tfvars
+
           - bash: |
               set -euo pipefail
               umask 077
@@ -240,6 +251,9 @@ stages:
             displayName: Terraform plan or apply V2V groups
             workingDirectory: $(workingDirectory)
             env:
+              # Applies to every plan, including the gateway follow-up plan.
+              # Existing selector arguments retain their V2V/group overrides.
+              TF_CLI_ARGS_plan: '-var-file="$(v2vTfvars.secureFilePath)"'
               TARGET_MODULE: ${{ parameters.targetModule }}
               TARGET_ENVIRONMENT: ${{ parameters.targetEnvironment }}
               TF_ACTION: ${{ parameters.terraformAction }}
