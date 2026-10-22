@@ -20,3 +20,36 @@ variable "locale_ids" {
     "es_419", # Spanish (LATAM)
   ]
 }
+
+variable "enable_english_yesno_intents" {
+  description = "Add English yes/no survey intents to this bot."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.enable_english_yesno_intents || contains(var.locale_ids, "en_US")
+    error_message = "English yes/no intents require the en_US locale."
+  }
+}
+
+variable "enable_portuguese_yesno_intents" {
+  description = "Add Portuguese (BR) yes/no survey intents to this bot."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.enable_portuguese_yesno_intents || contains(var.locale_ids, "pt_BR")
+    error_message = "Portuguese yes/no intents require the pt_BR locale."
+  }
+}
+
+variable "enable_spanish_yesno_intents" {
+  description = "Add Spanish (LATAM) yes/no survey intents to this bot."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.enable_spanish_yesno_intents || contains(var.locale_ids, "es_419")
+    error_message = "Spanish yes/no intents require the es_419 locale."
+  }
+}

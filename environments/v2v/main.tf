@@ -689,6 +689,10 @@ module "lex_yesno_bot" {
   bot_name       = "BTSGSD-V2V-US-yesNo"
   locale_ids     = ["en_US", "pt_BR", "es_419"]
   child_directed = true
+
+  enable_english_yesno_intents    = true
+  enable_portuguese_yesno_intents = true
+  enable_spanish_yesno_intents    = true
 }
 
 module "lex_customer_queue_flow_bot" {
