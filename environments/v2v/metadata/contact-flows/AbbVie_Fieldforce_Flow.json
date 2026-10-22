@@ -1,0 +1,148 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "a329df4b-6f9c-4db2-9fd9-ba1295cbbc3e",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": 40,
+      "y": 40
+    },
+    "ActionMetadata": {
+      "a329df4b-6f9c-4db2-9fd9-ba1295cbbc3e": {
+        "position": {
+          "x": 189.6,
+          "y": 56.8
+        }
+      },
+      "c3a402a9-dab1-4b06-8096-3990cde681c2": {
+        "position": {
+          "x": 950.4,
+          "y": 115.2
+        }
+      },
+      "0bae7188-3a1d-4b87-9400-0fb6094e4bea": {
+        "position": {
+          "x": 1230.4,
+          "y": 167.2
+        }
+      },
+      "13ef977e-9ac7-4398-81cc-c705a5f315a5": {
+        "position": {
+          "x": 695.2,
+          "y": 106.4
+        },
+        "parameters": {
+          "QueueId": {
+            "displayName": "BasicQueue"
+          }
+        },
+        "queue": {
+          "text": "BasicQueue"
+        }
+      },
+      "6c3e3055-9d1f-4c77-ae0b-9cb52f74fb00": {
+        "position": {
+          "x": 448.8,
+          "y": 120
+        }
+      },
+      "9880de73-3cb4-439b-b54d-7787f55d696d": {
+        "position": {
+          "x": 941.6,
+          "y": 372.8
+        }
+      }
+    },
+    "Annotations": [],
+    "name": "AbbVie_Fieldforce_Flow",
+    "description": "",
+    "type": "contactFlow",
+    "status": "PUBLISHED",
+    "hash": {}
+  },
+  "Actions": [
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "a329df4b-6f9c-4db2-9fd9-ba1295cbbc3e",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "6c3e3055-9d1f-4c77-ae0b-9cb52f74fb00"
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "c3a402a9-dab1-4b06-8096-3990cde681c2",
+      "Type": "TransferContactToQueue",
+      "Transitions": {
+        "NextAction": "9880de73-3cb4-439b-b54d-7787f55d696d",
+        "Errors": [
+          {
+            "NextAction": "0bae7188-3a1d-4b87-9400-0fb6094e4bea",
+            "ErrorType": "QueueAtCapacity"
+          },
+          {
+            "NextAction": "9880de73-3cb4-439b-b54d-7787f55d696d",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "0bae7188-3a1d-4b87-9400-0fb6094e4bea",
+      "Type": "DisconnectParticipant",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "QueueId": "__BASIC_QUEUE_ARN__"
+      },
+      "Identifier": "13ef977e-9ac7-4398-81cc-c705a5f315a5",
+      "Type": "UpdateContactTargetQueue",
+      "Transitions": {
+        "NextAction": "c3a402a9-dab1-4b06-8096-3990cde681c2",
+        "Errors": [
+          {
+            "NextAction": "9880de73-3cb4-439b-b54d-7787f55d696d",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "Text": "Connecting you to the Field Force Service Desk, please hold."
+      },
+      "Identifier": "6c3e3055-9d1f-4c77-ae0b-9cb52f74fb00",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "13ef977e-9ac7-4398-81cc-c705a5f315a5",
+        "Errors": [
+          {
+            "NextAction": "9880de73-3cb4-439b-b54d-7787f55d696d",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "Text": "I'm sorry, I can't connect you to the Field Force desk right now. Please try again shortly."
+      },
+      "Identifier": "9880de73-3cb4-439b-b54d-7787f55d696d",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "0bae7188-3a1d-4b87-9400-0fb6094e4bea",
+        "Errors": [
+          {
+            "NextAction": "0bae7188-3a1d-4b87-9400-0fb6094e4bea",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    }
+  ]
+}

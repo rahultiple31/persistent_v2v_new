@@ -1,0 +1,940 @@
+import base64
+import json
+import logging
+import os
+import re
+import time
+from typing import Any, Dict, Optional, Tuple
+from urllib.parse import urlencode
+
+import boto3
+import urllib3
+from botocore.exceptions import BotoCoreError, ClientError
+
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+SECRET_NAME = os.environ["NEXTHINK_SECRET_NAME"]
+
+TOKEN_URL = os.environ.get(
+    "NEXTHINK_TOKEN_URL",
+    "https://abbvie-login.eu.nexthink.cloud/oauth2/default/v1/token"
+)
+
+HANDOFF_URL = os.environ.get(
+    "NEXTHINK_HANDOFF_URL",
+    "https://abbvie.api.eu.nexthink.cloud/api/v1/spark/handoff"
+)
+
+TOKEN_SCOPE = os.environ.get(
+    "NEXTHINK_TOKEN_SCOPE",
+    "service:integration"
+)
+
+TIMEZONE = os.environ.get(
+    "NEXTHINK_TIMEZONE",
+    "Asia/Kolkata"
+)
+
+CONNECT_TIMEOUT_SECONDS = float(
+    os.environ.get("CONNECT_TIMEOUT_SECONDS", "5")
+)
+
+READ_TIMEOUT_SECONDS = float(
+    os.environ.get("READ_TIMEOUT_SECONDS", "10")
+)
+
+# Refresh the token before the 900-second lifetime expires.
+TOKEN_REFRESH_BUFFER_SECONDS = int(
+    os.environ.get("TOKEN_REFRESH_BUFFER_SECONDS", "60")
+)
+
+# Based on the stated requirement, only HTTP 200 is successful.
+SUCCESS_STATUS_CODE = 200
+
+# Invocation types that consume a FLAT, top-level response shape - matches
+# the exact convention used by the companion ServiceNow Lambdas, so Aria's
+# prompt/tool-parsing logic works identically across all three integrations.
+FLAT_RESPONSE_TYPES = ("contact_flow", "mcp_gateway", "bedrock_agent")
+
+
+# =============================================================================
+# Logging and clients
+# =============================================================================
+
+logger = logging.getLogger()
+logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
+
+secrets_manager = boto3.client("secretsmanager")
+
+http = urllib3.PoolManager(
+    timeout=urllib3.Timeout(
+        connect=CONNECT_TIMEOUT_SECONDS,
+        read=READ_TIMEOUT_SECONDS
+    ),
+    retries=False
+)
+
+
+# =============================================================================
+# Bearer-token cache
+#
+# Global variables can be reused during warm Lambda invocations.
+# The token is refreshed before expiration.
+# =============================================================================
+
+_cached_access_token: Optional[str] = None
+_cached_token_expiry: float = 0
+
+
+# =============================================================================
+# Custom exceptions
+# =============================================================================
+
+class InputValidationError(Exception):
+    """Raised when the AI Agent input is missing or invalid."""
+
+
+class NexthinkAuthenticationError(Exception):
+    """Raised when Nexthink authentication fails."""
+
+
+class NexthinkHandoffError(Exception):
+    """Raised when the Nexthink handoff API fails."""
+
+    def __init__(
+        self,
+        message: str,
+        status_code: Optional[int] = None
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+# =============================================================================
+# Secrets Manager
+# =============================================================================
+
+def get_nexthink_credentials() -> Tuple[str, str]:
+    """
+    Read clientId and clientSecret from AWS Secrets Manager.
+
+    Expected secret JSON:
+
+    {
+        "clientId": "actual-client-id",
+        "clientSecret": "actual-client-secret"
+    }
+    """
+
+    try:
+        response = secrets_manager.get_secret_value(
+            SecretId=SECRET_NAME
+        )
+
+        if "SecretString" in response:
+            secret_value = response["SecretString"]
+        else:
+            secret_value = base64.b64decode(
+                response["SecretBinary"]
+            ).decode("utf-8")
+
+        secret_json = json.loads(secret_value)
+
+        client_id = (
+            secret_json.get("clientId")
+            or secret_json.get("client_id")
+        )
+
+        client_secret = (
+            secret_json.get("clientSecret")
+            or secret_json.get("client_secret")
+        )
+
+        if not client_id:
+            raise ValueError(
+                "clientId is missing from the Secrets Manager secret"
+            )
+
+        if not client_secret:
+            raise ValueError(
+                "clientSecret is missing from the Secrets Manager secret"
+            )
+
+        return str(client_id), str(client_secret)
+
+    except (
+        ClientError,
+        BotoCoreError,
+        ValueError,
+        TypeError,
+        json.JSONDecodeError
+    ) as error:
+        logger.exception(
+            "Unable to retrieve Nexthink credentials"
+        )
+
+        raise NexthinkAuthenticationError(
+            "Unable to retrieve Nexthink credentials"
+        ) from error
+
+
+# =============================================================================
+# Basic authentication token
+# =============================================================================
+
+def generate_base64_token(
+    client_id: str,
+    client_secret: str
+) -> str:
+    """
+    Create Base64(clientId:clientSecret).
+
+    Returns only the Base64-encoded value.
+    """
+
+    credential_string = f"{client_id}:{client_secret}"
+
+    base64_token = base64.b64encode(
+        credential_string.encode("utf-8")
+    ).decode("ascii")
+
+    return base64_token
+
+
+# =============================================================================
+# Nexthink bearer token
+# =============================================================================
+
+def invalidate_cached_token() -> None:
+    """Remove the token cached in the Lambda execution environment."""
+
+    global _cached_access_token
+    global _cached_token_expiry
+
+    _cached_access_token = None
+    _cached_token_expiry = 0
+
+
+def get_nexthink_bearer_token(
+    force_refresh: bool = False
+) -> str:
+    """
+    Authentication sequence:
+
+    1. Read clientId and clientSecret from Secrets Manager.
+    2. Create clientId:clientSecret.
+    3. Base64-encode that string.
+    4. Send Authorization: Basic <Base64 value>.
+    5. Request the service:integration scope.
+    6. Read access_token from the Nexthink response.
+    """
+
+    global _cached_access_token
+    global _cached_token_expiry
+
+    current_time = time.time()
+
+    if (
+        not force_refresh
+        and _cached_access_token
+        and current_time < _cached_token_expiry
+    ):
+        logger.info(
+            "Using cached Nexthink bearer token"
+        )
+        return _cached_access_token
+
+    client_id, client_secret = get_nexthink_credentials()
+
+    base64_token = generate_base64_token(
+        client_id=client_id,
+        client_secret=client_secret
+    )
+
+    request_body = urlencode(
+        {
+            "grant_type": "client_credentials",
+            "scope": TOKEN_SCOPE
+        }
+    ).encode("utf-8")
+
+    try:
+        response = http.request(
+            method="POST",
+            url=TOKEN_URL,
+            body=request_body,
+            headers={
+                "Authorization": f"Basic {base64_token}",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json"
+            }
+        )
+
+    except Exception as error:
+        logger.exception(
+            "Connection to Nexthink token endpoint failed"
+        )
+
+        raise NexthinkAuthenticationError(
+            "Unable to connect to the Nexthink token endpoint"
+        ) from error
+
+    response_text = response.data.decode(
+        "utf-8",
+        errors="replace"
+    )
+
+    if response.status != 200:
+        logger.error(
+            "Nexthink token request failed. HTTP status=%s, response=%s",
+            response.status,
+            truncate_for_log(response_text)
+        )
+
+        raise NexthinkAuthenticationError(
+            f"Nexthink token request returned HTTP {response.status}"
+        )
+
+    try:
+        token_response = json.loads(response_text)
+
+        access_token = token_response["access_token"]
+        token_type = token_response.get("token_type", "Bearer")
+        expires_in = int(token_response.get("expires_in", 900))
+        returned_scope = token_response.get("scope")
+
+        if not access_token:
+            raise ValueError(
+                "The token response contains an empty access_token"
+            )
+
+        if token_type.lower() != "bearer":
+            raise ValueError(
+                f"Unexpected token type: {token_type}"
+            )
+
+        if expires_in <= 0:
+            raise ValueError(
+                "The token response contains an invalid expires_in value"
+            )
+
+        if (
+            returned_scope
+            and TOKEN_SCOPE not in returned_scope.split()
+        ):
+            raise ValueError(
+                f"Expected scope {TOKEN_SCOPE} was not returned"
+            )
+
+    except (
+        KeyError,
+        ValueError,
+        TypeError,
+        json.JSONDecodeError
+    ) as error:
+        logger.exception(
+            "Invalid Nexthink token response"
+        )
+
+        raise NexthinkAuthenticationError(
+            "Nexthink returned an invalid token response"
+        ) from error
+
+    cache_duration = max(
+        expires_in - TOKEN_REFRESH_BUFFER_SECONDS,
+        1
+    )
+
+    _cached_access_token = access_token
+    _cached_token_expiry = time.time() + cache_duration
+
+    logger.info(
+        "Nexthink bearer token generated successfully. "
+        "expiresIn=%s, cacheDuration=%s",
+        expires_in,
+        cache_duration
+    )
+
+    return access_token
+
+
+# =============================================================================
+# Nexthink Spark handoff
+# =============================================================================
+
+def call_nexthink_handoff(
+    caller_email: str,
+    caller_reason: str,
+    bearer_token: str
+) -> int:
+    """
+    Call the Nexthink Spark handoff endpoint.
+
+    The caller email is sent through User-Principal-Name.
+    The caller reason is sent through message.parts[0].text.
+    """
+
+    request_body = {
+        "message": {
+            "parts": [
+                {
+                    "text": caller_reason
+                }
+            ]
+        }
+    }
+
+    request_headers = {
+        "Authorization": f"Bearer {bearer_token}",
+        "User-Principal-Name": caller_email,
+        "Content-Type": "application/json",
+        "Accept": "*/*"
+    }
+
+    # Timezone is optional according to the API documentation.
+    if TIMEZONE:
+        request_headers["Timezone"] = TIMEZONE
+
+    try:
+        response = http.request(
+            method="POST",
+            url=HANDOFF_URL,
+            body=json.dumps(request_body).encode("utf-8"),
+            headers=request_headers
+        )
+
+    except Exception as error:
+        logger.exception(
+            "Connection to Nexthink Spark Handoff API failed"
+        )
+
+        raise NexthinkHandoffError(
+            "Unable to connect to Nexthink Spark Handoff API"
+        ) from error
+
+    response_text = response.data.decode(
+        "utf-8",
+        errors="replace"
+    )
+
+    logger.info(
+        "Nexthink Spark Handoff API returned HTTP %s",
+        response.status
+    )
+
+    # Per this implementation's business rule, only 200 is successful.
+    if response.status == SUCCESS_STATUS_CODE:
+        return response.status
+
+    logger.error(
+        "Nexthink Spark handoff failed. HTTP status=%s, response=%s",
+        response.status,
+        truncate_for_log(response_text)
+    )
+
+    if response.status == 401:
+        raise NexthinkAuthenticationError(
+            "Nexthink rejected the bearer token"
+        )
+
+    raise NexthinkHandoffError(
+        message=(
+            f"Nexthink Spark handoff returned HTTP {response.status}"
+        ),
+        status_code=response.status
+    )
+
+
+def execute_nexthink_handoff(
+    caller_email: str,
+    caller_reason: str
+) -> int:
+    """
+    Generate or reuse a bearer token and execute the handoff.
+
+    If Nexthink returns HTTP 401:
+    1. Clear the cached bearer token.
+    2. Generate a new bearer token.
+    3. Retry the handoff once.
+    """
+
+    bearer_token = get_nexthink_bearer_token()
+
+    try:
+        return call_nexthink_handoff(
+            caller_email=caller_email,
+            caller_reason=caller_reason,
+            bearer_token=bearer_token
+        )
+
+    except NexthinkAuthenticationError:
+        logger.warning(
+            "Nexthink rejected the bearer token. "
+            "Generating a new token and retrying once."
+        )
+
+        invalidate_cached_token()
+
+        refreshed_token = get_nexthink_bearer_token(
+            force_refresh=True
+        )
+
+        return call_nexthink_handoff(
+            caller_email=caller_email,
+            caller_reason=caller_reason,
+            bearer_token=refreshed_token
+        )
+
+
+# =============================================================================
+# Input extraction
+# =============================================================================
+
+def extract_inputs(
+    event: Dict[str, Any]
+) -> Tuple[str, str]:
+    """
+    Supported direct Lambda event:
+
+    {
+        "email": "caller@company.com",
+        "reason": "The caller cannot connect to the corporate VPN"
+    }
+
+    Supported Amazon Connect event:
+
+    {
+        "Details": {
+            "Parameters": {
+                "email": "caller@company.com",
+                "reason": "The caller cannot connect to the corporate VPN"
+            }
+        }
+    }
+
+    Supported AI Agent parameter event:
+
+    {
+        "parameters": [
+            {
+                "name": "email",
+                "value": "caller@company.com"
+            },
+            {
+                "name": "reason",
+                "value": "The caller cannot connect to the corporate VPN"
+            }
+        ]
+    }
+    """
+
+    values: Dict[str, Any] = {}
+
+    if not isinstance(event, dict):
+        raise InputValidationError(
+            "Lambda event must be a JSON object"
+        )
+
+    # Direct fields
+    values.update(event)
+
+    # Generic nested input
+    nested_input = event.get("input")
+
+    if isinstance(nested_input, dict):
+        values.update(nested_input)
+
+    # Amazon Connect Invoke AWS Lambda function block
+    details = event.get("Details", {})
+
+    if isinstance(details, dict):
+        connect_parameters = details.get("Parameters", {})
+
+        if isinstance(connect_parameters, dict):
+            values.update(connect_parameters)
+
+    # AI Agent or action parameter array
+    add_parameter_list(
+        values=values,
+        parameters=event.get("parameters")
+    )
+
+    # Action-group request body format
+    extract_request_body_parameters(
+        values=values,
+        event=event
+    )
+
+    caller_email = first_non_empty(
+        values,
+        [
+            "email",
+            "callerEmail",
+            "caller_email",
+            "userPrincipalName",
+            "user_principal_name"
+        ]
+    )
+
+    caller_reason = first_non_empty(
+        values,
+        [
+            "reason",
+            "callerReason",
+            "caller_reason",
+            "contactReason",
+            "contact_reason",
+            "issue",
+            "description"
+        ]
+    )
+
+    if not caller_email:
+        raise InputValidationError(
+            "Caller email is required"
+        )
+
+    if not caller_reason:
+        raise InputValidationError(
+            "Caller reason is required"
+        )
+
+    caller_email = str(caller_email).strip()
+    caller_reason = str(caller_reason).strip()
+
+    validate_email(caller_email)
+
+    if len(caller_reason) > 4000:
+        raise InputValidationError(
+            "Caller reason must not exceed 4000 characters"
+        )
+
+    return caller_email, caller_reason
+
+
+def add_parameter_list(
+    values: Dict[str, Any],
+    parameters: Any
+) -> None:
+    """Convert a list of name/value parameters into a dictionary."""
+
+    if not isinstance(parameters, list):
+        return
+
+    for parameter in parameters:
+        if not isinstance(parameter, dict):
+            continue
+
+        parameter_name = parameter.get("name")
+
+        if parameter_name:
+            values[parameter_name] = parameter.get("value")
+
+
+def extract_request_body_parameters(
+    values: Dict[str, Any],
+    event: Dict[str, Any]
+) -> None:
+    """Extract properties from an AI Agent requestBody structure."""
+
+    request_body = event.get("requestBody", {})
+
+    if not isinstance(request_body, dict):
+        return
+
+    content = request_body.get("content", {})
+
+    if not isinstance(content, dict):
+        return
+
+    for content_value in content.values():
+        if not isinstance(content_value, dict):
+            continue
+
+        add_parameter_list(
+            values=values,
+            parameters=content_value.get("properties")
+        )
+
+
+def first_non_empty(
+    values: Dict[str, Any],
+    field_names: list
+) -> Optional[Any]:
+    """Return the first non-empty matching value."""
+
+    for field_name in field_names:
+        value = values.get(field_name)
+
+        if value is not None and str(value).strip():
+            return value
+
+    return None
+
+
+def validate_email(email: str) -> None:
+    """Basic syntax validation for the caller UPN."""
+
+    email_pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+    if not re.match(email_pattern, email):
+        raise InputValidationError(
+            "Caller email address is invalid"
+        )
+
+
+def truncate_for_log(
+    value: str,
+    maximum_length: int = 1000
+) -> str:
+    """Prevent large API responses from filling CloudWatch logs."""
+
+    if len(value) <= maximum_length:
+        return value
+
+    return value[:maximum_length] + "...[truncated]"
+
+
+# =============================================================================
+# Invocation-type detection
+#
+# Matches the exact pattern used by the companion ServiceNow Lambdas, so
+# Aria's prompt / tool-parsing logic works identically across every
+# integration (contact_flow / mcp_gateway / bedrock_agent / direct).
+# =============================================================================
+
+def detect_invocation_type(
+    event: Dict[str, Any]
+) -> str:
+
+    if not isinstance(event, dict):
+        return "direct"
+
+    if isinstance(event.get("parameters"), dict):
+        return "mcp_gateway"
+
+    if "Details" in event:
+        return "contact_flow"
+
+    if isinstance(event.get("parameters"), list):
+        return "bedrock_agent"
+
+    if "requestBody" in event:
+        return "bedrock_agent"
+
+    # Flat dict with no recognizable wrapper - treat as mcp_gateway if it
+    # contains either expected argument key, otherwise direct.
+    lower_keys = {str(k).lower() for k in event.keys()}
+    if {"email", "calleremail", "caller_email"} & lower_keys or \
+       {"reason", "callerreason", "caller_reason"} & lower_keys:
+        return "mcp_gateway"
+
+    return "direct"
+
+
+# =============================================================================
+# Amazon Connect / flat response
+# =============================================================================
+
+def build_connect_response(
+    handoff_status: str,
+    next_action: str,
+    customer_message: str,
+    internal_message: str,
+    invocation_type: str,
+    nexthink_status_code: Optional[int] = None
+) -> Dict[str, Any]:
+    """
+    Return a flat, top-level response shape for FLAT_RESPONSE_TYPES
+    (contact_flow / mcp_gateway / bedrock_agent), matching the convention of
+    the companion ServiceNow Lambdas - a single top-level "Status" field the
+    AI Agent / contact flow reads directly, using the SAME lowercase
+    "success" / "Failure" values as those Lambdas, e.g.:
+
+    $.External.Status              -> "success" or "Failure"
+    $.External.NextAction
+    $.External.CustomerMessage
+    $.External.NexthinkStatusCode
+
+    For any other invocation type, an HTTP-style statusCode/body envelope is
+    returned instead.
+    """
+
+    response: Dict[str, Any] = {
+        "Status": handoff_status,
+        "NextAction": next_action,
+        "CustomerMessage": customer_message,
+        "InternalMessage": internal_message,
+    }
+
+    if nexthink_status_code is not None:
+        response["NexthinkStatusCode"] = str(nexthink_status_code)
+
+    if invocation_type in FLAT_RESPONSE_TYPES:
+        return response
+
+    is_success = handoff_status == "success"
+    status_code = 200 if is_success else 500
+
+    return {
+        "statusCode": status_code,
+        "body": {
+            "success": is_success,
+            "handoff_status": handoff_status,
+            "next_action": next_action,
+            "customer_message": customer_message,
+            "internal_message": internal_message,
+            "nexthink_status_code": nexthink_status_code,
+        }
+    }
+
+
+# =============================================================================
+# Entry point
+# =============================================================================
+
+def lambda_handler(event: Any, context: Any) -> Dict[str, Any]:
+    """
+    Orchestrates the full Nexthink Spark handoff:
+      1. Detect invocation shape (contact_flow / mcp_gateway / bedrock_agent /
+         direct), matching the companion ServiceNow Lambdas' convention.
+      2. Extract caller_email + caller_reason from whichever shape was sent.
+      3. Authenticate (or reuse cached token) and call the Spark handoff API,
+         with one automatic retry on a 401 (expired/rejected token).
+      4. Return a flat response (Status/NextAction/CustomerMessage/...) for
+         contact_flow / mcp_gateway / bedrock_agent callers, or an HTTP-style
+         envelope for anything else.
+
+    On success (flat/contact_flow-style response):
+      {
+        "Status": "success",
+        "NextAction": "Disconnect",
+        "CustomerMessage": "You are being connected to Nexthink support.",
+        "InternalMessage": "Handoff completed successfully.",
+        "NexthinkStatusCode": "200"
+      }
+
+    On failure (validation, auth, or handoff error):
+      {
+        "Status": "Failure",
+        "NextAction": "Escalate",
+        "CustomerMessage": "I'm sorry, I wasn't able to connect you automatically...",
+        "InternalMessage": "<technical detail for logs/agent>",
+        "NexthinkStatusCode": "<code, if the API responded at all>"
+      }
+    """
+
+    logger.info("STEP: Lambda invoked (NexthinkSparkHandoff)")
+
+    try:
+        logger.info("STEP: RAW EVENT = %s", json.dumps(event, default=str))
+    except Exception:
+        logger.info("STEP: RAW EVENT (non-JSON-serializable) = %r", event)
+
+    invocation_type = detect_invocation_type(event)
+    logger.info("STEP: Detected invocation_type=%s", invocation_type)
+
+    try:
+        caller_email, caller_reason = extract_inputs(event)
+        logger.info(
+            "STEP: Extracted inputs - email=%s, reason_length=%s",
+            caller_email,
+            len(caller_reason)
+        )
+
+    except InputValidationError as error:
+        logger.warning("STEP: Input validation failed - %s", str(error))
+
+        return build_connect_response(
+            handoff_status="Failure",
+            next_action="Escalate",
+            customer_message=(
+                "I'm sorry, I wasn't able to process that request. "
+                "Let me connect you with a live agent."
+            ),
+            internal_message=f"InputValidationError: {error}",
+            invocation_type=invocation_type,
+            nexthink_status_code=None
+        )
+
+    try:
+        nexthink_status_code = execute_nexthink_handoff(
+            caller_email=caller_email,
+            caller_reason=caller_reason
+        )
+
+        logger.info(
+            "STEP: Nexthink handoff succeeded - HTTP %s",
+            nexthink_status_code
+        )
+
+        return build_connect_response(
+            handoff_status="success",
+            next_action="Disconnect",
+            customer_message=(
+                "You are being connected to Nexthink support now."
+            ),
+            internal_message="Nexthink Spark handoff completed successfully.",
+            invocation_type=invocation_type,
+            nexthink_status_code=nexthink_status_code
+        )
+
+    except NexthinkAuthenticationError as error:
+        logger.error("STEP: Nexthink authentication failed - %s", str(error))
+
+        return build_connect_response(
+            handoff_status="Failure",
+            next_action="Escalate",
+            customer_message=(
+                "I'm sorry, I wasn't able to connect you automatically. "
+                "Let me connect you with a live agent."
+            ),
+            internal_message=f"NexthinkAuthenticationError: {error}",
+            invocation_type=invocation_type,
+            nexthink_status_code=None
+        )
+
+    except NexthinkHandoffError as error:
+        logger.error(
+            "STEP: Nexthink handoff failed - %s (status_code=%s)",
+            str(error),
+            error.status_code
+        )
+
+        return build_connect_response(
+            handoff_status="Failure",
+            next_action="Escalate",
+            customer_message=(
+                "I'm sorry, I wasn't able to connect you automatically. "
+                "Let me connect you with a live agent."
+            ),
+            internal_message=f"NexthinkHandoffError: {error}",
+            invocation_type=invocation_type,
+            nexthink_status_code=error.status_code
+        )
+
+    except Exception as error:
+        logger.exception("STEP: Unexpected error during Nexthink handoff")
+
+        return build_connect_response(
+            handoff_status="Failure",
+            next_action="Escalate",
+            customer_message=(
+                "I'm sorry, something went wrong. "
+                "Let me connect you with a live agent."
+            ),
+            internal_message=f"UnexpectedError: {error}",
+            invocation_type=invocation_type,
+            nexthink_status_code=None
+        )
+
+
+# Alias so this module satisfies EITHER Handler console setting, matching the
+# convention of the companion ServiceNow Lambdas:
+#   "lambda_function.lambda_handler"  (the intended/documented name), OR
+#   "lambda_function.handler"         (in case the console's Handler field
+#                                       was left pointing at "handler").
+handler = lambda_handler

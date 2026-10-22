@@ -1,0 +1,76 @@
+{
+  "Head": {
+    "Title": "Customer Details",
+    "Configuration": {
+      "Layout": {
+        "Columns": [12]
+      }
+    }
+  },
+  "Body": [
+    {
+      "_id": "CustomerDetailsHeader",
+      "Type": "Header",
+      "Props": {
+        "variant": "h2"
+      },
+      "Content": ["Customer Details"]
+    },
+    {
+      "_id": "CustomerDetailsAttributes",
+      "Type": "AttributeSection",
+      "Props": {
+        "Heading": "Caller information",
+        "Columns": 2,
+        "Items": [
+          {"Label": "Caller name", "Value": "$.CallerName"},
+          {"Label": "User status", "Value": "$.UserStatus"},
+          {"Label": "Verification status", "Value": "$.VerificationStatus"},
+          {"Label": "User ID", "Value": "$.UserId"},
+          {"Label": "Email", "Value": "$.Email"},
+          {"Label": "UPI", "Value": "$.UPI"},
+          {"Label": "Dialed number", "Value": "$.Dialed_Number"},
+          {"Label": "Verified via", "Value": "$.VerifiedVia"},
+          {"Label": "Intent", "Value": "$.Intent"},
+          {"Label": "Preferred language", "Value": "$.Customer_Prefferred_Language"}
+        ]
+      },
+      "Content": []
+    },
+    {
+      "_id": "CallSummaryHeader",
+      "Type": "Header",
+      "Props": {
+        "variant": "h3"
+      },
+      "Content": ["Call summary"]
+    },
+    {
+      "_id": "CallSummaryText",
+      "Type": "TextBox",
+      "Props": {
+        "Variant": "p"
+      },
+      "Content": ["$.CallSummary"]
+    },
+    {
+      "_id": "ServiceNowLink",
+      "Type": "Link",
+      "Props": {
+        "Type": "external",
+        "Url": "$.ScreenPopURL",
+        "AutoOpen": false
+      },
+      "Content": ["Open ServiceNow"]
+    },
+    {
+      "_id": "CloseCustomerDetails",
+      "Type": "Button",
+      "Props": {
+        "Variant": "primary",
+        "Action": "Close"
+      },
+      "Content": ["Close"]
+    }
+  ]
+}

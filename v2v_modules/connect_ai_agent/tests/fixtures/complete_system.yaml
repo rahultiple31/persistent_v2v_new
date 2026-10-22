@@ -1,0 +1,9 @@
+system: |
+  Follow the configured voice protocol and use the available tools to answer questions.
+  {{$.toolConfigurationList}}
+messages:
+  - '{{$.conversationHistory}}'
+  - role: assistant
+    content: '<message>'
+test_question:
+  question: How can you help?
