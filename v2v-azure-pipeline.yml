@@ -14,8 +14,7 @@ parameters:
     type: string
     default: connect
     values:
-      - all
-
+      # Separate Plan/Apply stages deploy one complete group per run.
       # Deployment groups
       - connect
       - lambda
@@ -80,6 +79,11 @@ parameters:
       - plan
       - apply
 
+  - name: terraformSecureFile
+    displayName: Authorized V2V Secure File name or GUID
+    type: string
+    default: v2v-terraform.tfvars
+
 
 variables:
   terraformVersion: '1.10.5'
@@ -88,179 +92,61 @@ variables:
   backendBucket: 'bts-cloud-terraform-tfstate'
   backendRegion: 'us-east-1'
 
+# Dependencies in other Terraform states must already exist.
+# Apply uses the saved plan; it does not create another plan.
 stages:
-  - stage: deploy
-    displayName: Terraform ${{ parameters.terraformAction }}
-    condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+  - stage: Plan
+    displayName: Terraform Plan
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
 
     jobs:
-      - job: terraform_deploy
-        displayName: Deploy ${{ parameters.targetModule }}
+      - job: terraform_plan
+        displayName: Plan ${{ parameters.targetModule }}
 
         pool:
           vmImage: ubuntu-latest
 
         steps:
-          - checkout: self
+          - template: templates/v2v-terraform-steps.yml
+            parameters:
+              action: plan
+              targetModule: ${{ parameters.targetModule }}
+              targetEnvironment: ${{ parameters.targetEnvironment }}
+              terraformSecureFile: ${{ parameters.terraformSecureFile }}
 
-          - task: TerraformInstaller@1
-            displayName: Install Terraform
+          - task: PublishPipelineArtifact@1
+            displayName: Publish saved Terraform plan
             inputs:
-              terraformVersion: $(terraformVersion)
+              targetPath: '$(Pipeline.Workspace)/v2v-plan'
+              artifact: v2v-terraform-plan
 
-          # Upload the complete V2V terraform.tfvars to:
-          # Azure DevOps > Pipelines > Library > Secure files
-          # Name it v2v-terraform.tfvars and authorize this pipeline.
-          # Include cognito_domain_prefix, connect_instance_region,
-          # connect_instance_url, translation_enabled, and other V2V settings.
-          - task: DownloadSecureFile@1
-            name: v2vTfvars
-            displayName: Download secure V2V Terraform configuration
+  - stage: Apply
+    displayName: Terraform Apply
+    dependsOn: Plan
+    condition: |
+      and(
+        succeeded(),
+        eq('${{ parameters.terraformAction }}', 'apply')
+      )
+
+    jobs:
+      - job: terraform_apply
+        displayName: Apply ${{ parameters.targetModule }}
+
+        pool:
+          vmImage: ubuntu-latest
+
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: Download saved Terraform plan
             inputs:
-              secureFile: v2v-terraform.tfvars
+              buildType: current
+              artifactName: v2v-terraform-plan
+              targetPath: '$(Pipeline.Workspace)/v2v-plan'
 
-          - bash: |
-              set -euo pipefail
-              umask 077
-
-              case "$TF_ACTION" in plan|apply) ;; *) echo "Unsupported action" >&2; exit 1 ;; esac
-              [[ "$AWS_V2V_OIDC_ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/.+ ]] || {
-                echo "Configure AWS_V2V_OIDC_ROLE_ARN with the dedicated V2V role ARN." >&2
-                exit 1
-              }
-              command -v aws >/dev/null
-              command -v python3 >/dev/null
-
-              if [ "$TARGET_MODULE" = all ]; then
-                targets=(
-                  secrets_manager
-                  s3_connect_reporting
-                  btsgsd-intent-kb
-                  dynamodb
-                  lambda
-                  lambda-ctr-survey
-                  lambda-connect-daily-ctr-export
-                  lambda-ctr-raw
-                  lambda-snow-btsgsd-dev
-                  lambda-servicenow-interaction
-                  lambda-nextthink-handoff
-                  iam-ctr
-                  cloudwatch_log_group
-                  lex_bot
-                  connect
-                  v2v
-                )
-              else
-                targets=("$TARGET_MODULE")
-              fi
-
-              export AWS_REGION="$DEPLOYMENT_REGION"
-              export AWS_DEFAULT_REGION="$DEPLOYMENT_REGION"
-              export AWS_PAGER="" AWS_CLI_AUTO_PROMPT=off TF_IN_AUTOMATION=true
-              export TF_PLUGIN_CACHE_DIR="$AGENT_TEMPDIRECTORY/v2v-terraform-providers"
-              mkdir -p "$TF_PLUGIN_CACHE_DIR"
-
-              token_file="$AGENT_TEMPDIRECTORY/aws-oidc-token-v2v"
-              trap 'rm -f -- "$token_file"' EXIT
-
-              refresh_v2v_credentials() {
-                local url response credentials account
-                url="$(python3 -c '
-              import os
-              from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
-              parts = urlsplit(os.environ["SYSTEM_OIDCREQUESTURI"])
-              query = dict(parse_qsl(parts.query, keep_blank_values=True))
-              query["api-version"] = "7.1-preview.1"
-              print(urlunsplit(parts._replace(query=urlencode(query))))
-              ')"
-                response="$(curl --fail-with-body -sS -X POST \
-                  -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
-                  -H 'Content-Length: 0' "$url")"
-                printf '%s' "$response" |
-                  python3 -c 'import json,sys; print(json.load(sys.stdin)["oidcToken"], end="")' > "$token_file"
-                chmod 600 "$token_file"
-
-                credentials="$(aws sts assume-role-with-web-identity \
-                  --no-sign-request \
-                  --role-arn "$AWS_V2V_OIDC_ROLE_ARN" \
-                  --role-session-name "azure-v2v-$BUILD_BUILDID" \
-                  --web-identity-token "file://$token_file" \
-                  --duration-seconds 3600 \
-                  --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
-                  --output text)"
-                IFS=$'\t' read -r AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN <<< "$credentials"
-                export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
-                account="$(aws sts get-caller-identity --query Account --output text)"
-                [ "$account" = "$EXPECTED_ACCOUNT_ID" ] || {
-                  echo "Unexpected AWS account: $account" >&2
-                  return 1
-                }
-              }
-
-              gateway_id() {
-                terraform output -json |
-                  python3 -c 'import json,sys; o=json.load(sys.stdin); print(((o.get("agentcore_gateway") or {}).get("value") or {}).get("id") or "")'
-              }
-
-              for target in "${targets[@]}"; do
-                source "$BUILD_SOURCESDIRECTORY/scripts/terraform-target-v2v.sh" \
-                  "$target" "$TARGET_ENVIRONMENT" "$DEPLOYMENT_REGION"
-
-                export TF_DATA_DIR="$AGENT_TEMPDIRECTORY/v2v-tf-data/$TERRAFORM_STATE_MODULE"
-                mkdir -p "$TF_DATA_DIR"
-                plan_file="$TF_DATA_DIR/tfplan"
-                echo "Action: $TF_ACTION; group: $TERRAFORM_STATE_MODULE"
-                echo "State: $TERRAFORM_BACKEND_KEY"
-
-                refresh_v2v_credentials
-                terraform init -input=false -reconfigure \
-                  -backend-config="bucket=$BACKEND_BUCKET" \
-                  -backend-config="key=$TERRAFORM_BACKEND_KEY" \
-                  -backend-config="region=$BACKEND_REGION" \
-                  -backend-config=encrypt=true
-                terraform validate
-
-                gateway_before=""
-                if [ "$TERRAFORM_STATE_MODULE" = connect ]; then
-                  gateway_before="$(gateway_id)"
-                fi
-                preserve_v2v_target_outputs
-
-                refresh_v2v_credentials
-                terraform plan -input=false "${TERRAFORM_PLAN_ARGS[@]}" -out="$plan_file"
-                validate_v2v_target_plan "$plan_file"
-
-                if [ "$TF_ACTION" = apply ]; then
-                  refresh_v2v_credentials
-                  terraform apply -input=false "$plan_file"
-
-                  # Complete the first-time gateway audience configuration after its ID exists.
-                  if [ "$TERRAFORM_STATE_MODULE" = connect ]; then
-                    gateway_after="$(gateway_id)"
-                    if [ -n "$gateway_after" ] && [ "$gateway_after" != "$gateway_before" ]; then
-                      preserve_v2v_target_outputs
-                      refresh_v2v_credentials
-                      terraform plan -input=false "${TERRAFORM_PLAN_ARGS[@]}" -out="$plan_file"
-                      validate_v2v_target_plan "$plan_file"
-                      refresh_v2v_credentials
-                      terraform apply -input=false "$plan_file"
-                    fi
-                  fi
-                fi
-              done
-            displayName: Terraform plan or apply V2V groups
-            workingDirectory: $(workingDirectory)
-            env:
-              # Applies to every plan, including the gateway follow-up plan.
-              # Existing selector arguments retain their V2V/group overrides.
-              TF_CLI_ARGS_plan: '-var-file="$(v2vTfvars.secureFilePath)"'
-              TARGET_MODULE: ${{ parameters.targetModule }}
-              TARGET_ENVIRONMENT: ${{ parameters.targetEnvironment }}
-              TF_ACTION: ${{ parameters.terraformAction }}
-              DEPLOYMENT_REGION: $(deploymentRegion)
-              BACKEND_BUCKET: $(backendBucket)
-              BACKEND_REGION: $(backendRegion)
-              EXPECTED_ACCOUNT_ID: '518902362956'
-              AWS_V2V_OIDC_ROLE_ARN: $(AWS_V2V_OIDC_ROLE_ARN)
-              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-              SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+          - template: templates/v2v-terraform-steps.yml
+            parameters:
+              action: apply
+              targetModule: ${{ parameters.targetModule }}
+              targetEnvironment: ${{ parameters.targetEnvironment }}
+              terraformSecureFile: ${{ parameters.terraformSecureFile }}
