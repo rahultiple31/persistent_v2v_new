@@ -104,48 +104,36 @@ stages:
               set -euo pipefail
               umask 077
 
-              [[ "$AWS_V2V_OIDC_ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/.+ ]] || {
-                echo "Configure AWS_V2V_OIDC_ROLE_ARN with the dedicated V2V role ARN." >&2
-                exit 1
-              }
+              AWS_ROLE_ARN="$AWS_DEV_OIDC_ROLE_ARN"
 
+              if [ -z "$AWS_ROLE_ARN" ] || [[ "$AWS_ROLE_ARN" == \$\(* ]]; then
+                echo "AWS_DEV_OIDC_ROLE_ARN is not configured for this pipeline." >&2
+                exit 1
+              fi
+
+              export AWS_ROLE_ARN
               export AWS_REGION="$DEPLOYMENT_REGION"
               export AWS_DEFAULT_REGION="$DEPLOYMENT_REGION"
               export AWS_PAGER="" AWS_CLI_AUTO_PROMPT=off TF_IN_AUTOMATION=true
+              export AWS_ROLE_SESSION_NAME="azure-pipelines-v2v-$BUILD_BUILDID"
+              export AWS_WEB_IDENTITY_TOKEN_FILE="$AGENT_TEMPDIRECTORY/aws-oidc-token"
 
-              token_file="$AGENT_TEMPDIRECTORY/aws-oidc-token-v2v"
-              trap 'rm -f -- "$token_file"' EXIT
+              trap 'rm -f -- "$AWS_WEB_IDENTITY_TOKEN_FILE"' EXIT
 
               refresh_v2v_credentials() {
-                local url response credentials account
-                url="$(python3 -c '
-              import os
-              from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
-              parts = urlsplit(os.environ["SYSTEM_OIDCREQUESTURI"])
-              query = dict(parse_qsl(parts.query, keep_blank_values=True))
-              query["api-version"] = "7.1-preview.1"
-              print(urlunsplit(parts._replace(query=urlencode(query))))
-              ')"
+                local OIDC_RESPONSE OIDC_TOKEN account
 
-                response="$(curl --fail-with-body -sS -X POST \
-                  -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
-                  -H 'Content-Length: 0' "$url")"
+                OIDC_RESPONSE="$(curl --fail --silent --show-error \
+                  -X POST \
+                  -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+                  -H "Content-Length: 0" \
+                  "${SYSTEM_OIDCREQUESTURI}?api-version=7.1-preview.1")"
 
-                printf '%s' "$response" |
-                  python3 -c 'import json,sys; print(json.load(sys.stdin)["oidcToken"], end="")' > "$token_file"
-                chmod 600 "$token_file"
+                OIDC_TOKEN="$(printf '%s' "$OIDC_RESPONSE" |
+                  python3 -c 'import json, sys; print(json.load(sys.stdin)["oidcToken"])')"
 
-                credentials="$(aws sts assume-role-with-web-identity \
-                  --no-sign-request \
-                  --role-arn "$AWS_V2V_OIDC_ROLE_ARN" \
-                  --role-session-name "azure-v2v-$BUILD_BUILDID-plan" \
-                  --web-identity-token "file://$token_file" \
-                  --duration-seconds 3600 \
-                  --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
-                  --output text)"
-
-                IFS=$'\t' read -r AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN <<< "$credentials"
-                export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+                printf '%s' "$OIDC_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE"
+                chmod 600 "$AWS_WEB_IDENTITY_TOKEN_FILE"
 
                 account="$(aws sts get-caller-identity --query Account --output text)"
                 [ "$account" = "$EXPECTED_ACCOUNT_ID" ] || {
@@ -202,7 +190,7 @@ stages:
               BACKEND_REGION: $(backendRegion)
               PLAN_DIRECTORY: $(Pipeline.Workspace)/v2v-plan
               EXPECTED_ACCOUNT_ID: '518902362956'
-              AWS_V2V_OIDC_ROLE_ARN: $(AWS_V2V_OIDC_ROLE_ARN)
+              AWS_DEV_OIDC_ROLE_ARN: $(AWS_DEV_OIDC_ROLE_ARN)
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
               SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
 
@@ -245,48 +233,36 @@ stages:
               set -euo pipefail
               umask 077
 
-              [[ "$AWS_V2V_OIDC_ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/.+ ]] || {
-                echo "Configure AWS_V2V_OIDC_ROLE_ARN with the dedicated V2V role ARN." >&2
-                exit 1
-              }
+              AWS_ROLE_ARN="$AWS_DEV_OIDC_ROLE_ARN"
 
+              if [ -z "$AWS_ROLE_ARN" ] || [[ "$AWS_ROLE_ARN" == \$\(* ]]; then
+                echo "AWS_DEV_OIDC_ROLE_ARN is not configured for this pipeline." >&2
+                exit 1
+              fi
+
+              export AWS_ROLE_ARN
               export AWS_REGION="$DEPLOYMENT_REGION"
               export AWS_DEFAULT_REGION="$DEPLOYMENT_REGION"
               export AWS_PAGER="" AWS_CLI_AUTO_PROMPT=off TF_IN_AUTOMATION=true
+              export AWS_ROLE_SESSION_NAME="azure-pipelines-v2v-$BUILD_BUILDID"
+              export AWS_WEB_IDENTITY_TOKEN_FILE="$AGENT_TEMPDIRECTORY/aws-oidc-token"
 
-              token_file="$AGENT_TEMPDIRECTORY/aws-oidc-token-v2v"
-              trap 'rm -f -- "$token_file"' EXIT
+              trap 'rm -f -- "$AWS_WEB_IDENTITY_TOKEN_FILE"' EXIT
 
               refresh_v2v_credentials() {
-                local url response credentials account
-                url="$(python3 -c '
-              import os
-              from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
-              parts = urlsplit(os.environ["SYSTEM_OIDCREQUESTURI"])
-              query = dict(parse_qsl(parts.query, keep_blank_values=True))
-              query["api-version"] = "7.1-preview.1"
-              print(urlunsplit(parts._replace(query=urlencode(query))))
-              ')"
+                local OIDC_RESPONSE OIDC_TOKEN account
 
-                response="$(curl --fail-with-body -sS -X POST \
-                  -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
-                  -H 'Content-Length: 0' "$url")"
+                OIDC_RESPONSE="$(curl --fail --silent --show-error \
+                  -X POST \
+                  -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+                  -H "Content-Length: 0" \
+                  "${SYSTEM_OIDCREQUESTURI}?api-version=7.1-preview.1")"
 
-                printf '%s' "$response" |
-                  python3 -c 'import json,sys; print(json.load(sys.stdin)["oidcToken"], end="")' > "$token_file"
-                chmod 600 "$token_file"
+                OIDC_TOKEN="$(printf '%s' "$OIDC_RESPONSE" |
+                  python3 -c 'import json, sys; print(json.load(sys.stdin)["oidcToken"])')"
 
-                credentials="$(aws sts assume-role-with-web-identity \
-                  --no-sign-request \
-                  --role-arn "$AWS_V2V_OIDC_ROLE_ARN" \
-                  --role-session-name "azure-v2v-$BUILD_BUILDID-apply" \
-                  --web-identity-token "file://$token_file" \
-                  --duration-seconds 3600 \
-                  --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
-                  --output text)"
-
-                IFS=$'\t' read -r AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN <<< "$credentials"
-                export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+                printf '%s' "$OIDC_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE"
+                chmod 600 "$AWS_WEB_IDENTITY_TOKEN_FILE"
 
                 account="$(aws sts get-caller-identity --query Account --output text)"
                 [ "$account" = "$EXPECTED_ACCOUNT_ID" ] || {
@@ -341,7 +317,7 @@ stages:
               BACKEND_REGION: $(backendRegion)
               PLAN_DIRECTORY: $(Pipeline.Workspace)/v2v-plan
               EXPECTED_ACCOUNT_ID: '518902362956'
-              AWS_V2V_OIDC_ROLE_ARN: $(AWS_V2V_OIDC_ROLE_ARN)
+              AWS_DEV_OIDC_ROLE_ARN: $(AWS_DEV_OIDC_ROLE_ARN)
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
               SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
 
