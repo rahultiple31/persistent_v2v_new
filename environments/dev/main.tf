@@ -796,7 +796,7 @@ module "lex_queueflow_callback" {
     AWS_LAMBDA_EXEC_WRAPPER = "/opt/otel-instrument"
   }
 
-  lex_bot_alias_arn = var.lex_queueflow_callback_bot_alias_arn
+  lex_bot_alias_arn = "arn:aws:lex:us-east-1:518902362956:bot-alias/RD35A35EAU/HJAVDZTZBO"
   common_tags       = local.common_tags
 }
 
@@ -824,7 +824,7 @@ module "lex_yesno" {
     AWS_LAMBDA_EXEC_WRAPPER = "/opt/otel-instrument"
   }
 
-  lex_bot_alias_arn = var.lex_yesno_bot_alias_arn
+  lex_bot_alias_arn = "arn:aws:lex:us-east-1:518902362956:bot-alias/QT2GQYM5TT/6NLNDQWUJ8"
   common_tags       = local.common_tags
 }
 

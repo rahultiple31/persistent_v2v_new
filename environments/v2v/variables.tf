@@ -529,6 +529,24 @@ variable "main_ib_latam_queue_name" {
   default     = "BTSGSD-DEV-SSO-LATAM-MAIN-QUEUE"
 }
 
+variable "vmx3_voicemail_queue_arn" {
+  description = "Existing voicemail queue ARN in the V2V Connect instance; required for the connect deployment group."
+  type        = string
+  default     = null
+}
+
+variable "vmx3_beep_prompt_arn" {
+  description = "Existing Beep.wav prompt ARN in the V2V Connect instance; required for the connect deployment group."
+  type        = string
+  default     = null
+}
+
+variable "vmx3_timestamper_lambda_arn" {
+  description = "Existing VMX3 timestamper Lambda ARN; required for the connect deployment group."
+  type        = string
+  default     = null
+}
+
 variable "main_ib_phone_lookup_function_name" {
   description = "Existing phone lookup Lambda used by the inbound flow."
   type        = string

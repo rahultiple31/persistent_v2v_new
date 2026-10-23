@@ -13,6 +13,8 @@ mock_provider "aws" {
   }
 }
 
+mock_provider "awscc" {}
+
 variables {
   bot_name   = "BTSGSD-V2V-US-yesNo"
   locale_ids = ["en_US", "pt_BR", "es_419"]
@@ -32,7 +34,14 @@ run "other_bots_remain_blank_by_default" {
       length(aws_lexv2models_intent.spanish_yesno) == 0 &&
       length(terraform_data.english_fallback) == 0 &&
       length(terraform_data.portuguese_fallback) == 0 &&
-      length(terraform_data.spanish_fallback) == 0
+      length(terraform_data.spanish_fallback) == 0 &&
+      length(terraform_data.yesno_locale_build) == 0 &&
+      length(aws_lexv2models_bot_version.yesno_version_1) == 0 &&
+      length(awscc_lex_bot_alias.this) == 0 &&
+      length(aws_lambda_permission.lex_alias) == 0 &&
+      length(awscc_lex_resource_policy.connect) == 0 &&
+      length(aws_iam_role_policy.alias_text_logs) == 0 &&
+      length(aws_lexv2models_bot_version.alias_text_logs) == 0
     )
     error_message = "Existing callers must not receive survey intents unless enabled."
   }
@@ -178,4 +187,46 @@ run "spanish_requires_its_locale" {
   }
 
   expect_failures = [var.enable_spanish_yesno_intents]
+}
+
+run "publish_one_snapshot_with_three_locales" {
+  command = plan
+
+  variables {
+    enable_english_yesno_intents    = true
+    enable_portuguese_yesno_intents = true
+    enable_spanish_yesno_intents    = true
+    publish_yesno_version           = true
+    child_directed                  = false
+  }
+
+  assert {
+    condition = (
+      length(terraform_data.yesno_locale_build) == 1 &&
+      terraform_data.yesno_locale_build[0].triggers_replace.child_directed == false &&
+      length(aws_lexv2models_bot_version.yesno_version_1) == 1
+    )
+    error_message = "Publication must build the locales and create one bot version."
+  }
+
+  assert {
+    condition = (
+      toset(keys(aws_lexv2models_bot_version.yesno_version_1[0].locale_specification)) == toset(["en_US", "pt_BR", "es_419"]) &&
+      alltrue([
+        for locale in values(aws_lexv2models_bot_version.yesno_version_1[0].locale_specification) :
+        locale.source_bot_version == "DRAFT"
+      ])
+    )
+    error_message = "The published snapshot must include all three DRAFT locales."
+  }
+}
+
+run "publication_requires_all_intent_flags" {
+  command = plan
+
+  variables {
+    publish_yesno_version = true
+  }
+
+  expect_failures = [var.publish_yesno_version]
 }

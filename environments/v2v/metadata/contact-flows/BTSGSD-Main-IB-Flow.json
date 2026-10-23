@@ -768,7 +768,7 @@
         "isFriendlyName": true,
         "parameters": {
           "DataTableId": {
-            "displayName": "BTSGSD-V2V-US-BTS_GSD-CustomerNumber"
+            "displayName": "BTSGSD-V2V-US-BTSGSD-CustomerNumber"
           }
         }
       },

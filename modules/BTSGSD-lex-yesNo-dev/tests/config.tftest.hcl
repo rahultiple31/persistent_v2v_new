@@ -1,13 +1,13 @@
 mock_provider "aws" {
   mock_data "aws_iam_role" {
     defaults = {
-      arn = "arn:aws:iam::123456789012:role/BTSGSD-lex-yesNo-role-ow5vzdof"
+      arn = "arn:aws:iam::518902362956:role/BTSGSD-lex-yesNo-role-ow5vzdof"
     }
   }
 
   mock_resource "aws_cloudwatch_log_group" {
     defaults = {
-      arn = "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/BTSGSD-lex-yesNo-dev"
+      arn = "arn:aws:logs:us-east-1:518902362956:log-group:/aws/lambda/BTSGSD-lex-yesNo-dev"
     }
   }
 }
@@ -68,4 +68,27 @@ run "invalid_alias_is_rejected" {
   }
 
   expect_failures = [var.lex_bot_alias_arn]
+}
+
+run "requested_dev_alias_permission_and_role" {
+  command = apply
+
+  variables {
+    lex_bot_alias_arn = "arn:aws:lex:us-east-1:518902362956:bot-alias/QT2GQYM5TT/6NLNDQWUJ8"
+  }
+
+  assert {
+    condition = (
+      aws_lambda_function.lambda.function_name == "BTSGSD-lex-yesNo-dev" &&
+      aws_lambda_function.lambda.role == "arn:aws:iam::518902362956:role/BTSGSD-lex-yesNo-role-ow5vzdof" &&
+      aws_lambda_permission.lex_invoke[0].statement_id == "lex-lambda-invokeFunction-QT2GQYM5TT-6NLNDQWUJ8" &&
+      aws_lambda_permission.lex_invoke[0].function_name == "BTSGSD-lex-yesNo-dev" &&
+      aws_lambda_permission.lex_invoke[0].principal == "lexv2.amazonaws.com" &&
+      aws_lambda_permission.lex_invoke[0].action == "lambda:InvokeFunction" &&
+      aws_lambda_permission.lex_invoke[0].source_account == "518902362956" &&
+      aws_lambda_permission.lex_invoke[0].source_arn == var.lex_bot_alias_arn &&
+      aws_lambda_permission.lex_invoke[0].qualifier == null
+    )
+    error_message = "The Dev Lambda must use the supplied role and grant unqualified invocation only to the requested Lex alias and account, with the supplied statement ID."
+  }
 }

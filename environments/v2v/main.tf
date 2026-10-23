@@ -121,6 +121,25 @@ module "connect_us_east_1" {
   customer_queue_dependency_names   = var.connect_customer_queue_dependency_names
 }
 
+module "vmx3_main_vm_module" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/connect_contact_flow_module"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  instance_arn = module.connect_us_east_1[0].instance_arn
+  name         = "VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1"
+  content_file = "${path.module}/metadata/contact-flow-modules/VMX3_Main_VM_Module_btsgsd-dev-us-east-1.json"
+
+  voicemail_queue_arn    = var.vmx3_voicemail_queue_arn
+  beep_prompt_arn        = var.vmx3_beep_prompt_arn
+  survey_data_table_id   = local.survey_data_table_id
+  timestamper_lambda_arn = var.vmx3_timestamper_lambda_arn
+  tags                   = local.common_tags
+}
+
 module "btsgsd-Main-IB-Flow" {
   count  = local.deploy_connect ? 1 : 0
   source = "../../v2v_modules/btsgsd-Main-IB-Flow"
@@ -672,7 +691,8 @@ module "lex_bot" {
   source = "../../v2v_modules/lex_bot"
 
   providers = {
-    aws = aws.us_east_1
+    aws   = aws.us_east_1
+    awscc = awscc.us_east_1
   }
 
   bot_name = "BTSGSD-V2V-US-IT-Support_Agent"
@@ -683,16 +703,42 @@ module "lex_yesno_bot" {
   source = "../../v2v_modules/lex_bot"
 
   providers = {
-    aws = aws.us_east_1
+    aws   = aws.us_east_1
+    awscc = awscc.us_east_1
   }
 
   bot_name       = "BTSGSD-V2V-US-yesNo"
   locale_ids     = ["en_US", "pt_BR", "es_419"]
-  child_directed = true
+  child_directed = false
 
   enable_english_yesno_intents    = true
   enable_portuguese_yesno_intents = true
   enable_spanish_yesno_intents    = true
+
+  publish_yesno_version = true
+
+  alias_configuration = {
+    name                 = "BTSGSD-V2V-US-DEV"
+    lambda_function_arn  = data.aws_lambda_function.lex_yesno_alias_hook[0].arn
+    connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
+    text_log_group_arn   = data.aws_cloudwatch_log_group.lex_yesno_text_logs[0].arn
+  }
+}
+
+# The Lambda must exist before this lookup. It belongs to the connect group;
+# account for this dependency when deploying the lex_bot group for the first time.
+data "aws_lambda_function" "lex_yesno_alias_hook" {
+  count    = contains(local.enabled_module_set, "lex_bot") ? 1 : 0
+  provider = aws.us_east_1
+
+  function_name = "BTSGSD-V2V-US-lex-yesNo"
+}
+
+# Create the log group using the cloudwatch_log_group deployment group first.
+data "aws_cloudwatch_log_group" "lex_yesno_text_logs" {
+  count    = contains(local.enabled_module_set, "lex_bot") ? 1 : 0
+  provider = aws.us_east_1
+  name     = "/aws/lex/BTSGSD-V2V-US-yesNo"
 }
 
 module "lex_customer_queue_flow_bot" {
@@ -700,12 +746,49 @@ module "lex_customer_queue_flow_bot" {
   source = "../../v2v_modules/lex_bot"
 
   providers = {
-    aws = aws.us_east_1
+    aws   = aws.us_east_1
+    awscc = awscc.us_east_1
   }
 
   bot_name       = "BTSGSD-V2V-US-customerQueueFlowBot"
-  locale_ids     = ["en_US", "pt_BR", "es_419"]
-  child_directed = true
+  locale_ids     = ["en_US", "es_419", "pt_BR"]
+  child_directed = false
+
+  enable_english_customer_queue_intents    = true
+  enable_portuguese_customer_queue_intents = true
+  enable_spanish_customer_queue_intents    = true
+
+  # Build all three locales, then publish the version used by the alias.
+  # AWS assigns Version 1 only on this bot's first-ever publication.
+  publish_customer_queue_version = true
+
+  alias_configuration = {
+    name                 = "BTSGSD-V2V-US-DEV"
+    lambda_function_arn  = data.aws_lambda_function.customer_queue_alias_hook[0].arn
+    connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
+    text_log_group_arn   = module.customer_queue_lex_log_group[0].arn
+  }
+}
+
+# The queue metrics Lambda belongs to the connect group and must already exist.
+# Its unqualified ARN invokes $LATEST for every locale on the customer queue alias.
+data "aws_lambda_function" "customer_queue_alias_hook" {
+  count    = contains(local.enabled_module_set, "lex_bot") ? 1 : 0
+  provider = aws.us_east_1
+
+  function_name = "BTSGSD-V2V-US-conversionOfQueueMetrics"
+}
+
+# Owned by lex_bot so the log group is created with the customer queue alias.
+module "customer_queue_lex_log_group" {
+  count  = contains(local.enabled_module_set, "lex_bot") ? 1 : 0
+  source = "../../v2v_modules/cloudwatch_log_group"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  log_group_name = "/aws/lex/BTSGSD-V2V-US-customerQueueFlowBot"
 }
 
 module "lex_aiagent_survey_bot" {
@@ -713,7 +796,8 @@ module "lex_aiagent_survey_bot" {
   source = "../../v2v_modules/lex_bot"
 
   providers = {
-    aws = aws.us_east_1
+    aws   = aws.us_east_1
+    awscc = awscc.us_east_1
   }
 
   bot_name       = "BTSGSD-V2V-US-AIAgent-Survey"
@@ -849,6 +933,18 @@ module "cloudwatch_log_group" {
   }
 
   log_group_name = "/aws/connect/BTSGSD-V2V-US-ai-agent-logs"
+}
+
+# Creates the group only; Lex alias conversation logging remains disabled.
+module "lex_yesno_log_group" {
+  count  = contains(local.enabled_module_set, "cloudwatch_log_group") ? 1 : 0
+  source = "../../v2v_modules/cloudwatch_log_group"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  log_group_name = "/aws/lex/BTSGSD-V2V-US-yesNo"
 }
 
 import {
@@ -1431,7 +1527,7 @@ CSV
           Type = "AWS::Connect::DataTable"
           Properties = {
             InstanceArn    = { Ref = "InstanceArn" }
-            Name           = "BTSGSD-V2V-US-BTS_GSD-HR_Transfer"
+            Name           = "BTSGSD-V2V-US-BTSGSD-HR_Transfer"
             Description    = "HR country and transfer number by system phone number."
             Status         = "PUBLISHED"
             TimeZone       = "UTC"
@@ -1439,7 +1535,7 @@ CSV
 
             Tags = [
               for key, value in merge(local.common_tags, {
-                Name = "BTSGSD-V2V-US-BTS_GSD-HR_Transfer"
+                Name = "BTSGSD-V2V-US-BTSGSD-HR_Transfer"
                 }) : {
                 Key   = key
                 Value = value
@@ -1553,50 +1649,6 @@ resource "aws_cloudformation_stack" "hr_transfer_data_table" {
 
 # Preserve the supplied column names, SSML and empty translation cells.
 locals {
-  survey_english_row = {
-    Language               = "en-US"
-    callback_1             = "<prosody rate=\"95%\">Would you like to use your number <say-as interpret-as=\"telephone\"> $.CustomerEndpoint.Address </say-as>  for callback. Please say yes or no.</prosody>"
-    callback_2             = "<prosody rate=\"95%\"><break time = '0.2s'/>To place your call in the  virtual queue, please enter your phone number starting  with your country code. For  example: Plus 1<say-as interpret-as=\"telephone\"> 1234567890</say-as></prosody>"
-    callback_3             = "<prosody rate=\"95%\"><break time = '0.2s'/>Thank you for leaving your phone number.  We will contact you on  <say-as interpret-as=\"telephone\"> $.Attributes.CustomerPhone </say-as>  Is this correct? Please say yes or no..</prosody>"
-    callback_confirmed     = "<prosody rate=\"95%\"><break time = '0.2s'/>Your position in the virtual  queue has been confirmed.  You will receive a call back  from the next available  agent. Thank you and  goodbye</prosody>"
-    callback_error         = "<prosody rate=\"95%\"><break time = '0.2s'/>We're sorry, but the callback system has encountered an error and cannot process your request at this time. Please try again later. Thank you for calling. Goodbye.</prosody>"
-    callback_InvalidNumber = "<prosody rate=\"95%\"><break time = '0.2s'/>We are sorry we did not  capture the number you  requested to be called back  on. Please try again.</prosody>"
-    callback_retryMessage  = "<prosody rate=\"95%\"><break time = '0.2s'/>We're sorry, but the retry limit has been reached and your request cannot be processed at this time. Please try again later. Thank you for calling. Goodbye.</prosody>"
-    Closing                = "<prosody rate=\"95%\"><break time = '0.2s'/>We appreciate and value your  participation in our survey. Thank You and Good  Bye.</prosody>"
-    Global_r_1             = "Sorry, I didn't get that"
-    Global_r_2             = "Sorry, I still didn't get that"
-    Global_t_1             = "Sorry, I didn't hear anything"
-    Global_t_2             = "Sorry, I still didn't hear anything"
-    Hold_Announcement      = "<prosody rate=\"95%\"><break time = '0.2s'/>Your call has been placed  into a queue. Please hold for  the next available agent.</prosody>"
-    QA_Announcement        = "<prosody rate=\"95%\"><break time = '0.2s'/>Your call may be recorded  for quality assurance and  training purposes</prosody>"
-    queueErrorMessage      = "<prosody rate=\"95%\"><break time = '0.2s'/>We're sorry, but something went wrong and your request cannot be processed at this time. Please try again later. Thank you for calling. Goodbye.</prosody>"
-    QueueMenu              = "<prosody rate=\"95%\"><break time = '0.2s'/>Thank you for holding. All of our technicians are assisting other callers. If you would like to keep your position in queue and have a technician call you back please say: callback. If you would like to leave a voicemail please say: Voicemail Otherwise please continue to hold</prosody>"
-    QueuePositionDetails   = "<prosody rate=\"95%\"><break time = '0.2s'/>Your estimated wait time is  $.Attributes.EstimatedWaitTime and you are the <say-as interpret-as=\"ordinal\">$.Attributes.PositionInQueue</say-as>  caller in line.</prosody>"
-    sureveyFlow_1          = "<prosody rate=\"95%\"><break time = '0.2s'/>After the beep, please record your comments. When you have finished recording , please hit the # (pound key).</prosody>"
-    sureveyFlow_error      = "<prosody rate=\"95%\"><break time = '0.2s'/>The Survey  system has encountered an error and is unable to process your request at this time. Please try again later.</prosody>"
-    surveyAnnouncement     = "<prosody rate=\"95%\"><break time = '0.2s'/>After this call we would  appreciate your response to  a brief survey about your  experience with the agent.</prosody>"
-    surveyBot_initialize   = "<prosody rate=\"95%\">Thank you for speaking with us today <break time=\"200ms\"/> please stay on the line while we transfer you to a brief survey about your experience.</prosody>"
-    voicemail_confirmation = "<prosody rate=\"95%\">Your request has been  queued. You will receive a  callback from the next  available agent. Thank you  and good bye..</prosody>"
-    voicemail_errorMessage = "<prosody rate=\"95%\">The voicemail system has encountered an error and is unable to process your request at this time. Please try again later. Thank you for calling. Goodbye.</prosody>"
-    voicemail_queueFlow    = "<prosody rate=\"95%\">At the tone, please leave your name, phone number, UPI ID, and a brief message. An agent will get back to you during business hours. When you have finished speaking, you may simply stop talking or hang up. Please begin after the tone..</prosody>"
-    voiceMailModuleError   = "<prosody rate=\"95%\"><break time = '0.2s'/>The voicemail system has encountered an error. We are placing you in queue.</prosody>"
-    voiceMailSaved         = "<prosody rate=\"95%\">Your voicemail has been saved.</prosody>"
-  }
-
-  survey_columns   = keys(local.survey_english_row)
-  survey_empty_row = { for column in local.survey_columns : column => "" }
-  survey_rows = {
-    "en-US" = local.survey_english_row
-    Portuguese = merge(local.survey_empty_row, {
-      Language = "Portuguese"
-      Closing  = "Agradecemos e valorizamos sua participação em nossa pesquisa. Obrigado e adeus."
-    })
-    Spanish = merge(local.survey_empty_row, {
-      Language = "Spanish"
-      Closing  = "Agradecemos y valoramos su participación en nuestra encuesta. Muchas gracias y hasta luego."
-    })
-  }
-
   survey_template = {
     AWSTemplateFormatVersion = "2010-09-09"
     Description              = "Amazon Connect survey, callback and voicemail messages."
@@ -1692,6 +1744,23 @@ resource "aws_cloudformation_stack" "survey_data_table" {
       )
       error_message = "The survey table must be created in the selected V2V Connect instance."
     }
+
+    precondition {
+      condition = (
+        length(local.survey_columns) == 35 &&
+        contains(local.survey_columns, "Language") &&
+        contains(local.survey_columns, "VM_instruction_Survey")
+      )
+      error_message = "The survey CSV must contain the supplied 35 columns, including Language and VM_instruction_Survey."
+    }
+
+    precondition {
+      condition = (
+        toset(keys(local.survey_rows)) ==
+        toset(["en-US", "es-MX", "pt-BR"])
+      )
+      error_message = "The survey CSV must contain exactly the en-US, es-MX and pt-BR language rows."
+    }
   }
 }
 
@@ -1756,13 +1825,13 @@ CSV
           Type = "AWS::Connect::DataTable"
           Properties = {
             InstanceArn    = { Ref = "InstanceArn" }
-            Name           = "BTSGSD-V2V-US-BTS_GSD-Veeva_Transfer"
+            Name           = "BTSGSD-V2V-US-BTSGSD-Veeva_Transfer"
             Description    = "Veeva transfer contact by LATAM country and system phone number."
             Status         = "PUBLISHED"
             TimeZone       = "UTC"
             ValueLockLevel = "NONE"
             Tags = [
-              for key, value in merge(local.common_tags, { Name = "BTSGSD-V2V-US-BTS_GSD-Veeva_Transfer" }) : {
+              for key, value in merge(local.common_tags, { Name = "BTSGSD-V2V-US-BTSGSD-Veeva_Transfer" }) : {
                 Key   = key
                 Value = value
               }
@@ -2047,7 +2116,7 @@ CSV
 
   bts_gsd_customer_number_template = {
     AWSTemplateFormatVersion = "2010-09-09"
-    Description              = "BTS_GSD-CustomerNumber routing configuration."
+    Description              = "BTSGSD-CustomerNumber routing configuration."
 
     Parameters = {
       InstanceArn = {
@@ -2061,7 +2130,7 @@ CSV
           Type = "AWS::Connect::DataTable"
           Properties = {
             InstanceArn    = { Ref = "InstanceArn" }
-            Name           = "BTSGSD-V2V-US-BTS_GSD-CustomerNumber"
+            Name           = "BTSGSD-V2V-US-BTSGSD-CustomerNumber"
             Description    = "Routing configuration by country and system phone number."
             Status         = "PUBLISHED"
             TimeZone       = "UTC"
@@ -2069,7 +2138,7 @@ CSV
 
             Tags = [
               for key, value in merge(local.common_tags, {
-                Name = "BTSGSD-V2V-US-BTS_GSD-CustomerNumber"
+                Name = "BTSGSD-V2V-US-BTSGSD-CustomerNumber"
                 }) : {
                 Key   = key
                 Value = value
@@ -2159,7 +2228,7 @@ resource "aws_cloudformation_stack" "bts_gsd_customer_number_data_table" {
         module.connect_us_east_1[0].instance_arn ==
         local.connect_target_instance_arn
       )
-      error_message = "BTS_GSD-CustomerNumber must use the selected V2V Connect instance."
+      error_message = "BTSGSD-CustomerNumber must use the selected V2V Connect instance."
     }
   }
 }
@@ -2181,12 +2250,16 @@ data "external" "survey_flow_dependencies" {
 
     content = replace(
       replace(
-        file("${path.module}/metadata/contact-flows/BTSGSD-AIAgent-SurveyFlow.json"),
-        "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
-        local.survey_data_table_id
+        replace(
+          file("${path.module}/metadata/contact-flows/BTSGSD-AIAgent-SurveyFlow.json"),
+          "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
+          local.survey_data_table_id
+        ),
+        "arn:aws:lambda:us-east-1:518902362956:function:UpdateSessionAttributes",
+        module.UpdateSessionAttributes-dev[0].lambda_arn
       ),
-      "arn:aws:lambda:us-east-1:518902362956:function:UpdateSessionAttributes",
-      module.UpdateSessionAttributes-dev[0].lambda_arn
+      "sureveyFlow_1",
+      "VM_instruction_Survey"
     )
   }
 }

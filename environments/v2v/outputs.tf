@@ -234,10 +234,10 @@ output "customer_number_data_table" {
 }
 
 output "hr_transfer_data_table" {
-  description = "Identifiers for the Connect HR transfer table named BTS_GSD-HR_Transfer."
+  description = "Identifiers for the Connect HR transfer table named BTSGSD-HR_Transfer."
 
   value = try({
-    name = "BTSGSD-V2V-US-BTS_GSD-HR_Transfer"
+    name = "BTSGSD-V2V-US-BTSGSD-HR_Transfer"
     arn  = aws_cloudformation_stack.hr_transfer_data_table[0].outputs["DataTableArn"]
     id   = local.hr_transfer_data_table_id
   }, null)
@@ -253,9 +253,9 @@ output "survey_data_table" {
 }
 
 output "veeva_transfer_data_table" {
-  description = "BTS_GSD-Veeva_Transfer identifiers for lookups using country_LATAM and system_phonenumber."
+  description = "BTSGSD-Veeva_Transfer identifiers for lookups using country_LATAM and system_phonenumber."
   value = try({
-    name = "BTSGSD-V2V-US-BTS_GSD-Veeva_Transfer"
+    name = "BTSGSD-V2V-US-BTSGSD-Veeva_Transfer"
     arn  = aws_cloudformation_stack.veeva_transfer_data_table[0].outputs["DataTableArn"]
     id   = local.veeva_transfer_data_table_id
   }, null)
@@ -272,7 +272,7 @@ output "top_level_blocker_data_table" {
 
 output "bts_gsd_customer_number_data_table" {
   value = try({
-    name = "BTSGSD-V2V-US-BTS_GSD-CustomerNumber"
+    name = "BTSGSD-V2V-US-BTSGSD-CustomerNumber"
     arn  = aws_cloudformation_stack.bts_gsd_customer_number_data_table[0].outputs["DataTableArn"]
     id = element(
       reverse(split("/", aws_cloudformation_stack.bts_gsd_customer_number_data_table[0].outputs["DataTableArn"])),
@@ -283,4 +283,52 @@ output "bts_gsd_customer_number_data_table" {
 
 output "survey_flow_arn" {
   value = try(aws_connect_contact_flow.survey[0].arn, null)
+}
+
+output "lex_yesno_published_version" {
+  value = try(module.lex_yesno_bot[0].published_bot_version, null)
+}
+
+output "lex_yesno_alias_id" {
+  value = try(module.lex_yesno_bot[0].bot_alias_id, null)
+}
+
+output "lex_yesno_alias_arn" {
+  value = try(module.lex_yesno_bot[0].bot_alias_arn, null)
+}
+
+output "lex_yesno_log_group_name" {
+  value = try(module.lex_yesno_log_group[0].name, null)
+}
+
+output "lex_yesno_log_group_arn" {
+  value = try(module.lex_yesno_log_group[0].arn, null)
+}
+
+output "lex_yesno_text_logs_version" {
+  value = try(module.lex_yesno_bot[0].alias_bot_version, null)
+}
+
+output "customer_queue_alias_id" {
+  value = try(module.lex_customer_queue_flow_bot[0].bot_alias_id, null)
+}
+
+output "customer_queue_alias_arn" {
+  value = try(module.lex_customer_queue_flow_bot[0].bot_alias_arn, null)
+}
+
+output "customer_queue_alias_version" {
+  value = try(module.lex_customer_queue_flow_bot[0].alias_bot_version, null)
+}
+
+output "customer_queue_text_log_group_name" {
+  value = try(module.customer_queue_lex_log_group[0].name, null)
+}
+
+output "vmx3_main_vm_module" {
+  value = try({
+    name = module.vmx3_main_vm_module[0].name
+    arn  = module.vmx3_main_vm_module[0].arn
+    id   = module.vmx3_main_vm_module[0].contact_flow_module_id
+  }, null)
 }

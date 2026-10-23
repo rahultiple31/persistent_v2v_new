@@ -66,10 +66,12 @@ resource "aws_lambda_function" "lambda" {
 resource "aws_lambda_permission" "lex_invoke" {
   count = var.lex_bot_alias_arn == null ? 0 : 1
 
-  statement_id   = "AllowLexV2Invocation"
+  statement_id   = "lex-lambda-invokeFunction-${split("/", var.lex_bot_alias_arn)[1]}-${split("/", var.lex_bot_alias_arn)[2]}"
   action         = "lambda:InvokeFunction"
   function_name  = aws_lambda_function.lambda.function_name
   principal      = "lexv2.amazonaws.com"
   source_arn     = var.lex_bot_alias_arn
   source_account = split(":", var.lex_bot_alias_arn)[4]
+
+  # Unqualified function permission; do not set qualifier = "$LATEST".
 }
