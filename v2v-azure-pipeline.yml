@@ -71,6 +71,9 @@ parameters:
       - plan
       - apply
 
+# Set AWS_DEV_OIDC_ROLE_ARN in this pipeline's Edit > Variables settings.
+# Use the same IAM role ARN as dev and select "Keep this value secret".
+# Both Terraform tasks map the secret through env; keep its value out of YAML.
 variables:
   terraformVersion: '1.10.5'
   deploymentRegion: 'us-east-1'
@@ -104,10 +107,10 @@ stages:
               set -euo pipefail
               umask 077
 
-              AWS_ROLE_ARN="$AWS_DEV_OIDC_ROLE_ARN"
+              AWS_ROLE_ARN="${AWS_DEV_OIDC_ROLE_ARN:-}"
 
               if [ -z "$AWS_ROLE_ARN" ] || [[ "$AWS_ROLE_ARN" == \$\(* ]]; then
-                echo "AWS_DEV_OIDC_ROLE_ARN is not configured for this pipeline." >&2
+                echo "##vso[task.logissue type=error]Set AWS_DEV_OIDC_ROLE_ARN in this V2V pipeline: Edit > Variables > New variable. Use the same IAM role ARN as dev and select Keep this value secret." >&2
                 exit 1
               fi
 
@@ -233,10 +236,10 @@ stages:
               set -euo pipefail
               umask 077
 
-              AWS_ROLE_ARN="$AWS_DEV_OIDC_ROLE_ARN"
+              AWS_ROLE_ARN="${AWS_DEV_OIDC_ROLE_ARN:-}"
 
               if [ -z "$AWS_ROLE_ARN" ] || [[ "$AWS_ROLE_ARN" == \$\(* ]]; then
-                echo "AWS_DEV_OIDC_ROLE_ARN is not configured for this pipeline." >&2
+                echo "##vso[task.logissue type=error]Set AWS_DEV_OIDC_ROLE_ARN in this V2V pipeline: Edit > Variables > New variable. Use the same IAM role ARN as dev and select Keep this value secret." >&2
                 exit 1
               fi
 
