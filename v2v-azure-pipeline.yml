@@ -2,19 +2,11 @@ trigger: none
 pr: none
 
 parameters:
-  - name: targetEnvironment
-    displayName: Target environment
-    type: string
-    default: v2v
-    values:
-      - v2v
-
   - name: targetModule
     displayName: Target module (deploys its complete group)
     type: string
     default: connect
     values:
-      # Separate Plan/Apply stages deploy one complete group per run.
       # Deployment groups
       - connect
       - lambda
@@ -24,7 +16,6 @@ parameters:
 
       # Connect and AI modules
       - connect_us_east_1
-      - vmx3_main_vm_module
       - btsgsd-Main-IB-Flow
       - connect_views
       - abbvie_views
@@ -58,13 +49,11 @@ parameters:
       - secrets_manager
       - queue_info_dynamodb
       - cloudwatch_log_group
-      - lex_yesno_log_group
 
       # Lex modules
       - lex_bot
       - lex_yesno_bot
       - lex_customer_queue_flow_bot
-      - customer_queue_lex_log_group
       - lex_aiagent_survey_bot
 
       # V2V application modules
@@ -84,14 +73,16 @@ parameters:
 
 variables:
   terraformVersion: '1.10.5'
-  nodeVersion: '22.x'
   deploymentRegion: 'us-east-1'
   workingDirectory: '$(Build.SourcesDirectory)/environments/v2v'
   backendBucket: 'bts-cloud-terraform-tfstate'
   backendRegion: 'us-east-1'
 
+pool:
+  vmImage: ubuntu-latest
+
 # Dependencies in other Terraform states must already exist.
-# Apply uses the saved plan; it does not create another plan.
+# Saved plans may contain sensitive values; restrict pipeline artifact access.
 stages:
   - stage: Plan
     displayName: Terraform Plan
@@ -101,15 +92,119 @@ stages:
       - job: terraform_plan
         displayName: Plan ${{ parameters.targetModule }}
 
-        pool:
-          vmImage: ubuntu-latest
-
         steps:
-          - template: templates/v2v-terraform-steps.yml
-            parameters:
-              action: plan
-              targetModule: ${{ parameters.targetModule }}
-              targetEnvironment: ${{ parameters.targetEnvironment }}
+          - checkout: self
+
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: $(terraformVersion)
+
+          - bash: |
+              set -euo pipefail
+              umask 077
+
+              [[ "$AWS_V2V_OIDC_ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/.+ ]] || {
+                echo "Configure AWS_V2V_OIDC_ROLE_ARN with the dedicated V2V role ARN." >&2
+                exit 1
+              }
+
+              export AWS_REGION="$DEPLOYMENT_REGION"
+              export AWS_DEFAULT_REGION="$DEPLOYMENT_REGION"
+              export AWS_PAGER="" AWS_CLI_AUTO_PROMPT=off TF_IN_AUTOMATION=true
+
+              token_file="$AGENT_TEMPDIRECTORY/aws-oidc-token-v2v"
+              trap 'rm -f -- "$token_file"' EXIT
+
+              refresh_v2v_credentials() {
+                local url response credentials account
+                url="$(python3 -c '
+              import os
+              from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+              parts = urlsplit(os.environ["SYSTEM_OIDCREQUESTURI"])
+              query = dict(parse_qsl(parts.query, keep_blank_values=True))
+              query["api-version"] = "7.1-preview.1"
+              print(urlunsplit(parts._replace(query=urlencode(query))))
+              ')"
+
+                response="$(curl --fail-with-body -sS -X POST \
+                  -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+                  -H 'Content-Length: 0' "$url")"
+
+                printf '%s' "$response" |
+                  python3 -c 'import json,sys; print(json.load(sys.stdin)["oidcToken"], end="")' > "$token_file"
+                chmod 600 "$token_file"
+
+                credentials="$(aws sts assume-role-with-web-identity \
+                  --no-sign-request \
+                  --role-arn "$AWS_V2V_OIDC_ROLE_ARN" \
+                  --role-session-name "azure-v2v-$BUILD_BUILDID-plan" \
+                  --web-identity-token "file://$token_file" \
+                  --duration-seconds 3600 \
+                  --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+                  --output text)"
+
+                IFS=$'\t' read -r AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN <<< "$credentials"
+                export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+
+                account="$(aws sts get-caller-identity --query Account --output text)"
+                [ "$account" = "$EXPECTED_ACCOUNT_ID" ] || {
+                  echo "Unexpected AWS account: $account" >&2
+                  return 1
+                }
+              }
+
+              source "$BUILD_SOURCESDIRECTORY/scripts/terraform-target-v2v.sh" \
+                "$TARGET_MODULE" v2v "$DEPLOYMENT_REGION"
+
+              mkdir -p "$PLAN_DIRECTORY"
+
+              plan_file="$PLAN_DIRECTORY/terraform.tfplan"
+              plan_lock="$PLAN_DIRECTORY/.terraform.lock.hcl"
+              plan_context="$PLAN_DIRECTORY/context.txt"
+
+              # Use the checked-in configuration, matching the dev pipeline.
+              test -s terraform.tfvars
+
+              refresh_v2v_credentials
+
+              terraform init \
+                -input=false \
+                -reconfigure \
+                "-backend-config=bucket=$BACKEND_BUCKET" \
+                "-backend-config=key=$TERRAFORM_BACKEND_KEY" \
+                "-backend-config=region=$BACKEND_REGION" \
+                -backend-config=encrypt=true
+
+              terraform validate
+              preserve_v2v_target_outputs
+              refresh_v2v_credentials
+
+              # terraform.tfvars is loaded automatically from workingDirectory.
+              terraform plan \
+                -input=false \
+                -no-color \
+                "${TERRAFORM_PLAN_ARGS[@]}" \
+                -out="$plan_file"
+
+              validate_v2v_target_plan "$plan_file"
+
+              cp .terraform.lock.hcl "$plan_lock"
+              printf '%s\n' \
+                "$BUILD_SOURCEVERSION" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY" \
+                > "$plan_context"
+            displayName: Terraform Init, Validate, and Plan
+            workingDirectory: $(workingDirectory)
+            env:
+              TARGET_MODULE: ${{ parameters.targetModule }}
+              DEPLOYMENT_REGION: $(deploymentRegion)
+              BACKEND_BUCKET: $(backendBucket)
+              BACKEND_REGION: $(backendRegion)
+              PLAN_DIRECTORY: $(Pipeline.Workspace)/v2v-plan
+              EXPECTED_ACCOUNT_ID: '518902362956'
+              AWS_V2V_OIDC_ROLE_ARN: $(AWS_V2V_OIDC_ROLE_ARN)
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
 
           - task: PublishPipelineArtifact@1
             displayName: Publish saved Terraform plan
@@ -123,17 +218,22 @@ stages:
     condition: |
       and(
         succeeded(),
-        eq('${{ parameters.terraformAction }}', 'apply')
+        eq('${{ parameters.terraformAction }}', 'apply'),
+        eq(variables['Build.SourceBranch'], 'refs/heads/main')
       )
 
     jobs:
       - job: terraform_apply
         displayName: Apply ${{ parameters.targetModule }}
 
-        pool:
-          vmImage: ubuntu-latest
-
         steps:
+          - checkout: self
+
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: $(terraformVersion)
+
           - task: DownloadPipelineArtifact@2
             displayName: Download saved Terraform plan
             inputs:
@@ -141,9 +241,109 @@ stages:
               artifactName: v2v-terraform-plan
               targetPath: '$(Pipeline.Workspace)/v2v-plan'
 
-          - template: templates/v2v-terraform-steps.yml
-            parameters:
-              action: apply
-              targetModule: ${{ parameters.targetModule }}
-              targetEnvironment: ${{ parameters.targetEnvironment }}
- 
+          - bash: |
+              set -euo pipefail
+              umask 077
+
+              [[ "$AWS_V2V_OIDC_ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/.+ ]] || {
+                echo "Configure AWS_V2V_OIDC_ROLE_ARN with the dedicated V2V role ARN." >&2
+                exit 1
+              }
+
+              export AWS_REGION="$DEPLOYMENT_REGION"
+              export AWS_DEFAULT_REGION="$DEPLOYMENT_REGION"
+              export AWS_PAGER="" AWS_CLI_AUTO_PROMPT=off TF_IN_AUTOMATION=true
+
+              token_file="$AGENT_TEMPDIRECTORY/aws-oidc-token-v2v"
+              trap 'rm -f -- "$token_file"' EXIT
+
+              refresh_v2v_credentials() {
+                local url response credentials account
+                url="$(python3 -c '
+              import os
+              from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+              parts = urlsplit(os.environ["SYSTEM_OIDCREQUESTURI"])
+              query = dict(parse_qsl(parts.query, keep_blank_values=True))
+              query["api-version"] = "7.1-preview.1"
+              print(urlunsplit(parts._replace(query=urlencode(query))))
+              ')"
+
+                response="$(curl --fail-with-body -sS -X POST \
+                  -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" \
+                  -H 'Content-Length: 0' "$url")"
+
+                printf '%s' "$response" |
+                  python3 -c 'import json,sys; print(json.load(sys.stdin)["oidcToken"], end="")' > "$token_file"
+                chmod 600 "$token_file"
+
+                credentials="$(aws sts assume-role-with-web-identity \
+                  --no-sign-request \
+                  --role-arn "$AWS_V2V_OIDC_ROLE_ARN" \
+                  --role-session-name "azure-v2v-$BUILD_BUILDID-apply" \
+                  --web-identity-token "file://$token_file" \
+                  --duration-seconds 3600 \
+                  --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+                  --output text)"
+
+                IFS=$'\t' read -r AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN <<< "$credentials"
+                export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+
+                account="$(aws sts get-caller-identity --query Account --output text)"
+                [ "$account" = "$EXPECTED_ACCOUNT_ID" ] || {
+                  echo "Unexpected AWS account: $account" >&2
+                  return 1
+                }
+              }
+
+              source "$BUILD_SOURCESDIRECTORY/scripts/terraform-target-v2v.sh" \
+                "$TARGET_MODULE" v2v "$DEPLOYMENT_REGION"
+
+              plan_file="$PLAN_DIRECTORY/terraform.tfplan"
+              plan_lock="$PLAN_DIRECTORY/.terraform.lock.hcl"
+              plan_context="$PLAN_DIRECTORY/context.txt"
+
+              test -s "$plan_file"
+              test -s "$plan_lock"
+              test -s "$plan_context"
+
+              expected_context="$(printf '%s\n' \
+                "$BUILD_SOURCEVERSION" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY")"
+
+              [ "$(cat "$plan_context")" = "$expected_context" ] || {
+                echo "Saved plan does not match the selected commit, region or state." >&2
+                exit 1
+              }
+
+              cp "$plan_lock" .terraform.lock.hcl
+              refresh_v2v_credentials
+
+              terraform init \
+                -input=false \
+                -reconfigure \
+                -lockfile=readonly \
+                "-backend-config=bucket=$BACKEND_BUCKET" \
+                "-backend-config=key=$TERRAFORM_BACKEND_KEY" \
+                "-backend-config=region=$BACKEND_REGION" \
+                -backend-config=encrypt=true
+
+              terraform validate
+              validate_v2v_target_plan "$plan_file"
+              refresh_v2v_credentials
+
+              # Apply executes the saved plan from this run's Plan stage.
+              terraform apply -input=false -no-color "$plan_file"
+            displayName: Terraform Apply
+            workingDirectory: $(workingDirectory)
+            env:
+              TARGET_MODULE: ${{ parameters.targetModule }}
+              DEPLOYMENT_REGION: $(deploymentRegion)
+              BACKEND_BUCKET: $(backendBucket)
+              BACKEND_REGION: $(backendRegion)
+              PLAN_DIRECTORY: $(Pipeline.Workspace)/v2v-plan
+              EXPECTED_ACCOUNT_ID: '518902362956'
+              AWS_V2V_OIDC_ROLE_ARN: $(AWS_V2V_OIDC_ROLE_ARN)
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+
+# After initial gateway creation, run a new Plan/Apply cycle if its audience
+# needs updating. Apply only executes the saved plan from its own Plan stage.
