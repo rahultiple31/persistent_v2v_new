@@ -27,3 +27,8 @@ output "customer_queue_flow_arn" {
   description = "Imported customer queue flow ARN for inbound flow hooks."
   value       = try(aws_connect_contact_flow.imported["customer_queue"].arn, null)
 }
+
+output "outbound_whisper_flow_id" {
+  description = "Outbound whisper flow ID, used as the outbound flow of migrated queues."
+  value       = try(aws_connect_contact_flow.outbound_whisper[0].contact_flow_id, null)
+}

@@ -2287,3 +2287,20 @@ resource "aws_connect_contact_flow" "survey" {
     }
   }
 }
+
+# Adding new modules for Connect resources (users, queues, prompts etc)
+
+module "connect_resources" {
+  source = "../../v2v_modules/connect-resources"
+
+  instance_id            = module.connect.instance_id
+  instance_arn           = module.connect.instance_arn
+  hours_of_operation_id  = module.connect_queue.hours_of_operation_id
+  connect_queue_queue_id = module.connect_queue.queue_id
+  outbound_flow_id       = module.connect.outbound_whisper_flow_id
+  quick_connect_flow_id  = module.connect.agent_transfer_flow_id
+
+  outbound_caller_id_number_id = var.outbound_phone_number_id
+  moh_30sec_prompt_s3_uri      = var.moh_30sec_prompt_s3_uri
+}
+

@@ -24,6 +24,7 @@ parameters:
 
       # Connect and AI modules
       - connect_us_east_1
+      - vmx3_main_vm_module
       - btsgsd-Main-IB-Flow
       - connect_views
       - abbvie_views
@@ -57,11 +58,13 @@ parameters:
       - secrets_manager
       - queue_info_dynamodb
       - cloudwatch_log_group
+      - lex_yesno_log_group
 
       # Lex modules
       - lex_bot
       - lex_yesno_bot
       - lex_customer_queue_flow_bot
+      - customer_queue_lex_log_group
       - lex_aiagent_survey_bot
 
       # V2V application modules
@@ -79,16 +82,11 @@ parameters:
       - plan
       - apply
 
-  - name: terraformSecureFile
-    displayName: Authorized V2V Secure File name or GUID
-    type: string
-    default: v2v-terraform.tfvars
-
-
 variables:
   terraformVersion: '1.10.5'
+  nodeVersion: '22.x'
   deploymentRegion: 'us-east-1'
-  workingDirectory: 'environments/${{ parameters.targetEnvironment }}'
+  workingDirectory: '$(Build.SourcesDirectory)/environments/v2v'
   backendBucket: 'bts-cloud-terraform-tfstate'
   backendRegion: 'us-east-1'
 
@@ -112,7 +110,6 @@ stages:
               action: plan
               targetModule: ${{ parameters.targetModule }}
               targetEnvironment: ${{ parameters.targetEnvironment }}
-              terraformSecureFile: ${{ parameters.terraformSecureFile }}
 
           - task: PublishPipelineArtifact@1
             displayName: Publish saved Terraform plan
@@ -149,4 +146,4 @@ stages:
               action: apply
               targetModule: ${{ parameters.targetModule }}
               targetEnvironment: ${{ parameters.targetEnvironment }}
-              terraformSecureFile: ${{ parameters.terraformSecureFile }}
+ 
