@@ -104,7 +104,8 @@ variable "enabled_modules" {
         "cloudwatch_log_group",
         "btsgsd-intent-kb",
         "lex_bot",
-        "dynamodb"
+        "dynamodb",
+        "code-signing"
       ])
     )) == 0
     error_message = "enabled_modules contains an unsupported module name."
@@ -610,4 +611,75 @@ variable "main_ib_phone_lookup_function_name" {
   description = "Existing phone lookup Lambda used by the inbound flow."
   type        = string
   default     = "SNOW_Abbvie"
+}
+
+variable "lambda_code_signing_config_arn" {
+  description = "ARN of the BTFSD-V2V-US Lambda code-signing configuration."
+  type        = string
+  default     = null
+
+  validation {
+    condition = (
+      var.lambda_code_signing_config_arn == null ||
+      can(regex(
+        "^arn:aws:lambda:us-east-1:518902362956:code-signing-config:csc-[A-Za-z0-9]+$",
+        var.lambda_code_signing_config_arn
+      ))
+    )
+    error_message = "Provide the actual V2V Lambda code-signing configuration ARN."
+  }
+
+  validation {
+    condition = (
+      length(setintersection(
+        toset([for name in var.enabled_modules : lower(name)]),
+        toset([
+          "connect",
+          "lambda",
+          "lambda-ctr-survey",
+          "lambda-connect-daily-ctr-export",
+          "lambda-ctr-raw",
+          "btsgsd-v2v-us-snow",
+          "btsgsd-v2v-us-servicenow_interaction",
+          "btsgsd-v2v-us-nextthink_handoff"
+        ])
+      )) == 0 ||
+      var.lambda_code_signing_config_arn != null
+    )
+    error_message = "Set lambda_code_signing_config_arn before deploying a V2V Lambda group."
+  }
+}
+
+variable "enable_signing_profile" {
+  description = "Create the signing profile when the code-signing deployment group is selected."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "enable_code_signing_config" {
+  description = "Create a Warn-mode configuration in the code-signing group; requires enable_signing_profile."
+  type        = bool
+  default     = true
+  nullable    = false
+
+  validation {
+    condition = (
+      !contains([for name in var.enabled_modules : lower(name)], "code-signing") ||
+      !var.enable_code_signing_config || var.enable_signing_profile
+    )
+    error_message = "enable_code_signing_config requires enable_signing_profile=true in the code-signing group."
+  }
+}
+
+variable "signing_profile_name" {
+  description = "AWS Signer profile name. Preserve the existing name to avoid replacing a deployed profile."
+  type        = string
+  default     = "BTFSD_V2V_US"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_]{2,64}$", var.signing_profile_name))
+    error_message = "signing_profile_name must contain 2-64 letters, digits, or underscores."
+  }
 }

@@ -40,7 +40,7 @@ run "requested_lambda_configuration" {
   assert {
     condition = (
       aws_lambda_function.interaction.function_name == "BTSGSD-V2V-US-ServiceNow_Interaction" &&
-      aws_lambda_function.interaction.runtime == "python3.14" &&
+      aws_lambda_function.interaction.runtime == "python3.13" &&
       aws_lambda_function.interaction.architectures == tolist(["x86_64"]) &&
       aws_lambda_function.interaction.handler == "lambda_function.lambda_handler" &&
       aws_lambda_function.interaction.memory_size == 512 &&

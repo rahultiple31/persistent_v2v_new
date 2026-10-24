@@ -6,7 +6,20 @@ data "archive_file" "export" {
   output_path             = "${path.root}/metadata/lambda-connect-daily-ctr-export/${var.function_name}.zip"
 }
 
+module "application_signals" {
+  source    = "../lambda-application-signals"
+  role_name = aws_iam_role.execution["lambda"].name
+}
+
 resource "aws_lambda_function" "export" {
+  code_signing_config_arn = var.code_signing_config_arn
+
+  layers = [module.application_signals.layer_arn]
+
+  tracing_config {
+    mode = "Active"
+  }
+
   function_name    = var.function_name
   role             = aws_iam_role.execution["lambda"].arn
   runtime          = var.runtime
@@ -26,7 +39,7 @@ resource "aws_lambda_function" "export" {
   environment {
     variables = merge(var.environment_variables, {
       CONNECT_INSTANCE_ID = data.aws_connect_instance.selected.id
-    })
+    }, module.application_signals.environment_variables)
   }
 
   logging_config {

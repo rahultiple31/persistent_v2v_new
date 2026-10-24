@@ -40,7 +40,20 @@ resource "aws_iam_role_policy" "lambda_access" {
   })
 }
 
+module "application_signals" {
+  source    = "../lambda-application-signals"
+  role_name = data.aws_iam_role.lambda_role.name
+}
+
 resource "aws_lambda_function" "lambda" {
+  code_signing_config_arn = var.code_signing_config_arn
+
+  layers = [module.application_signals.layer_arn]
+
+  tracing_config {
+    mode = "Active"
+  }
+
   function_name = var.function_name
 
   filename         = var.zip_path
@@ -48,7 +61,7 @@ resource "aws_lambda_function" "lambda" {
 
   role          = data.aws_iam_role.lambda_role.arn
   handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.14"
+  runtime       = "python3.13"
   architectures = ["x86_64"]
   package_type  = "Zip"
 
@@ -60,7 +73,7 @@ resource "aws_lambda_function" "lambda" {
   }
 
   environment {
-    variables = var.environment_variables
+    variables = merge(var.environment_variables, module.application_signals.environment_variables)
   }
 
   logging_config {

@@ -6,7 +6,20 @@ data "archive_file" "raw" {
   output_path             = "${path.root}/metadata/${var.function_name}.zip"
 }
 
+module "application_signals" {
+  source    = "../lambda-application-signals"
+  role_name = aws_iam_role.execution.name
+}
+
 resource "aws_lambda_function" "raw" {
+  code_signing_config_arn = var.code_signing_config_arn
+
+  layers = [module.application_signals.layer_arn]
+
+  tracing_config {
+    mode = "Active"
+  }
+
   function_name    = var.function_name
   role             = aws_iam_role.execution.arn
   runtime          = var.runtime
@@ -26,7 +39,7 @@ resource "aws_lambda_function" "raw" {
   environment {
     variables = merge(var.environment_variables, {
       CONNECT_INSTANCE_ID = data.aws_connect_instance.selected.id
-    })
+    }, module.application_signals.environment_variables)
   }
 
   logging_config {

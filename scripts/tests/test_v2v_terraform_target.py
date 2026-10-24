@@ -67,6 +67,9 @@ fi
             ("lambda", "lambda"),
             ("dynamodb", "dynamodb"),
             ("v2v", "v2v"),
+            ("code-signing", "code-signing"),
+            ("signing_profile", "code-signing"),
+            ("code_signing_config", "code-signing"),
         ):
             with self.subTest(target=target):
                 result = self.run_selector(target)
@@ -149,6 +152,42 @@ fi
                 result = self.run_selector("connect-resources", saved_plan)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(message, result.stderr)
+
+    def test_signing_choices_allow_both_modules_in_one_state(self):
+        saved_plan = plan(group="code-signing", changes=[
+            change("module.signing_profile[0].aws_signer_signing_profile.this[0]", ["create"]),
+            change("module.code_signing_config[0].aws_lambda_code_signing_config.this", ["create"]),
+        ])
+        for target in ("code-signing", "signing_profile", "code_signing_config"):
+            with self.subTest(target=target):
+                result = self.run_selector(target, saved_plan)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_signing_group_rejects_unrelated_resource_changes(self):
+        for address in (
+            "module.connect_queue[0].aws_connect_queue.queue",
+            "module.signing_profile[1].aws_signer_signing_profile.this[0]",
+            "module.signing_profile_extra[0].aws_signer_signing_profile.this[0]",
+        ):
+            for actions in (["create"], ["update"], ["delete"], ["delete", "create"]):
+                with self.subTest(address=address, actions=actions):
+                    result = self.run_selector("code_signing_config", plan(group="code-signing", changes=[
+                        change(address, actions),
+                    ]))
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("Refusing changes outside the code-signing modules", result.stderr)
+
+    def test_other_groups_cannot_modify_signing_resources_from_old_states(self):
+        for address in (
+            "module.signing_profile[0].aws_signer_signing_profile.this[0]",
+            "module.code_signing_config[0].aws_lambda_code_signing_config.this",
+        ):
+            with self.subTest(address=address):
+                result = self.run_selector("connect", plan(group="connect", changes=[
+                    change(address, ["delete"]),
+                ]))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Move the signing modules into the dedicated code-signing state", result.stderr)
 
 
 if __name__ == "__main__":

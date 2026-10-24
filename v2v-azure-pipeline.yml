@@ -13,6 +13,11 @@ parameters:
       - v2v
       - dynamodb
       - btsgsd-intent-kb
+      - code-signing
+
+      # Both signing modules share the code-signing state.
+      - signing_profile
+      - code_signing_config
 
       # Standalone Connect resources
       - connect-resources
@@ -160,6 +165,31 @@ stages:
               # Use the checked-in configuration, matching the dev pipeline.
               test -s terraform.tfvars
 
+              # Build the Connect Lambda packages before Terraform reads them.
+              if [ "$TERRAFORM_STATE_MODULE" = connect ]; then
+                python3 - <<'PY'
+              from pathlib import Path
+              from zipfile import ZIP_DEFLATED, ZipFile
+
+              directories = [
+                  "BTSGSD-lex-QueueFlow-Callback-dev_lambda",
+                  "BTSGSD-lex-yesNo-dev_lambda-dev_lambda",
+                  "conversionOfQueueMetrics-dev_lambda",
+              ]
+
+              for directory in directories:
+                  source = Path("metadata") / directory / "lambda_function.py"
+                  if not source.is_file():
+                      raise SystemExit("Missing Lambda source: " + str(source))
+
+                  destination = source.with_suffix(".zip")
+                  with ZipFile(destination, "w", compression=ZIP_DEFLATED) as package:
+                      package.write(source, arcname="lambda_function.py")
+
+                  print("Created " + str(destination))
+              PY
+              fi
+
               refresh_v2v_credentials
 
               terraform init \
@@ -183,12 +213,20 @@ stages:
 
               validate_v2v_target_plan "$plan_file"
 
-              # Apply runs on a separate agent and needs the planned handler ZIP.
+              # Include all four required ZIPs in the saved-plan artifact.
               if [ "$TERRAFORM_STATE_MODULE" = connect ]; then
-                session_attributes_zip="metadata/scr_lambda/lambda_function.zip"
-                test -s "$session_attributes_zip"
-                mkdir -p "$PLAN_DIRECTORY/metadata/scr_lambda"
-                cp "$session_attributes_zip" "$PLAN_DIRECTORY/$session_attributes_zip"
+                for directory in \
+                  scr_lambda \
+                  BTSGSD-lex-QueueFlow-Callback-dev_lambda \
+                  BTSGSD-lex-yesNo-dev_lambda-dev_lambda \
+                  conversionOfQueueMetrics-dev_lambda
+                do
+                  lambda_zip="metadata/$directory/lambda_function.zip"
+
+                  test -s "$lambda_zip"
+                  mkdir -p "$PLAN_DIRECTORY/metadata/$directory"
+                  cp "$lambda_zip" "$PLAN_DIRECTORY/$lambda_zip"
+                done
               fi
 
               cp .terraform.lock.hcl "$plan_lock"
@@ -307,10 +345,18 @@ stages:
               cp "$plan_lock" .terraform.lock.hcl
 
               if [ "$TERRAFORM_STATE_MODULE" = connect ]; then
-                session_attributes_zip="metadata/scr_lambda/lambda_function.zip"
-                test -s "$PLAN_DIRECTORY/$session_attributes_zip"
-                mkdir -p metadata/scr_lambda
-                cp "$PLAN_DIRECTORY/$session_attributes_zip" "$session_attributes_zip"
+                for directory in \
+                  scr_lambda \
+                  BTSGSD-lex-QueueFlow-Callback-dev_lambda \
+                  BTSGSD-lex-yesNo-dev_lambda-dev_lambda \
+                  conversionOfQueueMetrics-dev_lambda
+                do
+                  lambda_zip="metadata/$directory/lambda_function.zip"
+
+                  test -s "$PLAN_DIRECTORY/$lambda_zip"
+                  mkdir -p "metadata/$directory"
+                  cp "$PLAN_DIRECTORY/$lambda_zip" "$lambda_zip"
+                done
               fi
 
               refresh_v2v_credentials

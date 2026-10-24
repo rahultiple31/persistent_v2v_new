@@ -107,10 +107,20 @@ resource "time_sleep" "execution_role_ready" {
   ]
 }
 
+module "application_signals" {
+  source             = "../lambda-application-signals"
+  role_name          = aws_iam_role.execution.name
+  attach_xray_policy = false
+}
+
 resource "aws_lambda_function" "this" {
+  code_signing_config_arn = var.code_signing_config_arn
+
+  layers = [module.application_signals.layer_arn]
+
   function_name                  = local.function_name
   role                           = aws_iam_role.execution.arn
-  runtime                        = "python3.14"
+  runtime                        = "python3.13"
   architectures                  = ["x86_64"]
   handler                        = "lambda_function.handler"
   package_type                   = "Zip"
@@ -134,12 +144,12 @@ resource "aws_lambda_function" "this" {
   }
 
   environment {
-    variables = {
+    variables = merge({
       NAMESPACE        = "Custom"
       LOG_LEVEL        = "INFO"
       API_TIMEOUT      = "1.5"
       API_MAX_ATTEMPTS = "2"
-    }
+    }, module.application_signals.environment_variables)
   }
 
   tags = var.common_tags

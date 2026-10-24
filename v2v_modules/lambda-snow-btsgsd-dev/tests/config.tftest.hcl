@@ -24,7 +24,7 @@ run "requested_configuration_and_published_version" {
   assert {
     condition = (
       aws_lambda_function.snow.function_name == "BTSGSD-V2V-US-SNOW" &&
-      aws_lambda_function.snow.runtime == "python3.14" &&
+      aws_lambda_function.snow.runtime == "python3.13" &&
       aws_lambda_function.snow.architectures == tolist(["x86_64"]) &&
       aws_lambda_function.snow.handler == "lambda_function.lambda_handler" &&
       aws_lambda_function.snow.memory_size == 512 &&

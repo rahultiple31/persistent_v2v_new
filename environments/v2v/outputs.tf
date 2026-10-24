@@ -332,3 +332,25 @@ output "vmx3_main_vm_module" {
     id   = module.vmx3_main_vm_module[0].contact_flow_module_id
   }, null)
 }
+
+output "v2v_code_signing_config_arn" {
+  value = try(
+    module.code_signing_config[0].code_signing_config_arn,
+    null
+  )
+}
+
+output "signing_profile_name" {
+  description = "AWS Signer signing profile name"
+  value       = try(module.signing_profile[0].signing_profile_name, null)
+}
+
+output "signing_profile_arn" {
+  description = "AWS Signer signing profile ARN"
+  value       = try(module.signing_profile[0].signing_profile_arn, null)
+}
+
+output "signing_profile_version_arn" {
+  description = "AWS Signer signing profile version ARN"
+  value       = try(module.signing_profile[0].signing_profile_version_arn, null)
+}

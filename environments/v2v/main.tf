@@ -13,6 +13,7 @@ locals {
   deploy_connect_resources = contains(local.enabled_module_set, "connect-resources")
   deploy_lambda            = contains(local.enabled_module_set, "lambda")
   deploy_v2v               = contains(local.enabled_module_set, "v2v")
+  deploy_code_signing      = contains(local.enabled_module_set, "code-signing")
 }
 
 locals {
@@ -321,6 +322,8 @@ module "connect_ai_agent" {
 }
 
 module "lambda_us_east_1" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = local.deploy_lambda ? 1 : 0
   source = "../../v2v_modules/lambda"
 
@@ -338,6 +341,8 @@ module "lambda_us_east_1" {
 }
 
 module "lambda-ctr-survey" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = contains(local.enabled_module_set, "lambda-ctr-survey") ? 1 : 0
   source = "../../v2v_modules/lambda-ctr-survey"
 
@@ -352,6 +357,8 @@ module "lambda-ctr-survey" {
 }
 
 module "lambda-connect-daily-ctr-export" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = contains(local.enabled_module_set, "lambda-connect-daily-ctr-export") ? 1 : 0
   source = "../../v2v_modules/lambda-connect-daily-ctr-export"
 
@@ -365,6 +372,8 @@ module "lambda-connect-daily-ctr-export" {
 }
 
 module "lambda-ctr-raw" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = contains(local.enabled_module_set, "lambda-ctr-raw") ? 1 : 0
   source = "../../v2v_modules/lambda-ctr-raw"
 
@@ -378,6 +387,8 @@ module "lambda-ctr-raw" {
 }
 
 module "BTSGSD-V2V-US-SNOW" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = contains(local.enabled_module_set, "btsgsd-v2v-us-snow") ? 1 : 0
   source = "../../v2v_modules/lambda-snow-btsgsd-dev"
 
@@ -585,6 +596,8 @@ module "ssm_v2v" {
 }
 
 module "BTSGSD-V2V-US-ServiceNow_Interaction" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = contains(local.enabled_module_set, "btsgsd-v2v-us-servicenow_interaction") ? 1 : 0
   source = "../../v2v_modules/lambda-servicenow-interaction"
 
@@ -600,6 +613,8 @@ module "BTSGSD-V2V-US-ServiceNow_Interaction" {
 }
 
 module "BTSGSD-V2V-US-Nextthink_Handoff" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = contains(local.enabled_module_set, "btsgsd-v2v-us-nextthink_handoff") ? 1 : 0
   source = "../../v2v_modules/lambda-nextthink-handoff"
 
@@ -816,6 +831,8 @@ module "lex_aiagent_survey_bot" {
 
 # Invoke this Lambda after the Connect assistant block in the contact flow.
 module "BTSGSD-V2V-US-UpdateSessionAttributes" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = local.deploy_connect ? 1 : 0
   source = "../../v2v_modules/UpdateSessionAttributes-dev"
 
@@ -834,6 +851,8 @@ module "BTSGSD-V2V-US-UpdateSessionAttributes" {
 
 # Deploys with the connect selection.
 module "silence_guard-dev" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = local.deploy_connect ? 1 : 0
   source = "../../v2v_modules/silence_guard-dev"
 
@@ -847,6 +866,8 @@ module "silence_guard-dev" {
 
 # Deploys with the existing Connect selection.
 module "conversion_of_queue_metrics" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = local.deploy_connect ? 1 : 0
   source = "../../v2v_modules/conversionOfQueueMetrics-dev"
 
@@ -870,6 +891,8 @@ module "conversion_of_queue_metrics" {
 
 # Deploys with the existing Connect selection.
 module "lex_queueflow_callback" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = local.deploy_connect ? 1 : 0
   source = "../../v2v_modules/BTSGSD-lex-QueueFlow-Callback-dev"
 
@@ -898,6 +921,8 @@ module "lex_queueflow_callback" {
 
 # Deploys with the existing Connect selection.
 module "lex_yesno" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
   count  = local.deploy_connect ? 1 : 0
   source = "../../v2v_modules/BTSGSD-lex-yesNo-dev"
 
@@ -2327,8 +2352,8 @@ module "connect_resources" {
   quick_connect_flow_id  = var.connect_resources_dependencies.quick_connect_flow_id
 
   outbound_caller_id_number_id = local.resolved_outbound_phone_number_id
-  moh_30sec_prompt_s3_uri       = var.moh_30sec_prompt_s3_uri
-  tags                        = local.common_tags
+  moh_30sec_prompt_s3_uri      = var.moh_30sec_prompt_s3_uri
+  tags                         = local.common_tags
 
   # Match the module's existing TASK/VOICE routing configuration.
   blended_routing_profile_default_outbound_queue = "us_out"
@@ -2338,3 +2363,32 @@ module "connect_resources" {
   ]
 }
 
+# signing_profile
+
+module "signing_profile" {
+  count = local.deploy_code_signing && var.enable_signing_profile ? 1 : 0
+
+  source = "../../v2v_modules/signing_profile"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  profile_name = var.signing_profile_name
+  common_tags  = local.common_tags
+}
+
+# code_signing_config
+
+module "code_signing_config" {
+  count = local.deploy_code_signing && var.enable_code_signing_config && var.enable_signing_profile ? 1 : 0
+
+  source = "../../v2v_modules/code_signing_config"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  signing_profile_version_arn = module.signing_profile[0].signing_profile_version_arn
+  common_tags                 = local.common_tags
+}

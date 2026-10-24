@@ -60,7 +60,24 @@ resource "aws_cloudwatch_log_group" "this" {
   tags              = local.tags
 }
 
+module "application_signals" {
+  source    = "../lambda-application-signals"
+  role_name = aws_iam_role.this.name
+}
+
 resource "aws_lambda_function" "this" {
+  code_signing_config_arn = var.code_signing_config_arn
+
+  layers = [module.application_signals.layer_arn]
+
+  tracing_config {
+    mode = "Active"
+  }
+
+  environment {
+    variables = module.application_signals.environment_variables
+  }
+
   function_name    = local.function_name
   role             = aws_iam_role.this.arn
   handler          = "lambda_function.handler"

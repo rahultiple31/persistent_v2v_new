@@ -54,11 +54,24 @@ resource "aws_iam_role_policy" "logging" {
   })
 }
 
+module "application_signals" {
+  source    = "../lambda-application-signals"
+  role_name = data.aws_iam_role.execution.name
+}
+
 # Upload the local ZIP directly to Lambda; no S3 deployment bucket is used.
 resource "aws_lambda_function" "snow" {
+  code_signing_config_arn = var.code_signing_config_arn
+
+  layers = [module.application_signals.layer_arn]
+
+  tracing_config {
+    mode = "Active"
+  }
+
   function_name                  = var.function_name
   role                           = data.aws_iam_role.execution.arn
-  runtime                        = "python3.14"
+  runtime                        = "python3.13"
   architectures                  = ["x86_64"]
   handler                        = "lambda_function.lambda_handler"
   package_type                   = "Zip"
@@ -83,11 +96,8 @@ resource "aws_lambda_function" "snow" {
     log_group  = aws_cloudwatch_log_group.snow.name
   }
 
-  dynamic "environment" {
-    for_each = length(var.environment_variables) == 0 ? [] : [var.environment_variables]
-    content {
-      variables = environment.value
-    }
+  environment {
+    variables = merge(var.environment_variables, module.application_signals.environment_variables)
   }
   lifecycle {
     precondition {

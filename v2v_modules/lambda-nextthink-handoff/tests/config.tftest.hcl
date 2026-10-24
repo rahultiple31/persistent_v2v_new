@@ -38,7 +38,7 @@ run "requested_lambda_configuration" {
     condition = (
       aws_lambda_function.handoff.function_name == "BTSGSD-V2V-US-Nextthink_Handoff" &&
       aws_lambda_function.handoff.role == "arn:aws:iam::518902362956:role/Nextthink_Handoff_btsgsd-dev-role" &&
-      aws_lambda_function.handoff.runtime == "python3.14" &&
+      aws_lambda_function.handoff.runtime == "python3.13" &&
       aws_lambda_function.handoff.architectures == tolist(["x86_64"]) &&
       aws_lambda_function.handoff.handler == "lambda_function.lambda_handler" &&
       aws_lambda_function.handoff.memory_size == 128 &&

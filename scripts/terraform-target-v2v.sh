@@ -14,6 +14,9 @@ if [ "$DEPLOYMENT_ENVIRONMENT" != v2v ] ||
 fi
 
 case "$DEPLOYMENT_TARGET" in
+  code-signing|signing_profile|code_signing_config)
+    TERRAFORM_STATE_MODULE=code-signing
+    ;;
   connect-resources)
     TERRAFORM_STATE_MODULE=connect-resources
     ;;
@@ -119,6 +122,28 @@ changes = [
     if change.get("mode") == "managed"
     and change.get("change", {}).get("actions") != ["no-op"]
 ]
+
+signing_prefixes = ("module.signing_profile[0].", "module.code_signing_config[0].")
+if group == "code-signing":
+    unexpected = [
+        change["address"] for change in changes
+        if not change["address"].startswith(signing_prefixes)
+    ]
+    if unexpected:
+        raise SystemExit(
+            "Refusing changes outside the code-signing modules: "
+            + ", ".join(unexpected)
+        )
+else:
+    misplaced = [
+        change["address"] for change in changes
+        if change["address"].startswith(signing_prefixes)
+    ]
+    if misplaced:
+        raise SystemExit(
+            "Move the signing modules into the dedicated code-signing state "
+            "before applying another deployment group."
+        )
 
 if group == "connect-resources":
     unexpected = [
