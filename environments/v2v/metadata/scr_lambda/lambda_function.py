@@ -54,7 +54,7 @@ def _get_session_ids(instance_arn, contact_id):
         raise RuntimeError("Contact has no WisdomInfo.SessionArn - run the 'Connect assistant' block first")
     match = _SESSION_ARN_RE.fullmatch(session_arn)
     if not match:
-        raise ValueError("Unrecognised Q in Connect session ARN")
+        raise ValueError(f"Unrecognised Q in Connect session ARN: {session_arn!r}")
     return match["assistant_id"], match["session_id"]
 
 
@@ -109,13 +109,14 @@ def handler(event, _context):
         )
     except ClientError as e:
         err = e.response.get("Error", {})
-        logger.error("AWS API failed for contact %s: %s", contact_id, err.get("Code"))
+        logger.error("UpdateSessionData failed for contact %s: %s - %s",
+                     contact_id, err.get("Code"), err.get("Message"))
         return _error(err.get("Code", "ClientError"))
     except ParamValidationError as e:
-        logger.error("Invalid request parameters for contact %s", contact_id)
+        logger.error("Invalid request parameters for contact %s: %s", contact_id, e)
         return _error("ParamValidationError")
     except BotoCoreError as e:
-        logger.error("AWS call failed for contact %s: %s", contact_id, type(e).__name__)
+        logger.error("AWS call failed for contact %s: %s - %s", contact_id, type(e).__name__, e)
         return _error(type(e).__name__)
     except (ValueError, RuntimeError) as e:
         logger.error("Session lookup failed for contact %s: %s", contact_id, e)

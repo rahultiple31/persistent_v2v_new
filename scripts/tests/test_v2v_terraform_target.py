@@ -76,6 +76,17 @@ fi
                     f'-var=enabled_modules=["{group}"]',
                 ])
 
+    def test_snow_rename_retains_state_and_accepts_plan_for_new_target(self):
+        result = self.run_selector("BTSGSD-V2V-US-SNOW")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [
+            "btsgsd-v2v-us-snow",
+            "terraform-state/v2v/us-east-1/lambda-snow-btsgsd-dev/terraform.tfstate",
+            '-var=enabled_modules=["btsgsd-v2v-us-snow"]',
+        ])
+        result = self.run_selector("BTSGSD-V2V-US-SNOW", plan(group="btsgsd-v2v-us-snow"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_allows_changes_inside_standalone_module_and_read_only_lookups(self):
         saved_plan = plan(changes=[
             change("module.connect_resources[0].aws_connect_queue.us_out", ["create"]),

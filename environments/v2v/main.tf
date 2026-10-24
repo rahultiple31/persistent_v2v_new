@@ -377,8 +377,8 @@ module "lambda-ctr-raw" {
   common_tags            = local.common_tags
 }
 
-module "lambda-snow-btsgsd-dev" {
-  count  = contains(local.enabled_module_set, "lambda-snow-btsgsd-dev") ? 1 : 0
+module "BTSGSD-V2V-US-SNOW" {
+  count  = contains(local.enabled_module_set, "btsgsd-v2v-us-snow") ? 1 : 0
   source = "../../v2v_modules/lambda-snow-btsgsd-dev"
 
   providers = {
@@ -820,10 +820,12 @@ module "UpdateSessionAttributes-dev" {
   source = "../../v2v_modules/UpdateSessionAttributes-dev"
 
   providers = {
-    aws = aws.us_east_1
+    aws     = aws.us_east_1
+    archive = archive
   }
 
   function_name        = "BTSGSD-V2V-US-UpdateSessionAttributes"
+  source_file          = "${path.module}/metadata/scr_lambda/lambda_function.py"
   zip_path             = "${path.module}/metadata/scr_lambda/lambda_function.zip"
   connect_instance_arn = module.connect_us_east_1[0].instance_arn
   assistant_id         = local.dev_ai_assistant_id

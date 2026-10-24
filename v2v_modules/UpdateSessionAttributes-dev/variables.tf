@@ -5,8 +5,14 @@ variable "function_name" {
 }
 
 variable "zip_path" {
-  description = "Existing ZIP containing lambda_function.py at its root."
+  description = "Deployment ZIP path. Generated from source_file when set; otherwise an existing ZIP containing lambda_function.py at its root."
   type        = string
+}
+
+variable "source_file" {
+  description = "Optional Python source to package at the root of zip_path."
+  type        = string
+  default     = null
 }
 
 variable "connect_instance_arn" {

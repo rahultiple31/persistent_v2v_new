@@ -86,23 +86,22 @@ resource "aws_cloudwatch_log_group" "handoff" {
   tags              = var.common_tags
 }
 
-resource "aws_iam_role" "execution" {
-  name = "${local.function_name}-role"
-  tags = var.common_tags
+data "aws_iam_role" "execution" {
+  name = "Nextthink_Handoff_btsgsd-dev-role"
+}
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Action    = "sts:AssumeRole"
-      Principal = { Service = "lambda.amazonaws.com" }
-    }]
-  })
+# Preserve any previously managed role when switching to the existing role.
+removed {
+  from = aws_iam_role.execution
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 resource "aws_iam_role_policy" "execution" {
   name = "BTSGSD-V2V-US-nextthink-handoff-access"
-  role = aws_iam_role.execution.name
+  role = data.aws_iam_role.execution.name
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -136,14 +135,14 @@ resource "aws_iam_role_policy" "execution" {
   })
 }
 
-# The existing trust policy permits lambda.amazonaws.com.
-# Allow time for possible IAM propagation before creating the Lambda.
+# The existing role must trust lambda.amazonaws.com.
+# Allow time for policy propagation before creating the Lambda.
 resource "time_sleep" "execution_role_propagation" {
   create_duration = "60s"
 
   triggers = {
-    role_unique_id     = aws_iam_role.execution.unique_id
-    trust_policy_hash  = sha256(aws_iam_role.execution.assume_role_policy)
+    role_unique_id     = data.aws_iam_role.execution.unique_id
+    trust_policy_hash  = sha256(data.aws_iam_role.execution.assume_role_policy)
     access_policy_hash = sha256(aws_iam_role_policy.execution.policy)
   }
 
@@ -153,7 +152,7 @@ resource "time_sleep" "execution_role_propagation" {
 # Upload the local ZIP directly to Lambda; no S3 deployment bucket is used.
 resource "aws_lambda_function" "handoff" {
   function_name                  = local.function_name
-  role                           = aws_iam_role.execution.arn
+  role                           = data.aws_iam_role.execution.arn
   runtime                        = "python3.14"
   architectures                  = ["x86_64"]
   handler                        = "lambda_function.lambda_handler"

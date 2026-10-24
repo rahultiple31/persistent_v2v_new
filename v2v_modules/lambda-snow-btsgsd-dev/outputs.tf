@@ -13,5 +13,5 @@ output "log_group_name" {
 }
 
 output "execution_role_arn" {
-  value = aws_iam_role.execution.arn
+  value = data.aws_iam_role.execution.arn
 }

@@ -1,3 +1,9 @@
+# Preserve the SNOW module's resource addresses after its V2V target rename.
+moved {
+  from = module.lambda-snow-btsgsd-dev
+  to   = module.BTSGSD-V2V-US-SNOW
+}
+
 # Keep these moves for states that still use the separate alias module.
 moved {
   from = module.lex_yesno_alias[0].awscc_lex_bot_alias.this

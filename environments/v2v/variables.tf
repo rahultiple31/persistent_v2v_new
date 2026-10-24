@@ -96,7 +96,7 @@ variable "enabled_modules" {
         "lambda-ctr-survey",
         "lambda-connect-daily-ctr-export",
         "lambda-ctr-raw",
-        "lambda-snow-btsgsd-dev",
+        "btsgsd-v2v-us-snow",
         "lambda-servicenow-interaction",
         "lambda-nextthink-handoff",
         "iam-ctr",

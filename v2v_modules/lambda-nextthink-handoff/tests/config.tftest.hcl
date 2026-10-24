@@ -1,7 +1,7 @@
 mock_provider "aws" {
-  mock_resource "aws_iam_role" {
+  mock_data "aws_iam_role" {
     defaults = {
-      arn = "arn:aws:iam::518902362956:role/lambda-test-role"
+      arn = "arn:aws:iam::518902362956:role/Nextthink_Handoff_btsgsd-dev-role"
     }
   }
   mock_data "aws_secretsmanager_secret" {
@@ -37,6 +37,7 @@ run "requested_lambda_configuration" {
   assert {
     condition = (
       aws_lambda_function.handoff.function_name == "BTSGSD-V2V-US-Nextthink_Handoff" &&
+      aws_lambda_function.handoff.role == "arn:aws:iam::518902362956:role/Nextthink_Handoff_btsgsd-dev-role" &&
       aws_lambda_function.handoff.runtime == "python3.14" &&
       aws_lambda_function.handoff.architectures == tolist(["x86_64"]) &&
       aws_lambda_function.handoff.handler == "lambda_function.lambda_handler" &&

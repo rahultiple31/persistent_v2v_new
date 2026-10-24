@@ -1,7 +1,7 @@
 mock_provider "aws" {
-  mock_resource "aws_iam_role" {
+  mock_data "aws_iam_role" {
     defaults = {
-      arn = "arn:aws:iam::518902362956:role/lambda-test-role"
+      arn = "arn:aws:iam::518902362956:role/SNOW_btsgsd-dev-lambda-role"
     }
   }
 }

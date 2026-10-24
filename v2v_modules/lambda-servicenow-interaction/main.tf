@@ -150,6 +150,25 @@ resource "aws_lambda_function" "interaction" {
   depends_on = [aws_iam_role_policy.logging]
 }
 
+resource "aws_lambda_permission" "interaction_connect" {
+  statement_id  = "connect-c227a737-3e4f-4c64-8397-2d37e318801d"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.interaction.function_name
+  principal     = "connect.amazonaws.com"
+
+  source_account = "518902362956"
+  source_arn     = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
+}
+
+resource "aws_lambda_permission" "interaction_agentcore" {
+  statement_id  = "servicenow_interaction_btsgsd_dev_agent"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.interaction.function_name
+  principal     = "bedrock-agentcore.amazonaws.com"
+
+  source_arn = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/bc274e3f-380d-45e7-968f-2d19f92acd74/c1c0c6cf-2e49-4091-bb06-85f9e7095a96:$SAVED"
+}
+
 output "deployment" {
   value = {
     function_name = aws_lambda_function.interaction.function_name

@@ -36,7 +36,7 @@ parameters:
       - lambda-ctr-survey
       - lambda-connect-daily-ctr-export
       - lambda-ctr-raw
-      - lambda-snow-btsgsd-dev
+      - BTSGSD-V2V-US-SNOW
       - lambda-servicenow-interaction
       - lambda-nextthink-handoff
       - UpdateSessionAttributes-dev
@@ -183,6 +183,14 @@ stages:
 
               validate_v2v_target_plan "$plan_file"
 
+              # Apply runs on a separate agent and needs the planned handler ZIP.
+              if [ "$TERRAFORM_STATE_MODULE" = connect ]; then
+                session_attributes_zip="metadata/scr_lambda/lambda_function.zip"
+                test -s "$session_attributes_zip"
+                mkdir -p "$PLAN_DIRECTORY/metadata/scr_lambda"
+                cp "$session_attributes_zip" "$PLAN_DIRECTORY/$session_attributes_zip"
+              fi
+
               cp .terraform.lock.hcl "$plan_lock"
               printf '%s\n' \
                 "$BUILD_SOURCEVERSION" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY" \
@@ -297,6 +305,14 @@ stages:
               }
 
               cp "$plan_lock" .terraform.lock.hcl
+
+              if [ "$TERRAFORM_STATE_MODULE" = connect ]; then
+                session_attributes_zip="metadata/scr_lambda/lambda_function.zip"
+                test -s "$PLAN_DIRECTORY/$session_attributes_zip"
+                mkdir -p metadata/scr_lambda
+                cp "$PLAN_DIRECTORY/$session_attributes_zip" "$session_attributes_zip"
+              fi
+
               refresh_v2v_credentials
 
               terraform init \

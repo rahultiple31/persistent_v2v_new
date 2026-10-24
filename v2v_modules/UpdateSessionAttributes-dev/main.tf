@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.21.0"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.0"
+    }
     time = {
       source  = "hashicorp/time"
       version = "~> 0.13"
@@ -17,6 +21,15 @@ data "aws_partition" "current" {}
 
 locals {
   function_name = var.function_name
+}
+
+# Build the current handler instead of relying on a prebuilt ZIP in checkout.
+data "archive_file" "code" {
+  count = var.source_file != null ? 1 : 0
+
+  type        = "zip"
+  source_file = var.source_file
+  output_path = var.zip_path
 }
 
 resource "aws_cloudwatch_log_group" "this" {
@@ -101,8 +114,8 @@ resource "aws_lambda_function" "this" {
   architectures                  = ["x86_64"]
   handler                        = "lambda_function.handler"
   package_type                   = "Zip"
-  filename                       = var.zip_path
-  source_code_hash               = filebase64sha256(var.zip_path)
+  filename                       = var.source_file != null ? data.archive_file.code[0].output_path : var.zip_path
+  source_code_hash               = var.source_file != null ? data.archive_file.code[0].output_base64sha256 : filebase64sha256(var.zip_path)
   memory_size                    = 128
   timeout                        = 8
   reserved_concurrent_executions = -1

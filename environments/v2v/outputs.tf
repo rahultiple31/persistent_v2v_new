@@ -85,7 +85,7 @@ output "regional_lambda_functions" {
 
 output "snow_lambda_dev" {
   description = "BTSGSD-V2V-US-SNOW function and published-version identifiers, or null when its target is disabled."
-  value       = try(module.lambda-snow-btsgsd-dev[0].deployment, null)
+  value       = try(module.BTSGSD-V2V-US-SNOW[0].deployment, null)
 }
 
 output "connect_v2v_translation" {

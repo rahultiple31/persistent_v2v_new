@@ -27,23 +27,22 @@ resource "aws_cloudwatch_log_group" "snow" {
   tags              = var.common_tags
 }
 
-resource "aws_iam_role" "execution" {
-  name = "${var.function_name}-lambda-role"
-  tags = var.common_tags
+data "aws_iam_role" "execution" {
+  name = "SNOW_btsgsd-dev-lambda-role"
+}
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Action    = "sts:AssumeRole"
-      Principal = { Service = "lambda.amazonaws.com" }
-    }]
-  })
+# Preserve any previously managed role when switching to the existing role.
+removed {
+  from = aws_iam_role.execution
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 resource "aws_iam_role_policy" "logging" {
   name = "BTSGSD-V2V-US-snow-cloudwatch-logs"
-  role = aws_iam_role.execution.name
+  role = data.aws_iam_role.execution.name
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -58,7 +57,7 @@ resource "aws_iam_role_policy" "logging" {
 # Upload the local ZIP directly to Lambda; no S3 deployment bucket is used.
 resource "aws_lambda_function" "snow" {
   function_name                  = var.function_name
-  role                           = aws_iam_role.execution.arn
+  role                           = data.aws_iam_role.execution.arn
   runtime                        = "python3.14"
   architectures                  = ["x86_64"]
   handler                        = "lambda_function.lambda_handler"
@@ -110,4 +109,23 @@ resource "aws_lambda_function" "snow" {
 resource "aws_lambda_runtime_management_config" "snow" {
   function_name     = aws_lambda_function.snow.function_name
   update_runtime_on = "Auto"
+}
+
+resource "aws_lambda_permission" "snow_connect" {
+  statement_id  = "connect-c227a737-3e4f-4c64-8397-2d37e318801d"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.snow.function_name
+  principal     = "connect.amazonaws.com"
+
+  source_account = "518902362956"
+  source_arn     = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
+}
+
+resource "aws_lambda_permission" "snow_agentcore" {
+  statement_id  = "servicenow_btsgsd_dev_agent"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.snow.function_name
+  principal     = "bedrock-agentcore.amazonaws.com"
+
+  source_arn = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/bc274e3f-380d-45e7-968f-2d19f92acd74/c1c0c6cf-2e49-4091-bb06-85f9e7095a96:$SAVED"
 }

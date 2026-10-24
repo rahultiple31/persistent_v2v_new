@@ -94,18 +94,13 @@ connect_integrations_enabled = true
 enabled_modules                          = ["secrets_manager"]
 servicenow_interaction_python_executable = "python"
 
-# Deploy without a guaranteed reservation of 100 while quota is unavailable.
-# null omits the CloudFormation concurrency property and uses the shared pool.
-# Do not use 0: it disables function invocation.
-# Restore 100 after increasing the quota or releasing other reservations.
-servicenow_interaction_reserved_concurrency = null
+# Reserve 150 executions; the capacity check requires sufficient regional quota.
+servicenow_interaction_reserved_concurrency = 150
 
-# Use python3 instead on systems where that is the installed executable.
-# Optional overrides; the supplied handler defaults remain in effect otherwise:
-# servicenow_interaction_environment_variables = {
-#   SN_INSTANCE = "abbvienowdev"
-#   SN_CTI_RULE = "cti_gsd"
-# }
+servicenow_interaction_environment_variables = {
+  SN_INSTANCE = "abbvienowstage"
+  SN_CTI_RULE = "cti_gsd"
+}
 
 # Nextthink Handoff manual deployment; no separate tfvars file is needed.
 nexthink_handoff_python_executable = "python"

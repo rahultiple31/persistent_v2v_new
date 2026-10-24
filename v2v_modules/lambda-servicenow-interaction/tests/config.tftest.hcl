@@ -21,6 +21,22 @@ mock_provider "external" {
 run "requested_lambda_configuration" {
   command = plan
 
+  variables {
+    reserved_concurrency  = 150
+    environment_variables = { SN_INSTANCE = "abbvienowstage" }
+  }
+
+  override_data {
+    target = data.external.capacity[0]
+    values = {
+      result = {
+        unreserved          = "250"
+        current_reservation = "0"
+        maximum_reservation = "150"
+      }
+    }
+  }
+
   assert {
     condition = (
       aws_lambda_function.interaction.function_name == "BTSGSD-V2V-US-ServiceNow_Interaction" &&
@@ -30,7 +46,7 @@ run "requested_lambda_configuration" {
       aws_lambda_function.interaction.memory_size == 512 &&
       aws_lambda_function.interaction.timeout == 8 &&
       aws_lambda_function.interaction.ephemeral_storage[0].size == 512 &&
-      aws_lambda_function.interaction.reserved_concurrent_executions == 100 &&
+      aws_lambda_function.interaction.reserved_concurrent_executions == 150 &&
       aws_lambda_function.interaction.logging_config[0].log_group == "/aws/lambda/BTSGSD-V2V-US-ServiceNow_Interaction" &&
       aws_lambda_function.interaction.logging_config[0].log_group == aws_cloudwatch_log_group.interaction.name &&
       data.archive_file.interaction.source_dir == "./src" &&
@@ -43,11 +59,11 @@ run "requested_lambda_configuration" {
     condition = (
       aws_lambda_function.interaction.filename == data.archive_file.interaction.output_path &&
       aws_lambda_function.interaction.source_code_hash == data.archive_file.interaction.output_base64sha256 &&
-      aws_lambda_function.interaction.environment[0].variables.SN_INSTANCE == "abbvienowdev" &&
+      aws_lambda_function.interaction.environment[0].variables.SN_INSTANCE == "abbvienowstage" &&
       aws_lambda_function.interaction.environment[0].variables.SN_CTI_RULE == "cti_gsd" &&
       !aws_lambda_function.interaction.publish
     )
-    error_message = "Upload the local ZIP directly, preserve handler defaults, and avoid publishing extra versions."
+    error_message = "Upload the local ZIP directly, pass the stage environment settings, and avoid publishing extra versions."
   }
 }
 
@@ -70,13 +86,17 @@ run "environment_override_preserves_other_defaults" {
 run "insufficient_concurrency_is_rejected" {
   command = plan
 
+  variables {
+    reserved_concurrency = 150
+  }
+
   override_data {
     target = data.external.capacity[0]
     values = {
       result = {
-        unreserved          = "199"
+        unreserved          = "249"
         current_reservation = "0"
-        maximum_reservation = "99"
+        maximum_reservation = "149"
       }
     }
   }
