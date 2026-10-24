@@ -922,6 +922,13 @@ module "lex_yesno" {
   common_tags       = local.common_tags
 }
 
+data "aws_kms_key" "queue_info" {
+  count    = contains(local.enabled_module_set, "dynamodb") ? 1 : 0
+  provider = aws.us_east_1
+
+  key_id = "alias/IAI"
+}
+
 module "queue_info_dynamodb" {
   count  = contains(local.enabled_module_set, "dynamodb") ? 1 : 0
   source = "../../v2v_modules/dynamodb"
@@ -930,7 +937,8 @@ module "queue_info_dynamodb" {
     aws = aws.us_east_1
   }
 
-  table_name = "BTSGSD-V2V-US-queueInfo"
+  table_name  = "BTSGSD-V2V-US-queueInfo"
+  kms_key_arn = data.aws_kms_key.queue_info[0].arn
 }
 
 module "cloudwatch_log_group" {

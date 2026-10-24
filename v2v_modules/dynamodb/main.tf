@@ -21,9 +21,10 @@ resource "aws_dynamodb_table" "this" {
 
   stream_enabled = false
 
-  # DynamoDB remains encrypted using an AWS-owned key.
+  # Use the supplied customer managed key; null retains the AWS-owned key.
   server_side_encryption {
-    enabled = false
+    enabled     = var.kms_key_arn != null
+    kms_key_arn = var.kms_key_arn
   }
 
   deletion_protection_enabled = false
