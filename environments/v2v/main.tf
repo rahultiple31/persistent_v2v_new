@@ -685,7 +685,7 @@ module "s3_intent_kb" {
 }
 
 # Deploys with the lex_bot selection.
-# Creates a blank DRAFT bot; no custom intents or published versions.
+# Builds and publishes the multilingual IT Support Q in Connect bot.
 module "lex_bot" {
   count  = contains(local.enabled_module_set, "lex_bot") ? 1 : 0
   source = "../../v2v_modules/lex_bot"
@@ -695,7 +695,15 @@ module "lex_bot" {
     awscc = awscc.us_east_1
   }
 
-  bot_name = "BTSGSD-V2V-US-IT-Support_Agent"
+  bot_name       = "BTSGSD-V2V-US-IT-Support_Agent"
+  child_directed = true
+  locale_ids     = ["en_US", "hi_IN", "pt_BR", "es_419"]
+
+  it_support_configuration = {
+    assistant_arn        = "arn:aws:wisdom:us-east-1:518902362956:assistant/bc274e3f-380d-45e7-968f-2d19f92acd74"
+    connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
+    alias_name           = "btsgsd-alias-dev-sso"
+  }
 }
 
 module "lex_yesno_bot" {
@@ -1273,7 +1281,7 @@ module "connect_queue" {
 
   instance_alias           = var.connect_instance_alias
   queue_name               = var.queue_name
-  outbound_phone_number_id = var.outbound_phone_number_id
+  outbound_phone_number_id = local.resolved_outbound_phone_number_id
   outbound_flow_name       = "Default outbound"
 
   tags = merge(local.common_tags, {
@@ -2291,16 +2299,30 @@ resource "aws_connect_contact_flow" "survey" {
 # Adding new modules for Connect resources (users, queues, prompts etc)
 
 module "connect_resources" {
+  count  = local.deploy_connect ? 1 : 0
   source = "../../v2v_modules/connect-resources"
 
-  instance_id            = module.connect.instance_id
-  instance_arn           = module.connect.instance_arn
-  hours_of_operation_id  = module.connect_queue.hours_of_operation_id
-  connect_queue_queue_id = module.connect_queue.queue_id
-  outbound_flow_id       = module.connect.outbound_whisper_flow_id
-  quick_connect_flow_id  = module.connect.agent_transfer_flow_id
+  providers = {
+    aws   = aws.us_east_1
+    awscc = awscc.us_east_1
+  }
 
-  outbound_caller_id_number_id = var.outbound_phone_number_id
-  moh_30sec_prompt_s3_uri      = var.moh_30sec_prompt_s3_uri
+  instance_id            = module.connect_us_east_1[0].instance_id
+  instance_arn           = module.connect_us_east_1[0].instance_arn
+  hours_of_operation_id  = module.connect_queue[0].hours_of_operation_id
+  connect_queue_queue_id = module.connect_queue[0].queue_id
+  outbound_flow_id       = module.connect_us_east_1[0].outbound_whisper_flow_id
+  quick_connect_flow_id  = module.connect_us_east_1[0].agent_transfer_flow_id
+
+  outbound_caller_id_number_id = local.resolved_outbound_phone_number_id
+  moh_30sec_prompt_s3_uri       = var.moh_30sec_prompt_s3_uri
+  tags                        = local.common_tags
+
+  # Match the module's existing TASK/VOICE routing configuration.
+  blended_routing_profile_default_outbound_queue = "us_out"
+  blended_routing_profile_media_concurrencies = [
+    { channel = "TASK", concurrency = 1 },
+    { channel = "VOICE", concurrency = 1 },
+  ]
 }
 

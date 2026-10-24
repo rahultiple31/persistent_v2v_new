@@ -32,3 +32,8 @@ output "outbound_whisper_flow_id" {
   description = "Outbound whisper flow ID, used as the outbound flow of migrated queues."
   value       = try(aws_connect_contact_flow.outbound_whisper[0].contact_flow_id, null)
 }
+
+output "agent_transfer_flow_id" {
+  description = "Agent-to-agent transfer flow ID."
+  value       = try(aws_connect_contact_flow.agent_to_agent_transfer[0].contact_flow_id, null)
+}

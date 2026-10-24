@@ -23,6 +23,7 @@ variables {
   instance_id                                    = "11111111-0000-0000-0000-000000000001"
   instance_arn                                   = "arn:aws:connect:us-east-1:111111111111:instance/11111111-0000-0000-0000-000000000001"
   hours_of_operation_id                          = "22222222-0000-0000-0000-000000000002"
+  connect_queue_queue_id                         = "99999999-0000-0000-0000-000000000009"
   outbound_flow_id                               = "33333333-0000-0000-0000-000000000003"
   quick_connect_flow_id                          = "77777777-0000-0000-0000-000000000007"
   outbound_caller_id_number_id                   = "88888888-0000-0000-0000-000000000008"
@@ -77,9 +78,9 @@ run "routing_profiles_reference_module_queues" {
       aws_connect_routing_profile.us_agent.default_outbound_queue_id == aws_connect_queue.us_out.queue_id &&
       length(aws_connect_routing_profile.us_agent.media_concurrencies) == 2 &&
       aws_connect_routing_profile.us_latam_vm_blended.default_outbound_queue_id == aws_connect_queue.us_out.queue_id &&
-      toset([for qc in aws_connect_routing_profile.us_latam_vm_blended.queue_configs : qc.queue_id]) == toset([aws_connect_queue.us_vm.queue_id, aws_connect_queue.latam_main.queue_id])
+      toset([for qc in aws_connect_routing_profile.us_latam_vm_blended.queue_configs : qc.queue_id]) == toset([aws_connect_queue.us_vm.queue_id, aws_connect_queue.latam_main.queue_id, var.connect_queue_queue_id])
     )
-    error_message = "Routing profiles must reference the queues created by this module."
+    error_message = "Routing profiles must reference the module queues and the supplied main queue."
   }
 }
 

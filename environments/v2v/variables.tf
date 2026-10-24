@@ -52,7 +52,29 @@ variable "queue_name" {
 }
 
 variable "outbound_phone_number_id" {
-  description = "Optional phone-number UUID claimed by the selected Connect instance; null omits outbound caller configuration."
+  description = "Optional claimed phone-number UUID. Takes precedence over outbound_phone_number; null enables lookup by telephone number when configured."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.outbound_phone_number_id == null || can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.outbound_phone_number_id))
+    error_message = "outbound_phone_number_id must be a claimed phone-number UUID. Use outbound_phone_number for an E.164 telephone number."
+  }
+}
+
+variable "outbound_phone_number" {
+  description = "Optional E.164 number already claimed by the selected Connect instance, resolved to its UUID during planning."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.outbound_phone_number == null || can(regex("^\\+[1-9][0-9]{1,14}$", var.outbound_phone_number))
+    error_message = "outbound_phone_number must use E.164 format, for example +18557117965, without spaces or hyphens."
+  }
+}
+
+variable "moh_30sec_prompt_s3_uri" {
+  description = "Optional S3 URI of the MOH_30SEC WAV prompt."
   type        = string
   default     = null
 }

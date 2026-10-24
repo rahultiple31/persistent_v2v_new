@@ -3,6 +3,38 @@ variable "bot_name" {
   type        = string
 }
 
+variable "it_support_configuration" {
+  description = "Optional multilingual IT Support Q in Connect configuration."
+  type = object({
+    assistant_arn        = string
+    connect_instance_arn = string
+    alias_name           = string
+  })
+  default = null
+
+  validation {
+    condition = var.it_support_configuration == null ? true : (
+      var.child_directed &&
+      var.alias_configuration == null &&
+      !anytrue([
+        var.publish_yesno_version,
+        var.publish_customer_queue_version,
+        var.enable_english_yesno_intents,
+        var.enable_portuguese_yesno_intents,
+        var.enable_spanish_yesno_intents,
+        var.enable_english_customer_queue_intents,
+        var.enable_portuguese_customer_queue_intents,
+        var.enable_spanish_customer_queue_intents,
+      ]) &&
+      alltrue([
+        for locale in ["en_US", "hi_IN", "pt_BR", "es_419"] :
+        contains(var.locale_ids, locale)
+      ])
+    )
+    error_message = "IT Support configuration requires COPPA=true, all four locales, and the other intent/alias modes disabled."
+  }
+}
+
 variable "alias_configuration" {
   description = "Optional alias, Lambda, Connect policy and text-log configuration."
   type = object({

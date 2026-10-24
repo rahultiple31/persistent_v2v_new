@@ -12,7 +12,8 @@ connect_admin_username     = "lokesh.kothapally@abbvie.com"
 connect_admin_email        = "lokesh.kothapally@abbvie.com"
 
 queue_name = "BTSGSD-V2V-US-DEV SSO-US-MAIN-QUEUE"
-# Optional: set a phone-number UUID claimed by the POC instance for outbound calling.
+# Resolve this already-claimed number to its Connect resource UUID during planning.
+outbound_phone_number    = "+18557117965"
 outbound_phone_number_id = null
 
 # Resolve exported customer-queue dependencies to their existing Dev names.

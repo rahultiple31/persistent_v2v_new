@@ -24,6 +24,11 @@ variable "hours_of_operation_id" {
   type        = string
 }
 
+variable "connect_queue_queue_id" {
+  description = "Main queue ID supplied by the connect-queue module."
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags applied to all resources."
   type        = map(string)
