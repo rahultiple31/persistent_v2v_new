@@ -20,6 +20,7 @@ parameters:
       - connect_views
       - abbvie_views
       - connect_queue
+      - connect-resources
       - support_agent_tools
       - btsgsd_support_agent
       - btsgsd_ai_survey_agent

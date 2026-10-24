@@ -14,6 +14,11 @@ if [ "$DEPLOYMENT_ENVIRONMENT" != v2v ] ||
 fi
 
 case "$DEPLOYMENT_TARGET" in
+  connect-resources)
+    # Deploy the complete Connect group, including connect_resources,
+    # using its existing Terraform state.
+    TERRAFORM_STATE_MODULE=connect
+    ;;
   connect|connect_us_east_1|btsgsd-Main-IB-Flow|connect_views|abbvie_views|connect_queue|support_agent_tools|btsgsd_support_agent|btsgsd_ai_survey_agent|survey_ai_prompt|connect_ai_agent|agentcore_gateway|connect_Integrations|UpdateSessionAttributes-dev|silence_guard-dev|conversion_of_queue_metrics|lex_queueflow_callback|lex_yesno)
     TERRAFORM_STATE_MODULE=connect
     ;;
