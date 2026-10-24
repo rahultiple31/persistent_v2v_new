@@ -8,10 +8,11 @@ locals {
     Network     = "No Custom VPC"
   })
 
-  enabled_module_set = toset([for module_name in var.enabled_modules : lower(module_name)])
-  deploy_connect     = contains(local.enabled_module_set, "connect")
-  deploy_lambda      = contains(local.enabled_module_set, "lambda")
-  deploy_v2v         = contains(local.enabled_module_set, "v2v")
+  enabled_module_set       = toset([for module_name in var.enabled_modules : lower(module_name)])
+  deploy_connect           = contains(local.enabled_module_set, "connect")
+  deploy_connect_resources = contains(local.enabled_module_set, "connect-resources")
+  deploy_lambda            = contains(local.enabled_module_set, "lambda")
+  deploy_v2v               = contains(local.enabled_module_set, "v2v")
 }
 
 locals {
@@ -1293,7 +1294,7 @@ module "connect_queue" {
 # Configuration consolidated from connect_target.tf
 # Resolve the existing POC instance rather than retaining a copied Dev UUID.
 data "aws_connect_instance" "target" {
-  count    = local.deploy_connect ? 1 : 0
+  count    = local.deploy_connect || local.deploy_connect_resources ? 1 : 0
   provider = aws.us_east_1
 
   instance_alias = var.connect_instance_alias
@@ -2299,7 +2300,7 @@ resource "aws_connect_contact_flow" "survey" {
 # Adding new modules for Connect resources (users, queues, prompts etc)
 
 module "connect_resources" {
-  count  = local.deploy_connect ? 1 : 0
+  count  = local.deploy_connect_resources ? 1 : 0
   source = "../../v2v_modules/connect-resources"
 
   providers = {
@@ -2307,12 +2308,13 @@ module "connect_resources" {
     awscc = awscc.us_east_1
   }
 
-  instance_id            = module.connect_us_east_1[0].instance_id
-  instance_arn           = module.connect_us_east_1[0].instance_arn
-  hours_of_operation_id  = module.connect_queue[0].hours_of_operation_id
-  connect_queue_queue_id = module.connect_queue[0].queue_id
-  outbound_flow_id       = module.connect_us_east_1[0].outbound_whisper_flow_id
-  quick_connect_flow_id  = module.connect_us_east_1[0].agent_transfer_flow_id
+  instance_id  = data.aws_connect_instance.target[0].id
+  instance_arn = data.aws_connect_instance.target[0].arn
+
+  hours_of_operation_id  = var.connect_resources_dependencies.hours_of_operation_id
+  connect_queue_queue_id = var.connect_resources_dependencies.main_queue_id
+  outbound_flow_id       = var.connect_resources_dependencies.outbound_flow_id
+  quick_connect_flow_id  = var.connect_resources_dependencies.quick_connect_flow_id
 
   outbound_caller_id_number_id = local.resolved_outbound_phone_number_id
   moh_30sec_prompt_s3_uri       = var.moh_30sec_prompt_s3_uri

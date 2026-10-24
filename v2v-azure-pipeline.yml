@@ -3,7 +3,7 @@ pr: none
 
 parameters:
   - name: targetModule
-    displayName: Target module (deploys its complete group)
+    displayName: Target module (connect-resources runs independently)
     type: string
     default: connect
     values:
@@ -14,13 +14,15 @@ parameters:
       - dynamodb
       - btsgsd-intent-kb
 
-      # Connect and AI modules
+      # Standalone Connect resources
+      - connect-resources
+
+      # Connect and AI modules (deploy their complete group)
       - connect_us_east_1
       - btsgsd-Main-IB-Flow
       - connect_views
       - abbvie_views
       - connect_queue
-      - connect-resources
       - support_agent_tools
       - btsgsd_support_agent
       - btsgsd_ai_survey_agent

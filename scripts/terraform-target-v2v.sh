@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Dedicated V2V selector; source this file from v2v-azure-pipeline.yml.
-# Each module choice deploys its complete owning state group, one group per run.
+# Each choice deploys its owning state group; connect-resources has its own state.
 # This script is independent of scripts/terraform-target.sh.
 
 DEPLOYMENT_TARGET="${1:?V2V target module is required}"
@@ -15,9 +15,7 @@ fi
 
 case "$DEPLOYMENT_TARGET" in
   connect-resources)
-    # Deploy the complete Connect group, including connect_resources,
-    # using its existing Terraform state.
-    TERRAFORM_STATE_MODULE=connect
+    TERRAFORM_STATE_MODULE=connect-resources
     ;;
   connect|connect_us_east_1|btsgsd-Main-IB-Flow|connect_views|abbvie_views|connect_queue|support_agent_tools|btsgsd_support_agent|btsgsd_ai_survey_agent|survey_ai_prompt|connect_ai_agent|agentcore_gateway|connect_Integrations|UpdateSessionAttributes-dev|silence_guard-dev|conversion_of_queue_metrics|lex_queueflow_callback|lex_yesno)
     TERRAFORM_STATE_MODULE=connect
@@ -97,6 +95,36 @@ if variables.get("environment", {}).get("value") != environment:
 
 if variables.get("enabled_modules", {}).get("value") != [group]:
     raise SystemExit("Plan module group does not match the V2V selection.")
+
+prefix = "module.connect_resources[0]."
+changes = [
+    change for change in plan.get("resource_changes", [])
+    if change.get("mode") == "managed"
+    and change.get("change", {}).get("actions") != ["no-op"]
+]
+
+if group == "connect-resources":
+    unexpected = [
+        change["address"] for change in changes
+        if not change["address"].startswith(prefix)
+    ]
+    if unexpected:
+        raise SystemExit(
+            "Refusing changes outside connect_resources: "
+            + ", ".join(unexpected)
+            + ". Separate the existing Terraform state before applying."
+        )
+
+if group == "connect":
+    misplaced = [
+        change["address"] for change in changes
+        if change["address"].startswith(prefix)
+    ]
+    if misplaced:
+        raise SystemExit(
+            "Move connect_resources into its dedicated state before "
+            "applying the Connect group."
+        )
 
 print("Validated V2V plan for group: " + group)
 ' "$TERRAFORM_STATE_MODULE" "$DEPLOYMENT_ENVIRONMENT"

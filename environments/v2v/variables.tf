@@ -89,6 +89,7 @@ variable "enabled_modules" {
       toset([for name in var.enabled_modules : lower(name)]),
       toset([
         "connect",
+        "connect-resources",
         "lambda",
         "v2v",
         "s3_connect_reporting",
@@ -107,6 +108,42 @@ variable "enabled_modules" {
       ])
     )) == 0
     error_message = "enabled_modules contains an unsupported module name."
+  }
+}
+
+variable "connect_resources_dependencies" {
+  description = "Existing Connect resource UUIDs used by the standalone connect-resources deployment."
+
+  type = object({
+    hours_of_operation_id = string
+    main_queue_id         = string
+    outbound_flow_id      = string
+    quick_connect_flow_id = string
+  })
+
+  default = null
+
+  validation {
+    condition = (
+      !contains(
+        [for name in var.enabled_modules : lower(name)],
+        "connect-resources"
+      ) || var.connect_resources_dependencies != null
+    )
+
+    error_message = "Set connect_resources_dependencies to the existing V2V resource UUIDs."
+  }
+
+  validation {
+    condition = var.connect_resources_dependencies == null ? true : alltrue([
+      for id in values(var.connect_resources_dependencies) :
+      can(regex(
+        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        id
+      ))
+    ])
+
+    error_message = "Every connect_resources_dependencies value must be an actual resource UUID."
   }
 }
 

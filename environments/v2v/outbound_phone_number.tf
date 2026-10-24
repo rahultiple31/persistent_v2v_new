@@ -1,7 +1,7 @@
 # AWS CLI inherits the same OIDC credentials as Terraform in the V2V pipeline.
 # The lookup only reads numbers already claimed by the selected instance.
 data "external" "outbound_phone_number" {
-  count = local.deploy_connect && var.outbound_phone_number_id == null && var.outbound_phone_number != null ? 1 : 0
+  count = (local.deploy_connect || local.deploy_connect_resources) && var.outbound_phone_number_id == null && var.outbound_phone_number != null ? 1 : 0
 
   program = ["python3", "${path.module}/../../scripts/resolve-connect-phone-number.py"]
 

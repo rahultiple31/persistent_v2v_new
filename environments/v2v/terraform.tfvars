@@ -16,6 +16,18 @@ queue_name = "BTSGSD-V2V-US-DEV SSO-US-MAIN-QUEUE"
 outbound_phone_number    = "+18557117965"
 outbound_phone_number_id = null
 
+# Standalone connect-resources requires the existing V2V dependency UUIDs.
+# Uncomment and fill these values before selecting connect-resources.
+# connect_resources_dependencies = {
+#   hours_of_operation_id = "REPLACE_WITH_EXISTING_HOURS_OF_OPERATION_UUID"
+#   main_queue_id         = "REPLACE_WITH_EXISTING_MAIN_QUEUE_UUID"
+#   outbound_flow_id      = "REPLACE_WITH_EXISTING_OUTBOUND_WHISPER_FLOW_UUID"
+#   quick_connect_flow_id = "REPLACE_WITH_EXISTING_AGENT_TRANSFER_FLOW_UUID"
+# }
+# If already deployed, move only module.connect_resources[0] into its dedicated
+# state. Keep other Connect resources in their owning state; do not copy the
+# complete Connect state into the connect-resources state.
+
 # Resolve exported customer-queue dependencies to their existing Dev names.
 connect_customer_queue_dependency_names = {
   "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us" = "VMX3_Main_VM_Module_btsgsd-dev-v2v-poc-us-east-1"
