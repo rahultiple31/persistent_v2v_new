@@ -2,9 +2,10 @@ environment                = "dev"
 project_name               = "btsgsd"
 aws_region                 = "us-east-1"
 resource_name_prefix       = "BTSGSD-V2V-US"
-# Before deploying a Lambda group, set lambda_code_signing_config_arn to the
-# v2v_code_signing_config_arn output from the code-signing deployment.
-# The BTFSD-V2V-US configuration description is not its ARN.
+
+# Existing BTFSD-V2V-US code-signing configuration, shared by all V2V Lambdas.
+lambda_code_signing_config_arn = "arn:aws:lambda:us-east-1:518902362956:code-signing-config:csc-07e3c2263fd84c053"
+
 contact_center_alias       = "btsgsd"
 connect_instance_alias     = "btsgsd-dev-v2v-poc-us-east-1"
 connect_name_suffix        = "connect-saml"
