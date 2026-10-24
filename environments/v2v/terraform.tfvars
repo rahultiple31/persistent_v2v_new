@@ -99,7 +99,7 @@ enabled_modules                          = ["secrets_manager"]
 servicenow_interaction_python_executable = "python"
 
 # Reserve 150 executions; the capacity check requires sufficient regional quota.
-servicenow_interaction_reserved_concurrency = 150
+servicenow_interaction_reserved_concurrency = 50
 
 servicenow_interaction_environment_variables = {
   SN_INSTANCE = "abbvienowstage"
