@@ -1,4 +1,19 @@
-# Preserve the SNOW module's resource addresses after its V2V target rename.
+# Preserve resource ownership when renaming V2V Lambda modules.
+moved {
+  from = module.lambda-servicenow-interaction
+  to   = module.BTSGSD-V2V-US-ServiceNow_Interaction
+}
+
+moved {
+  from = module.lambda-nextthink-handoff
+  to   = module.BTSGSD-V2V-US-Nextthink_Handoff
+}
+
+moved {
+  from = module.UpdateSessionAttributes-dev
+  to   = module.BTSGSD-V2V-US-UpdateSessionAttributes
+}
+
 moved {
   from = module.lambda-snow-btsgsd-dev
   to   = module.BTSGSD-V2V-US-SNOW

@@ -63,6 +63,7 @@ fi
             ("connect-resources", "connect-resources"),
             ("connect", "connect"),
             ("connect_queue", "connect"),
+            ("BTSGSD-V2V-US-UpdateSessionAttributes", "connect"),
             ("lambda", "lambda"),
             ("dynamodb", "dynamodb"),
             ("v2v", "v2v"),
@@ -76,16 +77,23 @@ fi
                     f'-var=enabled_modules=["{group}"]',
                 ])
 
-    def test_snow_rename_retains_state_and_accepts_plan_for_new_target(self):
-        result = self.run_selector("BTSGSD-V2V-US-SNOW")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.splitlines(), [
-            "btsgsd-v2v-us-snow",
-            "terraform-state/v2v/us-east-1/lambda-snow-btsgsd-dev/terraform.tfstate",
-            '-var=enabled_modules=["btsgsd-v2v-us-snow"]',
-        ])
-        result = self.run_selector("BTSGSD-V2V-US-SNOW", plan(group="btsgsd-v2v-us-snow"))
-        self.assertEqual(result.returncode, 0, result.stderr)
+    def test_lambda_renames_retain_state_and_accept_plans_for_new_targets(self):
+        for target, state in (
+            ("BTSGSD-V2V-US-SNOW", "lambda-snow-btsgsd-dev"),
+            ("BTSGSD-V2V-US-ServiceNow_Interaction", "lambda-servicenow-interaction"),
+            ("BTSGSD-V2V-US-Nextthink_Handoff", "lambda-nextthink-handoff"),
+        ):
+            with self.subTest(target=target):
+                group = target.lower()
+                result = self.run_selector(target)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.splitlines(), [
+                    group,
+                    f"terraform-state/v2v/us-east-1/{state}/terraform.tfstate",
+                    f'-var=enabled_modules=["{group}"]',
+                ])
+                result = self.run_selector(target, plan(group=group))
+                self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_allows_changes_inside_standalone_module_and_read_only_lookups(self):
         saved_plan = plan(changes=[

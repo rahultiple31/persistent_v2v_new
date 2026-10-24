@@ -37,9 +37,9 @@ parameters:
       - lambda-connect-daily-ctr-export
       - lambda-ctr-raw
       - BTSGSD-V2V-US-SNOW
-      - lambda-servicenow-interaction
-      - lambda-nextthink-handoff
-      - UpdateSessionAttributes-dev
+      - BTSGSD-V2V-US-ServiceNow_Interaction
+      - BTSGSD-V2V-US-Nextthink_Handoff
+      - BTSGSD-V2V-US-UpdateSessionAttributes
       - silence_guard-dev
       - conversion_of_queue_metrics
       - lex_queueflow_callback

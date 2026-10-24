@@ -173,7 +173,7 @@ module "btsgsd-Main-IB-Flow" {
     survey_table_id  = local.survey_data_table_id
     blocker_table_id = local.top_level_blocker_data_table_id
 
-    session_attributes_lambda_arn = module.UpdateSessionAttributes-dev[0].lambda_arn
+    session_attributes_lambda_arn = module.BTSGSD-V2V-US-UpdateSessionAttributes[0].lambda_arn
     silence_guard_lambda_arn      = module.silence_guard-dev[0].function_arn
     queue_metrics_lambda_arn      = module.conversion_of_queue_metrics[0].lambda_arn
   }
@@ -181,7 +181,7 @@ module "btsgsd-Main-IB-Flow" {
   tags = local.common_tags
 
   depends_on = [
-    module.UpdateSessionAttributes-dev,
+    module.BTSGSD-V2V-US-UpdateSessionAttributes,
     module.silence_guard-dev,
     aws_connect_lambda_function_association.queue_metrics
   ]
@@ -584,8 +584,8 @@ module "ssm_v2v" {
   common_tags   = local.common_tags
 }
 
-module "lambda-servicenow-interaction" {
-  count  = contains(local.enabled_module_set, "lambda-servicenow-interaction") ? 1 : 0
+module "BTSGSD-V2V-US-ServiceNow_Interaction" {
+  count  = contains(local.enabled_module_set, "btsgsd-v2v-us-servicenow_interaction") ? 1 : 0
   source = "../../v2v_modules/lambda-servicenow-interaction"
 
   providers = {
@@ -599,8 +599,8 @@ module "lambda-servicenow-interaction" {
   reserved_concurrency  = var.servicenow_interaction_reserved_concurrency
 }
 
-module "lambda-nextthink-handoff" {
-  count  = contains(local.enabled_module_set, "lambda-nextthink-handoff") ? 1 : 0
+module "BTSGSD-V2V-US-Nextthink_Handoff" {
+  count  = contains(local.enabled_module_set, "btsgsd-v2v-us-nextthink_handoff") ? 1 : 0
   source = "../../v2v_modules/lambda-nextthink-handoff"
 
   providers = {
@@ -815,7 +815,7 @@ module "lex_aiagent_survey_bot" {
 }
 
 # Invoke this Lambda after the Connect assistant block in the contact flow.
-module "UpdateSessionAttributes-dev" {
+module "BTSGSD-V2V-US-UpdateSessionAttributes" {
   count  = local.deploy_connect ? 1 : 0
   source = "../../v2v_modules/UpdateSessionAttributes-dev"
 
@@ -2275,7 +2275,7 @@ data "external" "survey_flow_dependencies" {
           local.survey_data_table_id
         ),
         "arn:aws:lambda:us-east-1:518902362956:function:UpdateSessionAttributes",
-        module.UpdateSessionAttributes-dev[0].lambda_arn
+        module.BTSGSD-V2V-US-UpdateSessionAttributes[0].lambda_arn
       ),
       "sureveyFlow_1",
       "VM_instruction_Survey"
@@ -2297,7 +2297,7 @@ resource "aws_connect_contact_flow" "survey" {
     Name = "BTSGSD-V2V-US-AIAgent-SurveyFlow"
   })
 
-  depends_on = [module.UpdateSessionAttributes-dev]
+  depends_on = [module.BTSGSD-V2V-US-UpdateSessionAttributes]
 
   lifecycle {
     precondition {

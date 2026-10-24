@@ -112,12 +112,12 @@ output "connect_v2v_translation" {
 
 output "servicenow_interaction_lambda" {
   description = "ServiceNow Interaction Lambda identifiers."
-  value       = try(module.lambda-servicenow-interaction[0].deployment, null)
+  value       = try(module.BTSGSD-V2V-US-ServiceNow_Interaction[0].deployment, null)
 }
 
 output "nexthink_handoff_lambda" {
   description = "Nexthink Handoff Lambda identifiers."
-  value       = try(module.lambda-nextthink-handoff[0].deployment, null)
+  value       = try(module.BTSGSD-V2V-US-Nextthink_Handoff[0].deployment, null)
 }
 
 output "agentcore_gateway" {
@@ -163,18 +163,18 @@ output "ai_agent_log_group" {
 }
 
 output "lambda_name" {
-  description = "UpdateSessionAttributes-dev function name, or null when Connect is disabled."
-  value       = try(module.UpdateSessionAttributes-dev[0].lambda_name, null)
+  description = "BTSGSD-V2V-US-UpdateSessionAttributes function name, or null when Connect is disabled."
+  value       = try(module.BTSGSD-V2V-US-UpdateSessionAttributes[0].lambda_name, null)
 }
 
 output "lambda_arn" {
-  description = "UpdateSessionAttributes-dev function ARN, or null when Connect is disabled."
-  value       = try(module.UpdateSessionAttributes-dev[0].lambda_arn, null)
+  description = "BTSGSD-V2V-US-UpdateSessionAttributes function ARN, or null when Connect is disabled."
+  value       = try(module.BTSGSD-V2V-US-UpdateSessionAttributes[0].lambda_arn, null)
 }
 
 output "lambda_role_arn" {
-  description = "UpdateSessionAttributes-dev execution role ARN, or null when Connect is disabled."
-  value       = try(module.UpdateSessionAttributes-dev[0].iam_role_arn, null)
+  description = "BTSGSD-V2V-US-UpdateSessionAttributes execution role ARN, or null when Connect is disabled."
+  value       = try(module.BTSGSD-V2V-US-UpdateSessionAttributes[0].iam_role_arn, null)
 }
 
 output "conversion_of_queue_metrics_lambda_name" {
