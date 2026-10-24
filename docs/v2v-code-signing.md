@@ -1,8 +1,9 @@
 # V2V Lambda code signing
 
 Run `v2v-azure-pipeline.yml` from `main` with `targetModule=code-signing`
-and `terraformAction=plan`. The `signing_profile` and `code_signing_config`
-choices are aliases for the same deployment group. All three choices use:
+and `terraformAction=plan`. This deploys the complete signing group.
+`signing_profile` targets just the profile; `code_signing_config` targets
+the configuration and its profile dependency. All three choices use:
 
 ```text
 terraform-state/v2v/us-east-1/code-signing/terraform.tfstate
@@ -22,8 +23,8 @@ Import an existing profile into this
 state instead of attempting to create the same profile again.
 
 `enable_signing_profile` and `enable_code_signing_config` default to `true`.
-For a profile-only deployment, set `enable_code_signing_config=false` and
-keep that setting on subsequent runs until the configuration is wanted.
+For a scoped profile-only deployment, select `signing_profile` without
+changing feature flags or removing the configuration from its state.
 Enabling the configuration while disabling the profile fails validation
 with a dependency error. To disable both, set both flags to `false`.
 
@@ -50,7 +51,7 @@ lambda_code_signing_config_arn = "REPLACE_WITH_ACTUAL_CONFIGURATION_ARN"
 
 All 12 V2V Lambda module calls pass that value to their existing
 `aws_lambda_function` resources through `code_signing_config_arn`.
-Deploy each Lambda's owning pipeline group to apply the association; running
+Deploy each Lambda's individual pipeline choice or owning group to apply the association; running
 only the code-signing group does not update functions in other states.
 
 The environment requires a non-null configuration ARN for the Connect,

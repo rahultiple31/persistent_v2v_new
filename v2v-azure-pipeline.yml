@@ -3,40 +3,30 @@ pr: none
 
 parameters:
   - name: targetModule
-    displayName: Target module (connect-resources runs independently)
+    displayName: Target module or deployment group
     type: string
     default: connect
     values:
-      # Deployment groups
       - connect
       - lambda
       - v2v
       - dynamodb
       - btsgsd-intent-kb
       - code-signing
-
-      # Both signing modules share the code-signing state.
       - signing_profile
       - code_signing_config
-
-      # Standalone Connect resources
       - connect-resources
-
-      # Connect and AI modules (deploy their complete group)
       - connect_us_east_1
       - btsgsd-Main-IB-Flow
       - connect_views
       - abbvie_views
       - connect_queue
-      - support_agent_tools
       - btsgsd_support_agent
       - btsgsd_ai_survey_agent
       - survey_ai_prompt
       - connect_ai_agent
       - agentcore_gateway
       - connect_Integrations
-
-      # Lambda modules
       - lambda_us_east_1
       - lambda-ctr-survey
       - lambda-connect-daily-ctr-export
@@ -49,22 +39,19 @@ parameters:
       - conversion_of_queue_metrics
       - lex_queueflow_callback
       - lex_yesno
-
-      # IAM, storage, secrets, and logging
+      - BTSGSD-V2V-US-lex-QueueFlow-Callback
+      - BTSGSD-V2V-US-lex-yesNo
       - iam-ctr
       - s3_connect_reporting
       - s3_intent_kb
       - secrets_manager
       - queue_info_dynamodb
       - cloudwatch_log_group
-
-      # Lex modules
+      - lex_yesno_log_group
       - lex_bot
       - lex_yesno_bot
       - lex_customer_queue_flow_bot
       - lex_aiagent_survey_bot
-
-      # V2V application modules
       - s3_v2v
       - cloudfront_v2v
       - cognito_v2v
@@ -165,30 +152,9 @@ stages:
               # Use the checked-in configuration, matching the dev pipeline.
               test -s terraform.tfvars
 
-              # Build the Connect Lambda packages before Terraform reads them.
-              if [ "$TERRAFORM_STATE_MODULE" = connect ]; then
-                python3 - <<'PY'
-              from pathlib import Path
-              from zipfile import ZIP_DEFLATED, ZipFile
-
-              directories = [
-                  "BTSGSD-lex-QueueFlow-Callback-dev_lambda",
-                  "BTSGSD-lex-yesNo-dev_lambda-dev_lambda",
-                  "conversionOfQueueMetrics-dev_lambda",
-              ]
-
-              for directory in directories:
-                  source = Path("metadata") / directory / "lambda_function.py"
-                  if not source.is_file():
-                      raise SystemExit("Missing Lambda source: " + str(source))
-
-                  destination = source.with_suffix(".zip")
-                  with ZipFile(destination, "w", compression=ZIP_DEFLATED) as package:
-                      package.write(source, arcname="lambda_function.py")
-
-                  print("Created " + str(destination))
-              PY
-              fi
+              # Build file-based packages before Terraform evaluates their hashes.
+              python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" build \
+                --state-module "$TERRAFORM_STATE_MODULE"
 
               refresh_v2v_credentials
 
@@ -213,25 +179,13 @@ stages:
 
               validate_v2v_target_plan "$plan_file"
 
-              # Include all four required ZIPs in the saved-plan artifact.
-              if [ "$TERRAFORM_STATE_MODULE" = connect ]; then
-                for directory in \
-                  scr_lambda \
-                  BTSGSD-lex-QueueFlow-Callback-dev_lambda \
-                  BTSGSD-lex-yesNo-dev_lambda-dev_lambda \
-                  conversionOfQueueMetrics-dev_lambda
-                do
-                  lambda_zip="metadata/$directory/lambda_function.zip"
-
-                  test -s "$lambda_zip"
-                  mkdir -p "$PLAN_DIRECTORY/metadata/$directory"
-                  cp "$lambda_zip" "$PLAN_DIRECTORY/$lambda_zip"
-                done
-              fi
+              # Include provider-generated ZIPs for standalone Lambdas as well.
+              python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" save \
+                --artifact-directory "$PLAN_DIRECTORY"
 
               cp .terraform.lock.hcl "$plan_lock"
               printf '%s\n' \
-                "$BUILD_SOURCEVERSION" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY" \
+                "$BUILD_SOURCEVERSION" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY" "$TARGET_MODULE" \
                 > "$plan_context"
             displayName: Terraform Init, Validate, and Plan
             workingDirectory: $(workingDirectory)
@@ -335,29 +289,17 @@ stages:
               test -s "$plan_context"
 
               expected_context="$(printf '%s\n' \
-                "$BUILD_SOURCEVERSION" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY")"
+                "$BUILD_SOURCEVERSION" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY" "$TARGET_MODULE")"
 
               [ "$(cat "$plan_context")" = "$expected_context" ] || {
-                echo "Saved plan does not match the selected commit, region or state." >&2
+                echo "Saved plan does not match the selected commit, region, state or module choice." >&2
                 exit 1
               }
 
               cp "$plan_lock" .terraform.lock.hcl
 
-              if [ "$TERRAFORM_STATE_MODULE" = connect ]; then
-                for directory in \
-                  scr_lambda \
-                  BTSGSD-lex-QueueFlow-Callback-dev_lambda \
-                  BTSGSD-lex-yesNo-dev_lambda-dev_lambda \
-                  conversionOfQueueMetrics-dev_lambda
-                do
-                  lambda_zip="metadata/$directory/lambda_function.zip"
-
-                  test -s "$PLAN_DIRECTORY/$lambda_zip"
-                  mkdir -p "metadata/$directory"
-                  cp "$PLAN_DIRECTORY/$lambda_zip" "$lambda_zip"
-                done
-              fi
+              python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" restore \
+                --artifact-directory "$PLAN_DIRECTORY"
 
               refresh_v2v_credentials
 

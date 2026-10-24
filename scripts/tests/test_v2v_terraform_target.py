@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -31,10 +32,11 @@ def plan(group="connect-resources", changes=(), environment="v2v"):
 
 @unittest.skipUnless(BASH, "Bash is required to exercise the pipeline selector")
 class V2VTerraformTargetTests(unittest.TestCase):
-    def run_selector(self, target, saved_plan=None):
+    def run_selector(self, target, saved_plan=None, details=False):
         env = os.environ.copy()
         env.update({
             "V2V_TEST_TARGET": target,
+            "V2V_TEST_DETAILS": "1" if details else "0",
             "V2V_TEST_PYTHON": sys.executable.replace("\\", "/"),
             "V2V_TEST_PLAN": json.dumps(saved_plan),
             "V2V_TEST_VALIDATE": "1" if saved_plan is not None else "0",
@@ -47,6 +49,8 @@ if [ "$V2V_TEST_VALIDATE" = 1 ]; then
   terraform() { printf '%s' "$V2V_TEST_PLAN"; }
   python3() { "$V2V_TEST_PYTHON" "$@"; }
   validate_v2v_target_plan fixture.tfplan
+elif [ "$V2V_TEST_DETAILS" = 1 ]; then
+  printf '%s\\n' "$TERRAFORM_STATE_MODULE" "$TERRAFORM_BACKEND_KEY" "${TERRAFORM_PLAN_ARGS[@]}"
 else
   printf '%s\\n' "$TERRAFORM_STATE_MODULE" "$TERRAFORM_BACKEND_KEY" "${TERRAFORM_PLAN_ARGS[1]}"
 fi
@@ -57,6 +61,49 @@ fi
             capture_output=True,
             timeout=30,
         )
+
+    def test_every_pipeline_choice_resolves_to_existing_module_or_group(self):
+        pipeline = (ROOT / "v2v-azure-pipeline.yml").read_text()
+        values = pipeline.split("    values:\n", 1)[1].split("  - name: terraformAction", 1)[0]
+        choices = re.findall(r"^      - (.+)$", values, re.MULTILINE)
+        self.assertEqual(len(choices), len(set(choices)))
+        selector = (ROOT / "scripts/terraform-target-v2v.sh").read_text()
+        registry = selector.split("done <<'V2V_CHOICES'\n", 1)[1].split("\nV2V_CHOICES", 1)[0]
+        self.assertEqual(set(choices), {row.split("|")[0] for row in registry.splitlines()})
+        modules = set()
+        for path in (ROOT / "environments/v2v").glob("*.tf"):
+            modules.update(re.findall(r'^module "([^"]+)"', path.read_text(encoding="utf-8"), re.MULTILINE))
+        legacy = {
+            "btsgsd-v2v-us-snow": "lambda-snow-btsgsd-dev",
+            "btsgsd-v2v-us-servicenow_interaction": "lambda-servicenow-interaction",
+            "btsgsd-v2v-us-nextthink_handoff": "lambda-nextthink-handoff",
+        }
+        aliases = {
+            "lambda": "lambda_us_east_1", "dynamodb": "queue_info_dynamodb",
+            "btsgsd-intent-kb": "s3_intent_kb", "connect-resources": "connect_resources",
+            "BTSGSD-V2V-US-lex-QueueFlow-Callback": "lex_queueflow_callback",
+            "BTSGSD-V2V-US-lex-yesNo": "lex_yesno",
+        }
+        for choice in choices:
+            with self.subTest(choice=choice):
+                result = self.run_selector(choice, details=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                group, backend, *arguments = result.stdout.splitlines()
+                state = legacy.get(group, group)
+                self.assertEqual(backend, f"terraform-state/v2v/us-east-1/{state}/terraform.tfstate")
+                self.assertIn(f'-var=enabled_modules=["{group}"]', arguments)
+                targets = [a for a in arguments if a.startswith("-target=")]
+                if choice in ("connect", "v2v", "code-signing"):
+                    self.assertEqual(targets, [])
+                else:
+                    module = aliases.get(choice, choice)
+                    self.assertIn(module, modules)
+                    self.assertEqual(targets, [f"-target=module.{module}[0]"])
+
+    def test_unknown_choice_fails(self):
+        result = self.run_selector("unknown-module")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Unsupported V2V module", result.stderr)
 
     def test_choices_use_separate_state_and_enable_only_their_own_group(self):
         for target, group in (

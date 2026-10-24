@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Dedicated V2V selector; source this file from v2v-azure-pipeline.yml.
-# Each choice deploys its owning state group; connect-resources has its own state.
+# Individual choices target their module and dependencies in the owning state.
+# connect, v2v, and code-signing deploy their complete groups.
 # This script is independent of scripts/terraform-target.sh.
 
 DEPLOYMENT_TARGET="${1:?V2V target module is required}"
@@ -13,42 +14,73 @@ if [ "$DEPLOYMENT_ENVIRONMENT" != v2v ] ||
   return 1
 fi
 
-case "$DEPLOYMENT_TARGET" in
-  code-signing|signing_profile|code_signing_config)
-    TERRAFORM_STATE_MODULE=code-signing
-    ;;
-  connect-resources)
-    TERRAFORM_STATE_MODULE=connect-resources
-    ;;
-  BTSGSD-V2V-US-SNOW|BTSGSD-V2V-US-ServiceNow_Interaction|BTSGSD-V2V-US-Nextthink_Handoff)
-    TERRAFORM_STATE_MODULE="${DEPLOYMENT_TARGET,,}"
-    ;;
-  connect|connect_us_east_1|btsgsd-Main-IB-Flow|connect_views|abbvie_views|connect_queue|support_agent_tools|btsgsd_support_agent|btsgsd_ai_survey_agent|survey_ai_prompt|connect_ai_agent|agentcore_gateway|connect_Integrations|BTSGSD-V2V-US-UpdateSessionAttributes|silence_guard-dev|conversion_of_queue_metrics|lex_queueflow_callback|lex_yesno)
-    TERRAFORM_STATE_MODULE=connect
-    ;;
-  lambda|lambda_us_east_1)
-    TERRAFORM_STATE_MODULE=lambda
-    ;;
-  v2v|s3_v2v|cloudfront_v2v|cognito_v2v|iam_v2v|ssm_v2v)
-    TERRAFORM_STATE_MODULE=v2v
-    ;;
-  dynamodb|queue_info_dynamodb)
-    TERRAFORM_STATE_MODULE=dynamodb
-    ;;
-  btsgsd-intent-kb|s3_intent_kb)
-    TERRAFORM_STATE_MODULE=btsgsd-intent-kb
-    ;;
-  lex_bot|lex_yesno_bot|lex_customer_queue_flow_bot|lex_aiagent_survey_bot)
-    TERRAFORM_STATE_MODULE=lex_bot
-    ;;
-  secrets_manager|s3_connect_reporting|lambda-ctr-survey|lambda-connect-daily-ctr-export|lambda-ctr-raw|iam-ctr|cloudwatch_log_group)
-    TERRAFORM_STATE_MODULE="$DEPLOYMENT_TARGET"
-    ;;
-  *)
-    echo "Unsupported V2V module: $DEPLOYMENT_TARGET" >&2
-    return 1
-    ;;
-esac
+TERRAFORM_STATE_MODULE=""
+TERRAFORM_TARGET_ADDRESS=""
+
+# choice | existing state group | optional module target
+while IFS='|' read -r v2v_choice v2v_group v2v_address; do
+  if [ "$v2v_choice" = "$DEPLOYMENT_TARGET" ]; then
+    TERRAFORM_STATE_MODULE="$v2v_group"
+    TERRAFORM_TARGET_ADDRESS="$v2v_address"
+    break
+  fi
+done <<'V2V_CHOICES'
+connect|connect|
+lambda|lambda|module.lambda_us_east_1[0]
+v2v|v2v|
+dynamodb|dynamodb|module.queue_info_dynamodb[0]
+btsgsd-intent-kb|btsgsd-intent-kb|module.s3_intent_kb[0]
+code-signing|code-signing|
+signing_profile|code-signing|module.signing_profile[0]
+code_signing_config|code-signing|module.code_signing_config[0]
+connect-resources|connect-resources|module.connect_resources[0]
+connect_us_east_1|connect|module.connect_us_east_1[0]
+btsgsd-Main-IB-Flow|connect|module.btsgsd-Main-IB-Flow[0]
+connect_views|connect|module.connect_views[0]
+abbvie_views|connect|module.abbvie_views[0]
+connect_queue|connect|module.connect_queue[0]
+btsgsd_support_agent|connect|module.btsgsd_support_agent[0]
+btsgsd_ai_survey_agent|connect|module.btsgsd_ai_survey_agent[0]
+survey_ai_prompt|connect|module.survey_ai_prompt[0]
+connect_ai_agent|connect|module.connect_ai_agent[0]
+agentcore_gateway|connect|module.agentcore_gateway[0]
+connect_Integrations|connect|module.connect_Integrations[0]
+lambda_us_east_1|lambda|module.lambda_us_east_1[0]
+lambda-ctr-survey|lambda-ctr-survey|module.lambda-ctr-survey[0]
+lambda-connect-daily-ctr-export|lambda-connect-daily-ctr-export|module.lambda-connect-daily-ctr-export[0]
+lambda-ctr-raw|lambda-ctr-raw|module.lambda-ctr-raw[0]
+BTSGSD-V2V-US-SNOW|btsgsd-v2v-us-snow|module.BTSGSD-V2V-US-SNOW[0]
+BTSGSD-V2V-US-ServiceNow_Interaction|btsgsd-v2v-us-servicenow_interaction|module.BTSGSD-V2V-US-ServiceNow_Interaction[0]
+BTSGSD-V2V-US-Nextthink_Handoff|btsgsd-v2v-us-nextthink_handoff|module.BTSGSD-V2V-US-Nextthink_Handoff[0]
+BTSGSD-V2V-US-UpdateSessionAttributes|connect|module.BTSGSD-V2V-US-UpdateSessionAttributes[0]
+silence_guard-dev|connect|module.silence_guard-dev[0]
+conversion_of_queue_metrics|connect|module.conversion_of_queue_metrics[0]
+lex_queueflow_callback|connect|module.lex_queueflow_callback[0]
+lex_yesno|connect|module.lex_yesno[0]
+BTSGSD-V2V-US-lex-QueueFlow-Callback|connect|module.lex_queueflow_callback[0]
+BTSGSD-V2V-US-lex-yesNo|connect|module.lex_yesno[0]
+iam-ctr|iam-ctr|module.iam-ctr[0]
+s3_connect_reporting|s3_connect_reporting|module.s3_connect_reporting[0]
+s3_intent_kb|btsgsd-intent-kb|module.s3_intent_kb[0]
+secrets_manager|secrets_manager|module.secrets_manager[0]
+queue_info_dynamodb|dynamodb|module.queue_info_dynamodb[0]
+cloudwatch_log_group|cloudwatch_log_group|module.cloudwatch_log_group[0]
+lex_yesno_log_group|cloudwatch_log_group|module.lex_yesno_log_group[0]
+lex_bot|lex_bot|module.lex_bot[0]
+lex_yesno_bot|lex_bot|module.lex_yesno_bot[0]
+lex_customer_queue_flow_bot|lex_bot|module.lex_customer_queue_flow_bot[0]
+lex_aiagent_survey_bot|lex_bot|module.lex_aiagent_survey_bot[0]
+s3_v2v|v2v|module.s3_v2v[0]
+cloudfront_v2v|v2v|module.cloudfront_v2v[0]
+cognito_v2v|v2v|module.cognito_v2v[0]
+iam_v2v|v2v|module.iam_v2v[0]
+ssm_v2v|v2v|module.ssm_v2v[0]
+V2V_CHOICES
+
+if [ -z "$TERRAFORM_STATE_MODULE" ]; then
+  echo "Unsupported V2V module: $DEPLOYMENT_TARGET" >&2
+  return 1
+fi
 
 TERRAFORM_STATE_PATH="$TERRAFORM_STATE_MODULE"
 # Retain each existing state when renaming pipeline choices and modules.
@@ -76,6 +108,11 @@ TERRAFORM_PLAN_ARGS=(
   "-var=dev_support_ai_python_executable=python3"
   "-var=dev_survey_ai_python_executable=python3"
 )
+
+# Apply executes the saved plan; targeting belongs on the Plan command.
+if [ -n "$TERRAFORM_TARGET_ADDRESS" ]; then
+  TERRAFORM_PLAN_ARGS+=("-target=$TERRAFORM_TARGET_ADDRESS")
+fi
 
 # Call after Terraform init to preserve an existing gateway audience.
 preserve_v2v_target_outputs() {
