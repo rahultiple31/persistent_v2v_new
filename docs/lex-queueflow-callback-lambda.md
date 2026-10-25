@@ -1,5 +1,16 @@
 # Lex queue callback Lambda
 
+For V2V, the expected resource-based policy is saved in
+`environments/v2v/metadata/BTSGSD-lex-QueueFlow-Callback-dev_lambda/resource-policy.json`.
+It targets `BTSGSD-V2V-US-lex-QueueFlow-Callback` and allows only the supplied
+Lex alias `RD35A35EAU/HJAVDZTZBO` in account `518902362956` to invoke it.
+The statement uses `AllowLexV2Invocation` to match the existing Terraform
+permission rather than adding another statement for the same grant.
+This JSON is a reference; the pipeline applies
+`aws_lambda_permission.lex_invoke` from
+`v2v_modules/BTSGSD-lex-QueueFlow-Callback-dev/main.tf` when the
+`BTSGSD-V2V-US-lex-QueueFlow-Callback` choice is selected.
+
 The dev Connect selection deploys `BTSGSD-lex-QueueFlow-Callback-dev` through
 `module.lex_queueflow_callback`. Its handler is
 `environments/dev/metadata/BTSGSD-lex-QueueFlow-Callback-dev_lambda/lambda_function.py`.

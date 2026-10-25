@@ -99,7 +99,10 @@ fi
                 else:
                     module = aliases.get(choice, choice)
                     self.assertIn(module, modules)
-                    self.assertEqual(targets, [f"-target=module.{module}[0]"])
+                    expected = [f"-target=module.{module}[0]"]
+                    if choice == "conversion_of_queue_metrics":
+                        expected.append("-target=aws_lambda_permission.queue_metrics_connect[0]")
+                    self.assertEqual(targets, expected)
 
     def test_unknown_choice_fails(self):
         result = self.run_selector("unknown-module")

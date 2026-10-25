@@ -1,5 +1,21 @@
 # Queue metrics Lambda
 
+For V2V, select `conversion_of_queue_metrics` in `v2v-azure-pipeline.yml`.
+This targets `BTSGSD-V2V-US-conversionOfQueueMetrics` and its root-level
+`aws_lambda_permission.queue_metrics_connect[0]` in the existing Connect state.
+The single managed statement, `AllowConnectCustomerQueueMetrics`, permits
+`connect.amazonaws.com` to invoke that function, restricted to the account and
+ARN of the instance resolved by `connect_instance_alias`. The V2V alias is
+`btsgsd-dev-v2v-poc-us-east-1` (instance
+`bcc989e5-cd9d-494f-9cd4-434f39ccc90e`), rather than the legacy dev instance.
+The permission lookup does not require deploying the Connect instance module.
+An additional, manually created statement with another SID is not removed by
+this configuration; inspect the deployed policy before removing any duplicate.
+The expected V2V policy is saved in
+`environments/v2v/metadata/conversionOfQueueMetrics-dev_lambda/resource-policy.json`
+for reference. Terraform applies the permission through `environments/v2v/main.tf`;
+the pipeline does not load that JSON file.
+
 The dev Connect selection deploys `conversionOfQueueMetrics-dev` from
 `modules/conversionOfQueueMetrics-dev`. The handler source is
 `environments/dev/metadata/conversionOfQueueMetrics-dev_lambda/lambda_function.py`. Terraform reads the

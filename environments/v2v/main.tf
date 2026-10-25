@@ -1350,8 +1350,8 @@ resource "aws_lambda_permission" "queue_metrics_connect" {
   function_name = module.conversion_of_queue_metrics[0].lambda_name
   principal     = "connect.amazonaws.com"
 
-  source_arn     = module.connect_us_east_1[0].instance_arn
-  source_account = split(":", module.connect_us_east_1[0].instance_arn)[4]
+  source_arn     = data.aws_connect_instance.target[0].arn
+  source_account = split(":", data.aws_connect_instance.target[0].arn)[4]
 }
 
 resource "aws_connect_lambda_function_association" "queue_metrics" {

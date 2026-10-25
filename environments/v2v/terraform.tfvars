@@ -114,7 +114,7 @@ enabled_modules                          = ["secrets_manager"]
 servicenow_interaction_python_executable = "python"
 
 # Reserve 150 executions; the capacity check requires sufficient regional quota.
-servicenow_interaction_reserved_concurrency = 50
+servicenow_interaction_reserved_concurrency = 200
 
 servicenow_interaction_environment_variables = {
   SN_INSTANCE = "abbvienowstage"
@@ -128,7 +128,7 @@ nexthink_handoff_python_executable = "python"
 # null omits the reservation property and skips the reservation capacity check.
 # Do not use 0: it disables function invocation.
 # Restore 200 after increasing the quota or releasing other reservations.
-nexthink_handoff_reserved_concurrency = null
+nexthink_handoff_reserved_concurrency = 200
 
 # The supplied handler's default HTTP read timeout is 10 seconds; the Lambda
 # timeout is 8 seconds. Optional shorter HTTP timeouts reduce that risk, but
@@ -180,3 +180,9 @@ enable_external_vms = true
 
 # Replace with the actual external voicemail number
 external_vm_phone_number = "+18557117965"
+
+# BTSGSD-V2V-US-SNOW reserved concurrency.
+snow_lambda_reserved_concurrency = 200
+
+# Allow the specified Lex V2 alias to invoke the V2V callback Lambda.
+lex_queueflow_callback_bot_alias_arn = "arn:aws:lex:us-east-1:518902362956:bot-alias/RD35A35EAU/HJAVDZTZBO"

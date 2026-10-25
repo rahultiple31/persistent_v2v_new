@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Id": "default",
+  "Statement": [
+    {
+      "Sid": "AllowLexV2Invocation",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "lexv2.amazonaws.com"
+      },
+      "Action": "lambda:InvokeFunction",
+      "Resource": "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-V2V-US-lex-QueueFlow-Callback",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceAccount": "518902362956"
+        },
+        "ArnLike": {
+          "AWS:SourceArn": "arn:aws:lex:us-east-1:518902362956:bot-alias/RD35A35EAU/HJAVDZTZBO"
+        }
+      }
+    }
+  ]
+}

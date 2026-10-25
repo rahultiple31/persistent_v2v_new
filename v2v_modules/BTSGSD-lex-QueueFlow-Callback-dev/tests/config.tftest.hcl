@@ -60,6 +60,26 @@ run "provided_alias_is_the_only_invocation_source" {
   }
 }
 
+run "v2v_callback_permission_uses_supplied_alias_and_function" {
+  command = apply
+
+  variables {
+    lex_bot_alias_arn = "arn:aws:lex:us-east-1:518902362956:bot-alias/RD35A35EAU/HJAVDZTZBO"
+  }
+
+  assert {
+    condition = (
+      length(aws_lambda_permission.lex_invoke) == 1 &&
+      aws_lambda_permission.lex_invoke[0].function_name == "BTSGSD-V2V-US-lex-QueueFlow-Callback" &&
+      aws_lambda_permission.lex_invoke[0].action == "lambda:InvokeFunction" &&
+      aws_lambda_permission.lex_invoke[0].principal == "lexv2.amazonaws.com" &&
+      aws_lambda_permission.lex_invoke[0].source_account == "518902362956" &&
+      aws_lambda_permission.lex_invoke[0].source_arn == var.lex_bot_alias_arn
+    )
+    error_message = "Allow only the supplied Lex V2 alias and account to invoke the V2V callback function."
+  }
+}
+
 run "non_alias_arn_is_rejected" {
   command = plan
 

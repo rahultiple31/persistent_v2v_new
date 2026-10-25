@@ -115,6 +115,11 @@ if [ -n "$TERRAFORM_TARGET_ADDRESS" ]; then
   TERRAFORM_PLAN_ARGS+=("-target=$TERRAFORM_TARGET_ADDRESS")
 fi
 
+# The Connect invocation grant is owned by the root, outside the Lambda module.
+if [ "$DEPLOYMENT_TARGET" = conversion_of_queue_metrics ]; then
+  TERRAFORM_PLAN_ARGS+=("-target=aws_lambda_permission.queue_metrics_connect[0]")
+fi
+
 # Call after Terraform init to preserve an existing gateway audience.
 preserve_v2v_target_outputs() {
   if [ "$TERRAFORM_STATE_MODULE" != connect ]; then
