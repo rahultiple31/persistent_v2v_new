@@ -49,6 +49,13 @@ and `lex_yesno_log_group` select their respective log groups. The
 `support_agent_tools` choice was removed because that helper module creates
 no AWS resources; its output is used by `btsgsd_support_agent`.
 
+The IT Support `lex_bot` choice looks up the Q in Connect built-in intent
+signature for each configured locale before changing any intents. The pipeline's
+AWS deployment role needs `lex:ListBuiltInIntents`; this is separate from the
+bot's execution role. If a locale does not return the intent, Apply stops with
+the locale name so its availability can be resolved before retrying. The script
+uses the exact signature returned by AWS and follows all response pages.
+
 Plan builds the file-based Connect Lambda ZIPs and saves every deployment
 ZIP under `metadata` in the plan artifact, including packages produced by
 Terraform's archive provider. Apply restores the exact ZIP bytes before

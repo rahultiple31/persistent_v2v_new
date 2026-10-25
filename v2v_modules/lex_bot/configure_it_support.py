@@ -1,5 +1,6 @@
 # v2v_modules/lex_bot/configure_it_support.py
 # Requires Python 3 and AWS CLI v2 with qInConnectIntentConfiguration support.
+# The deployment identity also needs lex:ListBuiltInIntents.
 import json
 import os
 import subprocess
@@ -15,6 +16,30 @@ def aws(service, *operation, **payload):
         raise RuntimeError(result.stderr.strip())
     return json.loads(result.stdout) if result.stdout.strip() else {}
 
+
+def q_in_connect_signature(locale):
+    request = {"localeId": locale}
+
+    while True:
+        response = aws("lexv2-models", "list-built-in-intents", **request)
+
+        for intent in response.get("builtInIntentSummaries", []):
+            signature = intent["intentSignature"]
+            if signature.casefold() == "amazon.qinconnectintent":
+                return signature
+
+        next_token = response.get("nextToken")
+        if not next_token:
+            break
+        request["nextToken"] = next_token
+
+    raise RuntimeError(
+        "Amazon Q in Connect built-in intent was not returned "
+        f"for locale {locale} in us-east-1. "
+        "Confirm its availability before creating the intent."
+    )
+
+
 def main():
     bot_id = os.environ["LEX_BOT_ID"]
     config = json.loads(os.environ["LEX_CONFIGURATION"])
@@ -29,6 +54,12 @@ def main():
     if not bot["dataPrivacy"]["childDirected"]:
         raise RuntimeError("Set child_directed=true in module.lex_bot first")
 
+    # Validate every requested locale before changing any intents.
+    q_signatures = {
+        locale: q_in_connect_signature(locale)
+        for locale in config["locales"]
+    }
+
     for locale in config["locales"]:
         scope = {"botId": bot_id, "botVersion": "DRAFT", "localeId": locale}
         summaries = aws("lexv2-models", "list-intents", **scope)["intentSummaries"]
@@ -37,7 +68,7 @@ def main():
         desired = [
             {
                 "intentName": "AmazonQinConnect",
-                "parentIntentSignature": "AMAZON.QinConnectIntent",
+                "parentIntentSignature": q_signatures[locale],
                 "qInConnectIntentConfiguration": {
                     "qInConnectAssistantConfiguration": {
                         "assistantArn": config["assistant_arn"]

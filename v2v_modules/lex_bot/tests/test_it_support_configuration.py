@@ -33,6 +33,13 @@ class FakeAws:
         self.bot_name = bot_name
         self.fail_operation = fail_operation
         self.calls = []
+        self.built_in_pages = {
+            locale: [{"builtInIntentSummaries": [
+                {"intentSignature": "AMAZON.FallbackIntent"},
+                {"intentSignature": "AMAZON.QInConnectIntent"},
+            ]}]
+            for locale in CONFIG["locales"]
+        }
 
     def __call__(self, service, *operation, **payload):
         self.calls.append((service, operation, payload))
@@ -48,6 +55,10 @@ class FakeAws:
                 "botName": self.bot_name,
                 "dataPrivacy": {"childDirected": self.child_directed},
             }
+        if op == "list-built-in-intents":
+            return self.built_in_pages[payload["localeId"]][
+                int(payload.get("nextToken", "0"))
+            ]
         if op == "list-intents":
             values = [{"intentName": "FallbackIntent", "intentId": "FALLBCKINT"}]
             if self.existing:
@@ -94,7 +105,7 @@ class ItSupportConfigurationTests(unittest.TestCase):
         q_intents = [p for p in created if p["intentName"] == "AmazonQinConnect"]
         self.assertEqual({p["localeId"] for p in q_intents}, set(CONFIG["locales"]))
         for intent in q_intents:
-            self.assertEqual(intent["parentIntentSignature"], "AMAZON.QinConnectIntent")
+            self.assertEqual(intent["parentIntentSignature"], "AMAZON.QInConnectIntent")
             self.assertEqual(intent["qInConnectIntentConfiguration"]["qInConnectAssistantConfiguration"]["assistantArn"], CONFIG["assistant_arn"])
             self.assertEqual(intent["fulfillmentCodeHook"], {"active": True, "enabled": False})
         transfers = [p for p in created if p["intentName"] == "TransferToAgent"]
@@ -113,6 +124,74 @@ class ItSupportConfigurationTests(unittest.TestCase):
         self.assertEqual(alias["tags"], {"AmazonConnectEnabled": "True"})
         self.assertEqual(set(alias["botAliasLocaleSettings"]), set(CONFIG["locales"]))
         self.assertNotIn("conversationLogSettings", alias)
+        first_intent_change = next(
+            i for i, (_, op, _) in enumerate(fake.calls)
+            if op[0] in ("create-intent", "update-intent")
+        )
+        checked_locales = [
+            payload["localeId"] for _, op, payload in fake.calls[:first_intent_change]
+            if op[0] == "list-built-in-intents"
+        ]
+        self.assertEqual(checked_locales, CONFIG["locales"])
+
+    def test_builtin_lookup_follows_pagination(self):
+        fake = FakeAws()
+        fake.built_in_pages["en_US"] = [
+            {
+                "builtInIntentSummaries": [{"intentSignature": "AMAZON.FallbackIntent"}],
+                "nextToken": "1",
+            },
+            {"builtInIntentSummaries": [{"intentSignature": "AMAZON.QInConnectIntent"}]},
+        ]
+        self.run_configuration(fake)
+        requests = [p for p in fake.payloads("list-built-in-intents") if p["localeId"] == "en_US"]
+        self.assertEqual(requests, [
+            {"localeId": "en_US"},
+            {"localeId": "en_US", "nextToken": "1"},
+        ])
+        q_intent = next(
+            p for p in fake.payloads("create-intent")
+            if p["intentName"] == "AmazonQinConnect" and p["localeId"] == "en_US"
+        )
+        self.assertEqual(q_intent["parentIntentSignature"], "AMAZON.QInConnectIntent")
+
+    def test_updates_preserve_exact_signature_returned_for_each_locale(self):
+        fake = FakeAws(existing=True)
+        signatures = {
+            "en_US": "AMAZON.QInConnectIntent",
+            "hi_IN": "AMAZON.QinConnectIntent",
+            "pt_BR": "AMAZON.QInConnectIntent",
+            "es_419": "AMAZON.QinConnectIntent",
+        }
+        for locale, signature in signatures.items():
+            fake.built_in_pages[locale] = [{
+                "builtInIntentSummaries": [{"intentSignature": signature}],
+            }]
+        self.run_configuration(fake)
+        updated = {
+            p["localeId"]: p["parentIntentSignature"]
+            for p in fake.payloads("update-intent")
+            if p["intentName"] == "AmazonQinConnect"
+        }
+        self.assertEqual(updated, signatures)
+
+    def test_missing_builtin_in_last_locale_stops_before_any_intent_changes(self):
+        fake = FakeAws(existing=True)
+        fake.built_in_pages["es_419"] = [{
+            "builtInIntentSummaries": [{"intentSignature": "AMAZON.QnAIntent"}],
+        }]
+        with self.assertRaisesRegex(RuntimeError, "locale es_419 in us-east-1"):
+            self.run_configuration(fake)
+        for operation in ("create-intent", "update-intent", "build-bot-locale",
+                          "create-bot-version", "update-bot-alias"):
+            self.assertEqual(fake.payloads(operation), [])
+
+    def test_builtin_lookup_access_denied_stops_before_intent_changes(self):
+        fake = FakeAws(fail_operation="list-built-in-intents")
+        with self.assertRaisesRegex(RuntimeError, "AccessDeniedException"):
+            self.run_configuration(fake)
+        self.assertEqual(fake.payloads("create-intent"), [])
+        self.assertEqual(fake.payloads("update-intent"), [])
 
     def test_updates_existing_intents_alias_and_preserves_other_policy_grants(self):
         fake = FakeAws(existing=True)
