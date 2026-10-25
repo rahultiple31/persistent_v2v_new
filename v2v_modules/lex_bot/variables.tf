@@ -36,7 +36,7 @@ variable "it_support_configuration" {
 }
 
 variable "alias_configuration" {
-  description = "Optional alias, Lambda, Connect policy and text-log configuration."
+  description = "Optional alias, Lambda and Connect policy configuration. Text logging is disabled when child_directed is true."
   type = object({
     name                 = string
     lambda_function_arn  = string
@@ -47,10 +47,9 @@ variable "alias_configuration" {
 
   validation {
     condition = var.alias_configuration == null ? true : (
-      (var.publish_yesno_version || var.publish_customer_queue_version) &&
-      !var.child_directed
+      var.publish_yesno_version || var.publish_customer_queue_version
     )
-    error_message = "The text-logging alias requires bot-version publishing enabled and COPPA=false."
+    error_message = "The alias requires bot-version publishing enabled."
   }
 
   validation {

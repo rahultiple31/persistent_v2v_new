@@ -1,5 +1,5 @@
 resource "aws_iam_role_policy" "alias_text_logs" {
-  count = var.alias_configuration != null ? 1 : 0
+  count = var.alias_configuration == null ? 0 : (var.child_directed ? 0 : 1)
 
   name = "${var.bot_name}-text-logs"
   role = aws_iam_role.lex.name
@@ -14,7 +14,7 @@ resource "aws_iam_role_policy" "alias_text_logs" {
   })
 }
 
-# Preserve the original version and publish the COPPA=false snapshot separately.
+# Publish a separate alias snapshot using the current COPPA setting.
 # This snapshot contains all three DRAFT locales. AWS assigns Version 1 only
 # on first-ever publication; existing immutable versions cannot be overwritten.
 resource "aws_lexv2models_bot_version" "alias_text_logs" {
@@ -23,8 +23,8 @@ resource "aws_lexv2models_bot_version" "alias_text_logs" {
   bot_id = aws_lexv2models_bot.this.id
 
   description = var.publish_customer_queue_version ? (
-    "Customer queue bot with COPPA=false for alias text logging"
-  ) : "Survey bot with COPPA=false for alias text logging"
+    "Customer queue bot with COPPA=${var.child_directed}"
+  ) : "Survey bot with COPPA=${var.child_directed}"
 
   locale_specification = {
     for locale in ["en_US", "es_419", "pt_BR"] : locale => {
@@ -37,6 +37,11 @@ resource "aws_lexv2models_bot_version" "alias_text_logs" {
     aws_lexv2models_bot_version.yesno_version_1,
     terraform_data.customer_queue_locale_build,
   ]
+
+  lifecycle {
+    create_before_destroy = true
+    replace_triggered_by  = [aws_lexv2models_bot.this.data_privacy]
+  }
 }
 
 resource "awscc_lex_bot_alias" "this" {
@@ -62,7 +67,7 @@ resource "awscc_lex_bot_alias" "this" {
     }
   ]
 
-  conversation_log_settings = {
+  conversation_log_settings = var.child_directed ? null : {
     text_log_settings = [{
       enabled = true
       destination = {

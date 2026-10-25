@@ -1,5 +1,15 @@
 # Lex Yes/No Lambda
 
+The V2V Lex bot `BTSGSD-V2V-US-yesNo` has COPPA enabled through
+`module.lex_yesno_bot` in `environments/v2v/main.tf` (`child_directed = true`).
+The `v2v_modules/lex_bot` module retains its alias, three locales, Lambda hooks
+and invocation permissions, but omits conversation logging and its log-write
+policy for COPPA bots. Privacy changes publish a replacement alias version
+before retiring the previous managed version. The Lambda
+`BTSGSD-V2V-US-lex-yesNo` has no COPPA setting of its own.
+Deploy the bot with pipeline choice `lex_yesno_bot`; changing the Lambda alone
+does not apply the bot's COPPA setting.
+
 The dev Connect selection deploys `BTSGSD-lex-yesNo-dev` through
 `module.lex_yesno`. Terraform consumes the prebuilt
 `environments/dev/metadata/BTSGSD-lex-yesNo-dev_lambda-dev_lambda/lambda_function.zip`

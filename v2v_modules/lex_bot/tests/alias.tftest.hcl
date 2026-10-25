@@ -187,10 +187,38 @@ run "latest_uses_the_unqualified_function" {
   expect_failures = [var.alias_configuration]
 }
 
-run "text_logs_require_coppa_false" {
+run "coppa_yesno_preserves_alias_and_disables_logs" {
   command = plan
   variables { child_directed = true }
-  expect_failures = [var.alias_configuration]
+
+  assert {
+    condition = (
+      aws_lexv2models_bot.this.data_privacy[0].child_directed &&
+      terraform_data.yesno_locale_build[0].triggers_replace.child_directed &&
+      length(aws_iam_role_policy.alias_text_logs) == 0 &&
+      try(length(awscc_lex_bot_alias.this[0].conversation_log_settings.text_log_settings), 0) == 0 &&
+      try(length(awscc_lex_bot_alias.this[0].conversation_log_settings.audio_log_settings), 0) == 0 &&
+      aws_lexv2models_bot_version.alias_text_logs[0].description == "Survey bot with COPPA=true"
+    )
+    error_message = "COPPA must disable conversation logging and its IAM policy while publishing the updated privacy setting."
+  }
+
+  assert {
+    condition = (
+      length(awscc_lex_bot_alias.this) == 1 &&
+      awscc_lex_bot_alias.this[0].bot_alias_name == var.alias_configuration.name &&
+      awscc_lex_bot_alias.this[0].bot_version == aws_lexv2models_bot_version.alias_text_logs[0].bot_version &&
+      toset([for item in awscc_lex_bot_alias.this[0].bot_alias_locale_settings : item.locale_id]) == var.locale_ids &&
+      alltrue([
+        for item in awscc_lex_bot_alias.this[0].bot_alias_locale_settings :
+        item.bot_alias_locale_setting.enabled &&
+        item.bot_alias_locale_setting.code_hook_specification.lambda_code_hook.lambda_arn == var.alias_configuration.lambda_function_arn
+      ]) &&
+      aws_lambda_permission.lex_alias[0].source_arn == awscc_lex_bot_alias.this[0].arn &&
+      awscc_lex_resource_policy.connect[0].resource_arn == awscc_lex_bot_alias.this[0].arn
+    )
+    error_message = "COPPA must retain the alias, locales, Lambda hooks and scoped invocation policies."
+  }
 }
 
 run "logging_permissions_and_version_are_scoped" {
@@ -228,7 +256,7 @@ run "customer_queue_alias_logs_and_connect_policy" {
 
     alias_configuration = {
       name                 = "BTSGSD-V2V-US-DEV"
-      lambda_function_arn  = "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-V2V-US-conversionOfQueueMetrics"
+      lambda_function_arn  = "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-V2V-US-lex-QueueFlow-Callback"
       connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
       text_log_group_arn   = "arn:aws:logs:us-east-1:518902362956:log-group:/aws/lex/BTSGSD-V2V-US-customerQueueFlowBot"
     }
@@ -268,7 +296,7 @@ run "customer_queue_alias_logs_and_connect_policy" {
         item.bot_alias_locale_setting.code_hook_specification.lambda_code_hook.lambda_arn == var.alias_configuration.lambda_function_arn
       ])
     )
-    error_message = "The customer queue alias must use COPPA=false, its own locale build, the published three-language snapshot and the queue metrics Lambda."
+    error_message = "The customer queue logging alias must use its own locale build, the published three-language snapshot and the queue callback Lambda."
   }
 
   assert {
@@ -302,9 +330,10 @@ run "customer_queue_alias_logs_and_connect_policy" {
   }
 }
 
-run "customer_queue_text_logs_require_coppa_false" {
+run "customer_queue_coppa_alias_disables_logs" {
   command = plan
   variables {
+    bot_name                                 = "BTSGSD-V2V-US-customerQueueFlowBot"
     enable_english_yesno_intents             = false
     enable_portuguese_yesno_intents          = false
     enable_spanish_yesno_intents             = false
@@ -314,6 +343,39 @@ run "customer_queue_text_logs_require_coppa_false" {
     enable_spanish_customer_queue_intents    = true
     publish_customer_queue_version           = true
     child_directed                           = true
+
+    alias_configuration = merge(var.alias_configuration, {
+      lambda_function_arn = "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-V2V-US-lex-QueueFlow-Callback"
+      text_log_group_arn  = "arn:aws:logs:us-east-1:518902362956:log-group:/aws/lex/BTSGSD-V2V-US-customerQueueFlowBot"
+    })
   }
-  expect_failures = [var.alias_configuration]
+  assert {
+    condition = (
+      aws_lexv2models_bot.this.data_privacy[0].child_directed &&
+      terraform_data.customer_queue_locale_build[0].triggers_replace.child_directed &&
+      length(aws_iam_role_policy.alias_text_logs) == 0 &&
+      try(length(awscc_lex_bot_alias.this[0].conversation_log_settings.text_log_settings), 0) == 0 &&
+      try(length(awscc_lex_bot_alias.this[0].conversation_log_settings.audio_log_settings), 0) == 0 &&
+      length(awscc_lex_bot_alias.this) == 1 &&
+      awscc_lex_bot_alias.this[0].bot_version == aws_lexv2models_bot_version.alias_text_logs[0].bot_version &&
+      aws_lexv2models_bot_version.alias_text_logs[0].description == "Customer queue bot with COPPA=true"
+    )
+    error_message = "The shared customer queue alias must also support COPPA with conversation logging disabled."
+  }
+
+  assert {
+    condition = (
+      toset([for item in awscc_lex_bot_alias.this[0].bot_alias_locale_settings : item.locale_id]) == toset(["en_US", "es_419", "pt_BR"]) &&
+      alltrue([
+        for item in awscc_lex_bot_alias.this[0].bot_alias_locale_settings :
+        item.bot_alias_locale_setting.enabled &&
+        item.bot_alias_locale_setting.code_hook_specification.lambda_code_hook.lambda_arn == "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-V2V-US-lex-QueueFlow-Callback"
+      ]) &&
+      aws_lambda_permission.lex_alias[0].function_name == "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-V2V-US-lex-QueueFlow-Callback" &&
+      aws_lambda_permission.lex_alias[0].principal == "lexv2.amazonaws.com" &&
+      aws_lambda_permission.lex_alias[0].source_arn == awscc_lex_bot_alias.this[0].arn &&
+      aws_lambda_permission.lex_alias[0].source_account == "518902362956"
+    )
+    error_message = "All customer queue locale hooks and the alias invocation permission must target the queue callback Lambda."
+  }
 }

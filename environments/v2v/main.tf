@@ -733,7 +733,7 @@ module "lex_yesno_bot" {
 
   bot_name       = "BTSGSD-V2V-US-yesNo"
   locale_ids     = ["en_US", "pt_BR", "es_419"]
-  child_directed = false
+  child_directed = true
 
   enable_english_yesno_intents    = true
   enable_portuguese_yesno_intents = true
@@ -776,7 +776,7 @@ module "lex_customer_queue_flow_bot" {
 
   bot_name       = "BTSGSD-V2V-US-customerQueueFlowBot"
   locale_ids     = ["en_US", "es_419", "pt_BR"]
-  child_directed = false
+  child_directed = true
 
   enable_english_customer_queue_intents    = true
   enable_portuguese_customer_queue_intents = true
@@ -794,13 +794,13 @@ module "lex_customer_queue_flow_bot" {
   }
 }
 
-# The queue metrics Lambda belongs to the connect group and must already exist.
+# The callback Lambda belongs to the connect group and must already exist.
 # Its unqualified ARN invokes $LATEST for every locale on the customer queue alias.
 data "aws_lambda_function" "customer_queue_alias_hook" {
   count    = contains(local.enabled_module_set, "lex_bot") ? 1 : 0
   provider = aws.us_east_1
 
-  function_name = "BTSGSD-V2V-US-conversionOfQueueMetrics"
+  function_name = "BTSGSD-V2V-US-lex-QueueFlow-Callback"
 }
 
 # Owned by lex_bot so the log group is created with the customer queue alias.

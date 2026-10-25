@@ -1,5 +1,11 @@
 # Lex queue callback Lambda
 
+The V2V bot `BTSGSD-V2V-US-customerQueueFlowBot` uses
+`BTSGSD-V2V-US-lex-QueueFlow-Callback` for all three locale hooks on alias
+`BTSGSD-V2V-US-DEV`. Deploy this alias change with pipeline choice
+`lex_customer_queue_flow_bot`. The callback Lambda must already exist; deploy it
+with choice `BTSGSD-V2V-US-lex-QueueFlow-Callback` first if needed.
+
 For V2V, the expected resource-based policy is saved in
 `environments/v2v/metadata/BTSGSD-lex-QueueFlow-Callback-dev_lambda/resource-policy.json`.
 It targets `BTSGSD-V2V-US-lex-QueueFlow-Callback` and allows only the supplied
