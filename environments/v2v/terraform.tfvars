@@ -20,6 +20,21 @@ queue_name = "BTSGSD-V2V-US-DEV SSO-US-MAIN-QUEUE"
 outbound_phone_number    = "+18557117965"
 outbound_phone_number_id = null
 
+# Existing resources in V2V instance bcc989e5-cd9d-494f-9cd4-434f39ccc90e.
+connect_resources_dependencies = {
+  # Basic Hours
+  hours_of_operation_id = "23004b85-0f01-4884-9014-aa330cc5149c"
+
+  # BasicQueue
+  main_queue_id = "0752f0ed-7bde-4692-b057-847d80f80297"
+
+  # Default outbound - OUTBOUND_WHISPER
+  outbound_flow_id = "d8bb7620-d2e6-4d7d-9366-212b0b4e8754"
+
+  # Default agent transfer - AGENT_TRANSFER
+  quick_connect_flow_id = "8bad7b58-ee57-4ed1-88d8-6d7c3c510d0f"
+}
+
 # Standalone connect-resources requires the existing V2V dependency UUIDs.
 # Uncomment and fill these values before selecting connect-resources.
 # connect_resources_dependencies = {

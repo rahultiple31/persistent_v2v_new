@@ -103,7 +103,7 @@ servicenow_interaction_python_executable = "python"
 # null omits the CloudFormation concurrency property and uses the shared pool.
 # Do not use 0: it disables function invocation.
 # Restore 100 after increasing the quota or releasing other reservations.
-servicenow_interaction_reserved_concurrency = null
+servicenow_interaction_reserved_concurrency = 200
 
 # Use python3 instead on systems where that is the installed executable.
 # Optional overrides; the supplied handler defaults remain in effect otherwise:
@@ -119,7 +119,7 @@ nexthink_handoff_python_executable = "python"
 # null omits the reservation property and skips the reservation capacity check.
 # Do not use 0: it disables function invocation.
 # Restore 200 after increasing the quota or releasing other reservations.
-nexthink_handoff_reserved_concurrency = null
+nexthink_handoff_reserved_concurrency = 200
 
 # The supplied handler's default HTTP read timeout is 10 seconds; the Lambda
 # timeout is 8 seconds. Optional shorter HTTP timeouts reduce that risk, but
@@ -161,3 +161,6 @@ secrets_manager_secrets = {
 secrets_manager_existing_arns = {
   # "Nextthink/Clientid/Secretkey" = "<actual existing secret ARN>"
 }
+
+# SNOW Lambda reserved concurrency.
+snow_lambda_reserved_concurrency = 200
