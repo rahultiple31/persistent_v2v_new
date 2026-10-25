@@ -16,6 +16,7 @@ parameters:
       - signing_profile
       - code_signing_config
       - connect-resources
+      - connect_external_vms
       - connect_us_east_1
       - btsgsd-Main-IB-Flow
       - connect_views

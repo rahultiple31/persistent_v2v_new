@@ -83,6 +83,7 @@ fi
             "btsgsd-intent-kb": "s3_intent_kb", "connect-resources": "connect_resources",
             "BTSGSD-V2V-US-lex-QueueFlow-Callback": "lex_queueflow_callback",
             "BTSGSD-V2V-US-lex-yesNo": "lex_yesno",
+            "connect_external_vms": "external_vms",
         }
         for choice in choices:
             with self.subTest(choice=choice):
@@ -155,6 +156,22 @@ fi
         result = self.run_selector("connect-resources", saved_plan)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_external_vms_choice_accepts_quick_connect_in_owning_state(self):
+        result = self.run_selector("connect_external_vms", plan(changes=[
+            change("module.external_vms[0].aws_connect_quick_connect.external_vms", ["create"]),
+        ]))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_other_states_cannot_create_update_or_delete_external_vms(self):
+        for group in ("connect", "v2v", "lambda"):
+            for actions in (["create"], ["update"], ["delete"]):
+                with self.subTest(group=group, actions=actions):
+                    result = self.run_selector(group, plan(group=group, changes=[
+                        change("module.external_vms[0].aws_connect_quick_connect.external_vms", actions),
+                    ]))
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("Move connect_resources into its dedicated state", result.stderr)
+
     def test_rejects_creates_updates_deletes_and_replacements_outside_module(self):
         for actions in (["create"], ["update"], ["delete"], ["delete", "create"]):
             with self.subTest(actions=actions):
@@ -169,6 +186,8 @@ fi
             "terraform_data.example",
             "module.connect_resources[1].aws_connect_queue.us_out",
             "module.connect_resources_extra[0].aws_connect_queue.us_out",
+            "module.external_vms[1].aws_connect_quick_connect.external_vms",
+            "module.external_vms_extra[0].aws_connect_quick_connect.external_vms",
         ):
             with self.subTest(address=address):
                 result = self.run_selector("connect-resources", plan(changes=[

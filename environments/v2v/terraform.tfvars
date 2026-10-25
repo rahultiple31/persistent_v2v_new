@@ -175,3 +175,8 @@ secrets_manager_existing_arns = {
 # Existing inbound-flow dependency names.
 main_ib_latam_queue_name           = "BTSGSD-DEV-SSO-LATAM-MAIN-QUEUE"
 main_ib_phone_lookup_function_name = "SNOW_Abbvie"
+
+enable_external_vms = true
+
+# Replace with the actual external voicemail number
+external_vm_phone_number = "+18557117965"

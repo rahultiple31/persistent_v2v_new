@@ -2392,3 +2392,20 @@ module "code_signing_config" {
   signing_profile_version_arn = module.signing_profile[0].signing_profile_version_arn
   common_tags                 = local.common_tags
 }
+
+
+# connect_external_vms
+
+module "external_vms" {
+  count  = local.deploy_connect_resources && var.enable_external_vms ? 1 : 0
+
+  source = "../../v2v_modules/connect_external_vms"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  instance_name            = var.connect_instance_alias
+  external_vm_name         = "External VMs"
+  external_vm_phone_number = var.external_vm_phone_number
+}

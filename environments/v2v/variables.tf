@@ -683,3 +683,21 @@ variable "signing_profile_name" {
     error_message = "signing_profile_name must contain 2-64 letters, digits, or underscores."
   }
 }
+
+variable "enable_external_vms" {
+  type    = bool
+  default = true
+}
+
+variable "external_vm_phone_number" {
+  description = "External voicemail destination in E.164 format."
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.external_vm_phone_number == null ? true : can(
+      regex("^\\+[1-9][0-9]{1,14}$", var.external_vm_phone_number)
+    )
+    error_message = "Use an E.164 destination number, such as +18557117965."
+  }
+}

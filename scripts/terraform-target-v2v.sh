@@ -34,6 +34,7 @@ code-signing|code-signing|
 signing_profile|code-signing|module.signing_profile[0]
 code_signing_config|code-signing|module.code_signing_config[0]
 connect-resources|connect-resources|module.connect_resources[0]
+connect_external_vms|connect-resources|module.external_vms[0]
 connect_us_east_1|connect|module.connect_us_east_1[0]
 btsgsd-Main-IB-Flow|connect|module.btsgsd-Main-IB-Flow[0]
 connect_views|connect|module.connect_views[0]
@@ -153,7 +154,7 @@ if variables.get("environment", {}).get("value") != environment:
 if variables.get("enabled_modules", {}).get("value") != [group]:
     raise SystemExit("Plan module group does not match the V2V selection.")
 
-prefix = "module.connect_resources[0]."
+prefix = ("module.connect_resources[0].", "module.external_vms[0].")
 changes = [
     change for change in plan.get("resource_changes", [])
     if change.get("mode") == "managed"
@@ -194,7 +195,7 @@ if group == "connect-resources":
             + ". Separate the existing Terraform state before applying."
         )
 
-if group == "connect":
+if group != "connect-resources":
     misplaced = [
         change["address"] for change in changes
         if change["address"].startswith(prefix)
@@ -202,7 +203,7 @@ if group == "connect":
     if misplaced:
         raise SystemExit(
             "Move connect_resources into its dedicated state before "
-            "applying the Connect group."
+            "applying another deployment group."
         )
 
 print("Validated V2V plan for group: " + group)

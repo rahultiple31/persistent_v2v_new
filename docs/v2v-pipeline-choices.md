@@ -17,6 +17,17 @@ ARN variables. An individual Lambda choice does not require those unrelated
 VMX3 inputs. `connect-resources` retains its separate backend key and requires
 `connect_resources_dependencies` containing the existing V2V resource UUIDs.
 
+`connect_external_vms` targets `module.external_vms[0]` in the same
+`connect-resources` state. It creates the `External VMs` phone quick connect
+using `external_vm_phone_number`, currently `+18557117965`. The
+`enable_external_vms` flag must be true. The module uses the selected Connect
+instance alias and the `us-east-1` provider.
+
+This quick connect is separate from the `External VMs` agent status managed
+by `connect-resources`. Creating the quick connect does not resolve an
+`AlreadyExists` error for that agent status; the existing status must be
+identified and reconciled with its owning Terraform state.
+
 | Lambda | Pipeline choice |
 | --- | --- |
 | BTSGSD-V2V-US-lambda-test | `lambda` or `lambda_us_east_1` |

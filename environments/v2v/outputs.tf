@@ -354,3 +354,11 @@ output "signing_profile_version_arn" {
   description = "AWS Signer signing profile version ARN"
   value       = try(module.signing_profile[0].signing_profile_version_arn, null)
 }
+
+output "external_vms_id" {
+  value = try(module.external_vms[0].external_vm_id, null)
+}
+
+output "external_vms_arn" {
+  value = try(module.external_vms[0].external_vm_arn, null)
+}
