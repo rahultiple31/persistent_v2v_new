@@ -10,6 +10,7 @@ class AwsCliError(RuntimeError):
 
 
 def aws_json(region, *arguments):
+    command_name = " ".join(arguments[:2])
     result = subprocess.run(
         ["aws", *arguments, "--region", region, "--output", "json", "--no-cli-pager"],
         capture_output=True,
@@ -18,8 +19,28 @@ def aws_json(region, *arguments):
         check=False,
     )
     if result.returncode:
-        raise AwsCliError(result.stderr.strip())
-    return json.loads(result.stdout)
+        raise AwsCliError(
+            f"{command_name} failed: "
+            f"{result.stderr.strip() or 'No error details returned'}"
+        )
+
+    output = result.stdout.strip()
+    if not output:
+        # A function without a reservation can have an empty concurrency response.
+        if arguments[:2] == ("lambda", "get-function-concurrency"):
+            return {}
+        raise AwsCliError(f"{command_name} returned empty output; expected JSON.")
+
+    try:
+        response = json.loads(output)
+    except json.JSONDecodeError as error:
+        raise AwsCliError(
+            f"{command_name} returned invalid JSON: {error.msg}"
+        ) from error
+
+    if not isinstance(response, dict):
+        raise AwsCliError(f"{command_name} returned an unexpected JSON type.")
+    return response
 
 
 def check_capacity(query):
@@ -50,7 +71,17 @@ def check_capacity(query):
 
 if __name__ == "__main__":
     try:
-        print(json.dumps(check_capacity(json.load(sys.stdin))))
+        try:
+            query = json.load(sys.stdin)
+        except json.JSONDecodeError as error:
+            raise RuntimeError(
+                "Terraform supplied empty or invalid JSON to the capacity checker."
+            ) from error
+
+        if not isinstance(query, dict):
+            raise RuntimeError("Terraform capacity-check input must be a JSON object.")
+
+        print(json.dumps(check_capacity(query)))
     except (RuntimeError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
         print(f"Lambda concurrency capacity check failed: {error}", file=sys.stderr)
         sys.exit(1)
