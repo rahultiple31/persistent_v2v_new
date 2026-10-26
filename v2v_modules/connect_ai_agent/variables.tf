@@ -94,3 +94,23 @@ variable "tool_configurations" {
 
   default = []
 }
+
+variable "admin_mcp_access" {
+  description = "Optional MCP application access granted through the existing Admin security profile."
+  type = object({
+    namespace = string
+  })
+  default = null
+
+  validation {
+    condition = var.admin_mcp_access == null ? true : (
+      length([for tool in var.tool_configurations : tool if tool.ToolType == "MODEL_CONTEXT_PROTOCOL"]) > 0 &&
+      alltrue([
+        for tool in var.tool_configurations :
+        startswith(tool.ToolId, "gateway_${var.admin_mcp_access.namespace}__")
+        if tool.ToolType == "MODEL_CONTEXT_PROTOCOL"
+      ])
+    )
+    error_message = "Admin MCP access requires MCP tools belonging to the configured gateway namespace."
+  }
+}

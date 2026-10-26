@@ -23,6 +23,7 @@ parameters:
       - abbvie_views
       - connect_queue
       - btsgsd_support_agent
+      - btsgsd_support_agent_tools_access
       - btsgsd_ai_survey_agent
       - survey_ai_prompt
       - connect_ai_agent

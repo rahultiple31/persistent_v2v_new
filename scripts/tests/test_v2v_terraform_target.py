@@ -114,6 +114,7 @@ fi
             ("connect-resources", "connect-resources"),
             ("connect", "connect"),
             ("connect_queue", "connect"),
+            ("btsgsd_support_agent_tools_access", "connect"),
             ("BTSGSD-V2V-US-UpdateSessionAttributes", "connect"),
             ("lambda", "lambda"),
             ("dynamodb", "dynamodb"),
@@ -130,6 +131,16 @@ fi
                     f"terraform-state/v2v/us-east-1/{group}/terraform.tfstate",
                     f'-var=enabled_modules=["{group}"]',
                 ])
+
+    def test_tools_access_has_its_own_target_in_existing_connect_state(self):
+        result = self.run_selector("btsgsd_support_agent_tools_access", details=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        group, backend, *arguments = result.stdout.splitlines()
+        self.assertEqual(group, "connect")
+        self.assertEqual(backend, "terraform-state/v2v/us-east-1/connect/terraform.tfstate")
+        self.assertEqual([a for a in arguments if a.startswith("-target=")], [
+            "-target=module.btsgsd_support_agent_tools_access[0]",
+        ])
 
     def test_lambda_renames_retain_state_and_accept_plans_for_new_targets(self):
         for target, state in (

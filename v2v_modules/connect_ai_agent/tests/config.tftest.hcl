@@ -55,6 +55,11 @@ run "voice_agent_template" {
   command = plan
 
   assert {
+    condition     = length(terraform_data.admin_mcp_access) == 0
+    error_message = "Existing callers must not modify Admin MCP access unless explicitly enabled."
+  }
+
+  assert {
     condition = (
       jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Name == "BTSGSD-V2V-US-ai-survey-agent" &&
       jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Type == "ORCHESTRATION" &&
@@ -262,4 +267,53 @@ run "oversized_system" {
   }
 
   expect_failures = [aws_s3_object.template]
+}
+
+run "support_agent_admin_mcp_tools" {
+  command = plan
+
+  variables {
+    agent_name = "BTSGSD-V2V-US-SupportAgent"
+    admin_mcp_access = {
+      namespace = "gateway-0123456789"
+    }
+    tool_configurations = [
+      for name in [
+        "BTSGSD-V2V-US-nexthink-handoff___handoff",
+        "BTSGSD-V2V-US-snow-interaction___Interaction__Interaction",
+        "BTSGSD-V2V-US-snow-userlookup___UserLookUp___UserLookUp",
+        ] : {
+        ToolName = name
+        ToolType = "MODEL_CONTEXT_PROTOCOL"
+        ToolId   = "gateway_gateway-0123456789__${name}"
+      }
+    ]
+  }
+
+  assert {
+    condition = (
+      length(terraform_data.admin_mcp_access) == 1 &&
+      terraform_data.admin_mcp_access[0].input.namespace == "gateway-0123456789" &&
+      terraform_data.admin_mcp_access[0].input.connect_instance_arn == var.connect_instance_arn &&
+      toset(terraform_data.admin_mcp_access[0].input.tool_names) == toset([
+        "BTSGSD-V2V-US-nexthink-handoff___handoff",
+        "BTSGSD-V2V-US-snow-interaction___Interaction__Interaction",
+        "BTSGSD-V2V-US-snow-userlookup___UserLookUp___UserLookUp",
+      ])
+    )
+    error_message = "The grant must use the registered gateway namespace and preserve exact tool names and case."
+  }
+}
+
+run "admin_tools_must_belong_to_selected_gateway" {
+  command = plan
+  variables {
+    admin_mcp_access = { namespace = "other-gateway" }
+    tool_configurations = [{
+      ToolName = "handoff"
+      ToolType = "MODEL_CONTEXT_PROTOCOL"
+      ToolId   = "gateway_gateway-0123456789__handoff"
+    }]
+  }
+  expect_failures = [var.admin_mcp_access]
 }

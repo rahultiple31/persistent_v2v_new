@@ -49,6 +49,23 @@ and `lex_yesno_log_group` select their respective log groups. The
 `support_agent_tools` choice was removed because that helper module creates
 no AWS resources; its output is used by `btsgsd_support_agent`.
 
+Use `btsgsd_support_agent_tools_access` to grant the existing Connect `Admin`
+security profile access to the three configured MCP tools. This separate choice
+reads the existing gateway and support-agent CloudFormation stacks and assigns
+Admin to the agent's `$LATEST` and current published version. It does not deploy
+the gateway, AI agent or prompt. Those stacks and the registered Connect MCP
+integration must already exist. Existing application/tool grants and other
+attached security profiles are retained. The original `btsgsd_support_agent`
+choice deploys the agent and prompt without running this grant.
+The access choice uses the existing Connect state. If the earlier in-module
+grant was applied, its marker may remain until a complete group plan removes
+it. That hook has no destroy provisioner, so removing its marker does not
+revoke existing AWS grants. The new choice manages its own grant marker.
+The deployment identity needs `connect:ListSecurityProfiles`,
+`connect:ListSecurityProfileApplications`, `connect:UpdateSecurityProfile`,
+`connect:ListEntitySecurityProfiles`, `connect:AssociateSecurityProfiles`, and
+`cloudformation:DescribeStacks` for the two existing stacks.
+
 The IT Support `lex_bot` choice looks up the Q in Connect built-in intent
 signature for each configured locale before changing any intents. The pipeline's
 AWS deployment role needs `lex:ListBuiltInIntents`; this is separate from the

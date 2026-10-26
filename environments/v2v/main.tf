@@ -265,6 +265,18 @@ module "btsgsd_support_agent" {
   ]
 }
 
+module "btsgsd_support_agent_tools_access" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/support_agent_tools_access"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  connect_instance_arn = data.aws_connect_instance.target[0].arn
+  python_executable   = var.dev_ai_security_profile_python_executable
+}
+
 module "btsgsd_ai_survey_agent" {
   count  = local.dev_survey_ai_enabled ? 1 : 0
   source = "../../v2v_modules/connect_ai_agent"
