@@ -60,7 +60,7 @@ run "queue_metrics_choice_includes_scoped_invocation_permission" {
 
   assert {
     condition = (
-      aws_lambda_permission.queue_metrics_connect[0].statement_id == "AllowConnectCustomerQueueMetrics" &&
+      aws_lambda_permission.queue_metrics_connect[0].statement_id == "connect-bcc989e5-cd9d-494f-9cd4-434f39ccc90e" &&
       aws_lambda_permission.queue_metrics_connect[0].action == "lambda:InvokeFunction" &&
       aws_lambda_permission.queue_metrics_connect[0].principal == "connect.amazonaws.com" &&
       aws_lambda_permission.queue_metrics_connect[0].source_account == "518902362956" &&

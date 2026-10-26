@@ -9,6 +9,13 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
+DATA_TABLE_CHOICES = {
+    "BTSGSD-V2V-US-BTSGSD-CustomerNumber": "bts_gsd_customer_number_data_table",
+    "BTSGSD-V2V-US-BTSGSD-HR_Transfer": "hr_transfer_data_table",
+    "BTSGSD-V2V-US-Survey-DataTable": "survey_data_table",
+    "BTSGSD-V2V-US-BTSGSD-Veeva_Transfer": "veeva_transfer_data_table",
+    "BTSGSD-V2V-US-TopLevelBlockerMessage": "top_level_blocker_data_table",
+}
 if os.name == "nt":
     git_bash = Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Git/bin/bash.exe"
     BASH = str(git_bash) if git_bash.is_file() else None
@@ -62,7 +69,7 @@ fi
             timeout=30,
         )
 
-    def test_every_pipeline_choice_resolves_to_existing_module_or_group(self):
+    def test_every_pipeline_choice_resolves_to_existing_resource_module_or_group(self):
         pipeline = (ROOT / "v2v-azure-pipeline.yml").read_text()
         values = pipeline.split("    values:\n", 1)[1].split("  - name: terraformAction", 1)[0]
         choices = re.findall(r"^      - (.+)$", values, re.MULTILINE)
@@ -71,8 +78,11 @@ fi
         registry = selector.split("done <<'V2V_CHOICES'\n", 1)[1].split("\nV2V_CHOICES", 1)[0]
         self.assertEqual(set(choices), {row.split("|")[0] for row in registry.splitlines()})
         modules = set()
+        resources = set()
         for path in (ROOT / "environments/v2v").glob("*.tf"):
-            modules.update(re.findall(r'^module "([^"]+)"', path.read_text(encoding="utf-8"), re.MULTILINE))
+            source = path.read_text(encoding="utf-8")
+            modules.update(re.findall(r'^module "([^"]+)"', source, re.MULTILINE))
+            resources.update(re.findall(r'^resource "([^"]+)" "([^"]+)"', source, re.MULTILINE))
         legacy = {
             "btsgsd-v2v-us-snow": "lambda-snow-btsgsd-dev",
             "btsgsd-v2v-us-servicenow_interaction": "lambda-servicenow-interaction",
@@ -96,6 +106,11 @@ fi
                 targets = [a for a in arguments if a.startswith("-target=")]
                 if choice in ("connect", "v2v", "code-signing"):
                     self.assertEqual(targets, [])
+                elif choice in DATA_TABLE_CHOICES:
+                    resource = DATA_TABLE_CHOICES[choice]
+                    self.assertEqual(group, "connect")
+                    self.assertIn(("aws_cloudformation_stack", resource), resources)
+                    self.assertEqual(targets, [f"-target=aws_cloudformation_stack.{resource}[0]"])
                 else:
                     module = aliases.get(choice, choice)
                     self.assertIn(module, modules)

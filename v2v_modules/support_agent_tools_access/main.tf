@@ -41,6 +41,13 @@ data "aws_cloudformation_stack" "support_agent" {
 locals {
   grant_script = abspath("${path.module}/../connect_ai_agent/grant_admin_mcp_tools.py")
 
+  # The existing stack may expose AgentArn with :$LATEST already attached.
+  support_agent_arn = trimsuffix(
+    data.aws_cloudformation_stack.support_agent.outputs["AgentArn"],
+    ":$LATEST",
+  )
+  support_agent_version = data.aws_cloudformation_stack.support_agent.outputs["AgentVersion"]
+
   access_configuration = {
     connect_instance_arn = var.connect_instance_arn
     aws_profile          = ""
@@ -53,8 +60,8 @@ locals {
     ]
 
     agent_arns = [
-      data.aws_cloudformation_stack.support_agent.outputs["AgentArn"],
-      data.aws_cloudformation_stack.support_agent.outputs["AgentVersionArn"],
+      local.support_agent_arn,
+      "${local.support_agent_arn}:${local.support_agent_version}",
     ]
   }
 }

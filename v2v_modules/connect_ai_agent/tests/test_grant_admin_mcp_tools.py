@@ -102,6 +102,34 @@ class AdminMcpAccessTests(unittest.TestCase):
         self.grant()
         self.assertEqual(self.aws.writes(), [])
 
+    def test_existing_admin_and_tools_are_skipped_regardless_of_permission_order(self):
+        self.aws.applications[1]["ApplicationPermissions"] = [TOOLS[2], "existing-tool", TOOLS[0], TOOLS[1]]
+        for arn in CONFIG["agent_arns"]:
+            self.aws.attached[arn].add("admin-id")
+        before = copy.deepcopy(self.aws.applications)
+        with patch("builtins.print") as output:
+            self.assertEqual(self.grant(), 2)
+        self.assertEqual(self.aws.writes(), [])
+        self.assertEqual(self.aws.applications, before)
+        self.assertEqual(output.call_count, 2)
+        for arn in CONFIG["agent_arns"]:
+            output.assert_any_call(f"Admin already attached; skipping association: {arn}")
+
+    def test_only_missing_admin_association_is_added(self):
+        self.aws.attached[AGENT].add("admin-id")
+        self.grant()
+        associations = [call[4]["EntityArn"] for call in self.aws.writes()
+                        if call[2] == "associate-security-profiles"]
+        self.assertEqual(associations, [AGENT + ":2"])
+        self.assertEqual(self.aws.attached[AGENT], {"existing-profile", "admin-id"})
+
+    def test_failed_association_read_is_not_treated_as_already_attached(self):
+        self.aws.applications[1]["ApplicationPermissions"] = list(TOOLS)
+        self.aws.fail_on = "list-entity-security-profiles"
+        with self.assertRaisesRegex(RuntimeError, "AccessDeniedException"):
+            self.grant()
+        self.assertEqual(self.aws.writes(), [])
+
     def test_adds_missing_mcp_application(self):
         self.aws.applications = self.aws.applications[:1]
         self.grant()

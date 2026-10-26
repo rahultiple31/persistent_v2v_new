@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Dedicated V2V selector; source this file from v2v-azure-pipeline.yml.
-# Individual choices target their module and dependencies in the owning state.
+# Individual choices target their resource or module in the owning state.
 # connect, v2v, and code-signing deploy their complete groups.
 # This script is independent of scripts/terraform-target.sh.
 
@@ -17,7 +17,7 @@ fi
 TERRAFORM_STATE_MODULE=""
 TERRAFORM_TARGET_ADDRESS=""
 
-# choice | existing state group | optional module target
+# choice | existing state group | optional resource or module target
 while IFS='|' read -r v2v_choice v2v_group v2v_address; do
   if [ "$v2v_choice" = "$DEPLOYMENT_TARGET" ]; then
     TERRAFORM_STATE_MODULE="$v2v_group"
@@ -40,6 +40,11 @@ btsgsd-Main-IB-Flow|connect|module.btsgsd-Main-IB-Flow[0]
 connect_views|connect|module.connect_views[0]
 abbvie_views|connect|module.abbvie_views[0]
 connect_queue|connect|module.connect_queue[0]
+BTSGSD-V2V-US-BTSGSD-CustomerNumber|connect|aws_cloudformation_stack.bts_gsd_customer_number_data_table[0]
+BTSGSD-V2V-US-BTSGSD-HR_Transfer|connect|aws_cloudformation_stack.hr_transfer_data_table[0]
+BTSGSD-V2V-US-Survey-DataTable|connect|aws_cloudformation_stack.survey_data_table[0]
+BTSGSD-V2V-US-BTSGSD-Veeva_Transfer|connect|aws_cloudformation_stack.veeva_transfer_data_table[0]
+BTSGSD-V2V-US-TopLevelBlockerMessage|connect|aws_cloudformation_stack.top_level_blocker_data_table[0]
 btsgsd_support_agent|connect|module.btsgsd_support_agent[0]
 btsgsd_support_agent_tools_access|connect|module.btsgsd_support_agent_tools_access[0]
 btsgsd_ai_survey_agent|connect|module.btsgsd_ai_survey_agent[0]

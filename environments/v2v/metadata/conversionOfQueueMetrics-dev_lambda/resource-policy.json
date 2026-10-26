@@ -3,7 +3,7 @@
   "Id": "default",
   "Statement": [
     {
-      "Sid": "AllowConnectCustomerQueueMetrics",
+      "Sid": "connect-bcc989e5-cd9d-494f-9cd4-434f39ccc90e",
       "Effect": "Allow",
       "Principal": {
         "Service": "connect.amazonaws.com"

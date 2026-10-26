@@ -1,4 +1,9 @@
 locals {
+  admin_mcp_agent_arn = var.admin_mcp_access == null ? null : trimsuffix(
+    aws_cloudformation_stack.agent.outputs["AgentArn"],
+    ":$LATEST",
+  )
+
   admin_mcp_configuration = var.admin_mcp_access == null ? null : {
     connect_instance_arn = var.connect_instance_arn
     aws_profile          = var.aws_profile
@@ -11,8 +16,8 @@ locals {
     ]
 
     agent_arns = [
-      aws_cloudformation_stack.agent.outputs["AgentArn"],
-      aws_cloudformation_stack.agent.outputs["AgentVersionArn"],
+      local.admin_mcp_agent_arn,
+      "${local.admin_mcp_agent_arn}:${aws_cloudformation_stack.agent.outputs["AgentVersion"]}",
     ]
   }
 }

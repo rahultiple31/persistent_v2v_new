@@ -3,7 +3,7 @@
 For V2V, select `conversion_of_queue_metrics` in `v2v-azure-pipeline.yml`.
 This targets `BTSGSD-V2V-US-conversionOfQueueMetrics` and its root-level
 `aws_lambda_permission.queue_metrics_connect[0]` in the existing Connect state.
-The single managed statement, `AllowConnectCustomerQueueMetrics`, permits
+The single managed statement uses `connect-<instance-id>` as its SID and permits
 `connect.amazonaws.com` to invoke that function, restricted to the account and
 ARN of the instance resolved by `connect_instance_alias`. The V2V alias is
 `btsgsd-dev-v2v-poc-us-east-1` (instance

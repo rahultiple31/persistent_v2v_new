@@ -22,6 +22,11 @@ parameters:
       - connect_views
       - abbvie_views
       - connect_queue
+      - BTSGSD-V2V-US-BTSGSD-CustomerNumber
+      - BTSGSD-V2V-US-BTSGSD-HR_Transfer
+      - BTSGSD-V2V-US-Survey-DataTable
+      - BTSGSD-V2V-US-BTSGSD-Veeva_Transfer
+      - BTSGSD-V2V-US-TopLevelBlockerMessage
       - btsgsd_support_agent
       - btsgsd_support_agent_tools_access
       - btsgsd_ai_survey_agent

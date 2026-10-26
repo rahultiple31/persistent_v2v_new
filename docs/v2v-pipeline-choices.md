@@ -5,8 +5,8 @@ Run `v2v-azure-pipeline.yml` from `main`. Select the resource's module in
 the same module with `terraformAction=apply` to run a new Plan stage followed
 by Apply of that run's saved plan. The earlier plan-only artifact is not reused.
 
-Individual choices target `module.<name>[0]` in the module's existing owning
-state. Terraform includes dependencies needed by that module, which can
+Individual choices target a resource or `module.<name>[0]` in its existing owning
+state. Terraform includes dependencies needed by that target, which can
 include other resources. It does not plan unrelated modules just because
 they share the same state. Existing feature flags still apply: a disabled
 module can produce an empty plan.
@@ -16,6 +16,20 @@ The `connect`, `v2v`, and `code-signing` choices deploy complete groups.
 ARN variables. An individual Lambda choice does not require those unrelated
 VMX3 inputs. `connect-resources` retains its separate backend key and requires
 `connect_resources_dependencies` containing the existing V2V resource UUIDs.
+
+Each of these data-table choices targets its own CloudFormation stack in the
+existing Connect state. Select the table name in `targetModule`; the `connect`
+choice is not required. The table uses the existing instance resolved by
+`connect_instance_alias`, without deploying the Connect module or requiring
+VMX3 inputs. The Connect instance must already exist.
+
+| Data table | Pipeline choice |
+| --- | --- |
+| BTSGSD-V2V-US-BTSGSD-CustomerNumber | `BTSGSD-V2V-US-BTSGSD-CustomerNumber` |
+| BTSGSD-V2V-US-BTSGSD-HR_Transfer | `BTSGSD-V2V-US-BTSGSD-HR_Transfer` |
+| BTSGSD-V2V-US-Survey-DataTable | `BTSGSD-V2V-US-Survey-DataTable` |
+| BTSGSD-V2V-US-BTSGSD-Veeva_Transfer | `BTSGSD-V2V-US-BTSGSD-Veeva_Transfer` |
+| BTSGSD-V2V-US-TopLevelBlockerMessage | `BTSGSD-V2V-US-TopLevelBlockerMessage` |
 
 `connect_external_vms` targets `module.external_vms[0]` in the same
 `connect-resources` state. It creates the `External VMs` phone quick connect
@@ -52,7 +66,10 @@ no AWS resources; its output is used by `btsgsd_support_agent`.
 Use `btsgsd_support_agent_tools_access` to grant the existing Connect `Admin`
 security profile access to the three configured MCP tools. This separate choice
 reads the existing gateway and support-agent CloudFormation stacks and assigns
-Admin to the agent's unversioned ARN and current numeric published-version ARN. It does not deploy
+Admin to the agent's unversioned ARN and current numeric published-version ARN.
+It strips an existing `:$LATEST` suffix and builds the published ARN from the
+stack's `AgentVersion` output. Existing Admin associations and complete MCP
+tool permissions are skipped. It does not deploy
 the gateway, AI agent or prompt. Those stacks and the registered Connect MCP
 integration must already exist. Existing application/tool grants and other
 attached security profiles are retained. The original `btsgsd_support_agent`

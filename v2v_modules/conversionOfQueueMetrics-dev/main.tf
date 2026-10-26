@@ -73,7 +73,16 @@ resource "aws_lambda_function" "lambda" {
   }
 
   environment {
-    variables = merge(var.environment_variables, module.application_signals.environment_variables)
+    variables = {
+      for key, value in merge(
+        var.environment_variables,
+        module.application_signals.environment_variables,
+      ) : key => value
+      if !contains([
+        "AWS_LAMBDA_EXEC_WRAPPER",
+        "OTEL_AWS_APPLICATION_SIGNALS_ENABLED",
+      ], key)
+    }
   }
 
   logging_config {

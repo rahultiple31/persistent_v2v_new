@@ -5,6 +5,7 @@ mock_provider "aws" {
         GatewayId          = "registered-gateway-0123456789"
         AgentArn           = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id"
         AgentVersionArn    = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:4"
+        AgentVersion       = "4"
         ConnectInstanceArn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
       }
     }
@@ -62,6 +63,7 @@ run "current_stack_outputs_control_gateway_and_agent_version" {
       outputs = {
         AgentArn           = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id"
         AgentVersionArn    = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:5"
+        AgentVersion       = "5"
         ConnectInstanceArn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
       }
     }
@@ -73,5 +75,29 @@ run "current_stack_outputs_control_gateway_and_agent_version" {
       contains(terraform_data.admin_mcp_access.input.agent_arns, "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:5")
     )
     error_message = "Use the registered gateway and current published version rather than hard-coded identifiers."
+  }
+}
+
+run "latest_stack_qualifier_is_removed_and_published_arn_is_rebuilt" {
+  command = plan
+
+  override_data {
+    target = data.aws_cloudformation_stack.support_agent
+    values = {
+      outputs = {
+        AgentArn           = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:$LATEST"
+        AgentVersionArn    = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:$LATEST:7"
+        AgentVersion       = "7"
+        ConnectInstanceArn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
+      }
+    }
+  }
+
+  assert {
+    condition = toset(terraform_data.admin_mcp_access.input.agent_arns) == toset([
+      "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id",
+      "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:7",
+    ])
+    error_message = "Normalize the stack's :$LATEST output and build the published ARN from AgentVersion."
   }
 }

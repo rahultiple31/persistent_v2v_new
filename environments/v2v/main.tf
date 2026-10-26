@@ -274,7 +274,7 @@ module "btsgsd_support_agent_tools_access" {
   }
 
   connect_instance_arn = data.aws_connect_instance.target[0].arn
-  python_executable   = var.dev_ai_security_profile_python_executable
+  python_executable    = var.dev_ai_security_profile_python_executable
 }
 
 module "btsgsd_ai_survey_agent" {
@@ -1357,7 +1357,7 @@ resource "aws_lambda_permission" "queue_metrics_connect" {
   count    = local.deploy_connect ? 1 : 0
   provider = aws.us_east_1
 
-  statement_id  = "AllowConnectCustomerQueueMetrics"
+  statement_id  = "connect-${data.aws_connect_instance.target[0].id}"
   action        = "lambda:InvokeFunction"
   function_name = module.conversion_of_queue_metrics[0].lambda_name
   principal     = "connect.amazonaws.com"
@@ -1678,20 +1678,12 @@ resource "aws_cloudformation_stack" "hr_transfer_data_table" {
   template_body = jsonencode(local.hr_transfer_template)
 
   parameters = {
-    InstanceArn = module.connect_us_east_1[0].instance_arn
+    InstanceArn = data.aws_connect_instance.target[0].arn
   }
 
   tags = local.common_tags
 
   lifecycle {
-    precondition {
-      condition = (
-        module.connect_us_east_1[0].instance_arn ==
-        local.connect_target_instance_arn
-      )
-      error_message = "The HR transfer table must be created in the selected V2V Connect instance."
-    }
-
     precondition {
       condition = alltrue([
         for phone_number in keys(local.hr_transfer_rows) :
@@ -1788,19 +1780,11 @@ resource "aws_cloudformation_stack" "survey_data_table" {
   name          = "BTSGSD-V2V-US-SurveyDataTable"
   template_body = jsonencode(local.survey_template)
   parameters = {
-    InstanceArn = module.connect_us_east_1[0].instance_arn
+    InstanceArn = data.aws_connect_instance.target[0].arn
   }
   tags = local.common_tags
 
   lifecycle {
-    precondition {
-      condition = (
-        module.connect_us_east_1[0].instance_arn ==
-        local.connect_target_instance_arn
-      )
-      error_message = "The survey table must be created in the selected V2V Connect instance."
-    }
-
     precondition {
       condition = (
         length(local.survey_columns) == 35 &&
@@ -1952,19 +1936,11 @@ resource "aws_cloudformation_stack" "veeva_transfer_data_table" {
   name          = "BTSGSD-V2V-US-VeevaTransferDataTable"
   template_body = jsonencode(local.veeva_transfer_template)
   parameters = {
-    InstanceArn = module.connect_us_east_1[0].instance_arn
+    InstanceArn = data.aws_connect_instance.target[0].arn
   }
   tags = local.common_tags
 
   lifecycle {
-    precondition {
-      condition = (
-        module.connect_us_east_1[0].instance_arn ==
-        local.connect_target_instance_arn
-      )
-      error_message = "The Veeva transfer table must be created in the selected V2V Connect instance."
-    }
-
     precondition {
       condition = alltrue([
         for row in values(local.veeva_transfer_rows) :
@@ -2077,19 +2053,11 @@ resource "aws_cloudformation_stack" "top_level_blocker_data_table" {
   name          = "BTSGSD-V2V-US-TopLevelBlockerMessage"
   template_body = jsonencode(local.top_level_blocker_template)
   parameters = {
-    InstanceArn = module.connect_us_east_1[0].instance_arn
+    InstanceArn = data.aws_connect_instance.target[0].arn
   }
   tags = local.common_tags
 
   lifecycle {
-    precondition {
-      condition = (
-        module.connect_us_east_1[0].instance_arn ==
-        local.connect_target_instance_arn
-      )
-      error_message = "TopLevelBlockerMessage must be created in the selected V2V Connect instance."
-    }
-
     precondition {
       condition = alltrue([
         for phone_number in keys(local.top_level_blocker_rows) :
@@ -2273,20 +2241,11 @@ resource "aws_cloudformation_stack" "bts_gsd_customer_number_data_table" {
   template_body = jsonencode(local.bts_gsd_customer_number_template)
 
   parameters = {
-    InstanceArn = module.connect_us_east_1[0].instance_arn
+    InstanceArn = data.aws_connect_instance.target[0].arn
   }
 
   tags = local.common_tags
 
-  lifecycle {
-    precondition {
-      condition = (
-        module.connect_us_east_1[0].instance_arn ==
-        local.connect_target_instance_arn
-      )
-      error_message = "BTSGSD-CustomerNumber must use the selected V2V Connect instance."
-    }
-  }
 }
 
 # Configuration consolidated from survey_flow.tf
@@ -2409,7 +2368,7 @@ module "code_signing_config" {
 # connect_external_vms
 
 module "external_vms" {
-  count  = local.deploy_connect_resources && var.enable_external_vms ? 1 : 0
+  count = local.deploy_connect_resources && var.enable_external_vms ? 1 : 0
 
   source = "../../v2v_modules/connect_external_vms"
 

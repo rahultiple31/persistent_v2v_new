@@ -96,10 +96,10 @@ def grant(config, aws_call=aws, sleep=time.sleep):
     else:
         target = {"Namespace": namespace, "ApplicationPermissions": []}
         updated.append(target)
-    target["Type"] = "MCP"
-    target["ApplicationPermissions"] = sorted(
-        set(target.get("ApplicationPermissions", [])) | required_tools
-    )
+    existing_tools = set(target.get("ApplicationPermissions", []))
+    if target.get("Type") != "MCP" or not required_tools.issubset(existing_tools):
+        target["Type"] = "MCP"
+        target["ApplicationPermissions"] = sorted(existing_tools | required_tools)
 
     # Only Applications is updated; existing application and tool grants are merged.
     if updated != existing:
@@ -130,11 +130,13 @@ def grant(config, aws_call=aws, sleep=time.sleep):
         return {item["Id"] for item in response["SecurityProfiles"]}
 
     for agent_arn in sorted(agent_arns):
-        if admin_id not in assigned_profiles(agent_arn):
-            connect(
-                "associate-security-profiles", EntityType="AI_AGENT", EntityArn=agent_arn,
-                SecurityProfiles=[{"Id": admin_id}],
-            )
+        if admin_id in assigned_profiles(agent_arn):
+            print(f"Admin already attached; skipping association: {agent_arn}")
+            continue
+        connect(
+            "associate-security-profiles", EntityType="AI_AGENT", EntityArn=agent_arn,
+            SecurityProfiles=[{"Id": admin_id}],
+        )
         verify(
             lambda: admin_id in assigned_profiles(agent_arn),
             f"Admin assignment was not verified: {agent_arn}",
