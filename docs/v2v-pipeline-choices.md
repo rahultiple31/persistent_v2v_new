@@ -1,9 +1,23 @@
 # V2V pipeline choices
 
-Run `v2v-azure-pipeline.yml` from `main`. Select the resource's module in
+Run `v2v-azure-pipeline.yml` from `main`. Select `targetEnvironment=v2v` for
+the existing V2V choices below. Select the resource's module in
 `targetModule` and use `terraformAction=plan` to review the changes. Select
 the same module with `terraformAction=apply` to run a new Plan stage followed
 by Apply of that run's saved plan. The earlier plan-only artifact is not reused.
+
+Select `targetEnvironment=v2v-resources` to deploy
+`environments/v2v-resources`, whose module sources are in `v2v-resource-modules`.
+Its `targetModule` choices are `cloudwatch`, `ssm`, `ecr`, `iam`, `networking`,
+`alb`, `waf`, `ecs`, and `dns`. Select `all` for the complete root configuration.
+Individual choices target `module.<name>` and include its Terraform dependencies.
+Use `terraformAction=plan` first, then select `apply` after reviewing the changes.
+
+All `v2v-resources` choices retain the existing shared backend key
+`terraform-state/V2V-poc/terraform.tfstate` and explicitly load
+`terraform.dev.tfvars`. They do not use V2V's `enabled_modules` variable or Lambda
+packaging. The environment is recorded with the saved plan and checked before
+Apply. Choices belonging to the other environment are rejected.
 
 Individual choices target a resource or `module.<name>[0]` in its existing owning
 state. Terraform includes dependencies needed by that target, which can

@@ -77,6 +77,17 @@ parameters:
       - cognito_v2v
       - iam_v2v
       - ssm_v2v
+      # environments/v2v-resources uses v2v-resource-modules.
+      - all
+      - cloudwatch
+      - ssm
+      - ecr
+      - iam
+      - networking
+      - alb
+      - waf
+      - ecs
+      - dns
 
   - name: terraformAction
     displayName: Terraform action
@@ -86,13 +97,21 @@ parameters:
       - plan
       - apply
 
+  - name: targetEnvironment
+    displayName: Target environment
+    type: string
+    default: v2v
+    values:
+      - v2v
+      - v2v-resources
+
 # Set AWS_DEV_OIDC_ROLE_ARN in this pipeline's Edit > Variables settings.
 # Use the same IAM role ARN as dev and select "Keep this value secret".
 # Both Terraform tasks map the secret through env; keep its value out of YAML.
 variables:
   terraformVersion: '1.10.5'
   deploymentRegion: 'us-east-1'
-  workingDirectory: '$(Build.SourcesDirectory)/environments/v2v'
+  workingDirectory: '$(Build.SourcesDirectory)/environments/${{ parameters.targetEnvironment }}'
   backendBucket: 'bts-cloud-terraform-tfstate'
   backendRegion: 'us-east-1'
 
@@ -160,8 +179,32 @@ stages:
                 }
               }
 
-              source "$BUILD_SOURCESDIRECTORY/scripts/terraform-target-v2v.sh" \
-                "$TARGET_MODULE" v2v "$DEPLOYMENT_REGION"
+              if [ "$TARGET_ENVIRONMENT" = v2v ]; then
+                source "$BUILD_SOURCESDIRECTORY/scripts/terraform-target-v2v.sh" \
+                  "$TARGET_MODULE" "$TARGET_ENVIRONMENT" "$DEPLOYMENT_REGION"
+                TERRAFORM_VARIABLE_FILE="terraform.tfvars"
+              else
+                case "$TARGET_MODULE" in
+                  all) TERRAFORM_TARGET_ADDRESS="" ;;
+                  cloudwatch|ssm|ecr|iam|networking|alb|waf|ecs|dns)
+                    TERRAFORM_TARGET_ADDRESS="module.$TARGET_MODULE"
+                    ;;
+                  *)
+                    echo "Unsupported v2v-resources module: $TARGET_MODULE" >&2
+                    exit 1
+                    ;;
+                esac
+                # Preserve the existing resource root's shared backend key.
+                TERRAFORM_BACKEND_KEY="terraform-state/V2V-poc/terraform.tfstate"
+                TERRAFORM_VARIABLE_FILE="terraform.dev.tfvars"
+                TERRAFORM_PLAN_ARGS=(
+                  "-var-file=$TERRAFORM_VARIABLE_FILE"
+                  "-var=aws_region=$DEPLOYMENT_REGION"
+                )
+                if [ -n "$TERRAFORM_TARGET_ADDRESS" ]; then
+                  TERRAFORM_PLAN_ARGS+=("-target=$TERRAFORM_TARGET_ADDRESS")
+                fi
+              fi
 
               mkdir -p "$PLAN_DIRECTORY"
 
@@ -170,11 +213,13 @@ stages:
               plan_context="$PLAN_DIRECTORY/context.txt"
 
               # Use the checked-in configuration, matching the dev pipeline.
-              test -s terraform.tfvars
+              test -s "$TERRAFORM_VARIABLE_FILE"
 
               # Build file-based packages before Terraform evaluates their hashes.
-              python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" build \
-                --state-module "$TERRAFORM_STATE_MODULE"
+              if [ "$TARGET_ENVIRONMENT" = v2v ]; then
+                python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" build \
+                  --state-module "$TERRAFORM_STATE_MODULE"
+              fi
 
               refresh_v2v_credentials
 
@@ -187,29 +232,36 @@ stages:
                 -backend-config=encrypt=true
 
               terraform validate
-              preserve_v2v_target_outputs
+              if [ "$TARGET_ENVIRONMENT" = v2v ]; then
+                preserve_v2v_target_outputs
+              fi
               refresh_v2v_credentials
 
-              # terraform.tfvars is loaded automatically from workingDirectory.
+              # V2V auto-loads terraform.tfvars; resources use -var-file.
               terraform plan \
                 -input=false \
                 -no-color \
                 "${TERRAFORM_PLAN_ARGS[@]}" \
                 -out="$plan_file"
 
-              validate_v2v_target_plan "$plan_file"
+              if [ "$TARGET_ENVIRONMENT" = v2v ]; then
+                validate_v2v_target_plan "$plan_file"
+              fi
 
               # Include provider-generated ZIPs for standalone Lambdas as well.
-              python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" save \
-                --artifact-directory "$PLAN_DIRECTORY"
+              if [ "$TARGET_ENVIRONMENT" = v2v ]; then
+                python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" save \
+                  --artifact-directory "$PLAN_DIRECTORY"
+              fi
 
               cp .terraform.lock.hcl "$plan_lock"
               printf '%s\n' \
-                "$BUILD_SOURCEVERSION" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY" "$TARGET_MODULE" \
+                "$BUILD_SOURCEVERSION" "$TARGET_ENVIRONMENT" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY" "$TARGET_MODULE" \
                 > "$plan_context"
             displayName: Terraform Init, Validate, and Plan
             workingDirectory: $(workingDirectory)
             env:
+              TARGET_ENVIRONMENT: ${{ parameters.targetEnvironment }}
               TARGET_MODULE: ${{ parameters.targetModule }}
               DEPLOYMENT_REGION: $(deploymentRegion)
               BACKEND_BUCKET: $(backendBucket)
@@ -297,8 +349,32 @@ stages:
                 }
               }
 
-              source "$BUILD_SOURCESDIRECTORY/scripts/terraform-target-v2v.sh" \
-                "$TARGET_MODULE" v2v "$DEPLOYMENT_REGION"
+              if [ "$TARGET_ENVIRONMENT" = v2v ]; then
+                source "$BUILD_SOURCESDIRECTORY/scripts/terraform-target-v2v.sh" \
+                  "$TARGET_MODULE" "$TARGET_ENVIRONMENT" "$DEPLOYMENT_REGION"
+                TERRAFORM_VARIABLE_FILE="terraform.tfvars"
+              else
+                case "$TARGET_MODULE" in
+                  all) TERRAFORM_TARGET_ADDRESS="" ;;
+                  cloudwatch|ssm|ecr|iam|networking|alb|waf|ecs|dns)
+                    TERRAFORM_TARGET_ADDRESS="module.$TARGET_MODULE"
+                    ;;
+                  *)
+                    echo "Unsupported v2v-resources module: $TARGET_MODULE" >&2
+                    exit 1
+                    ;;
+                esac
+                # Preserve the existing resource root's shared backend key.
+                TERRAFORM_BACKEND_KEY="terraform-state/V2V-poc/terraform.tfstate"
+                TERRAFORM_VARIABLE_FILE="terraform.dev.tfvars"
+                TERRAFORM_PLAN_ARGS=(
+                  "-var-file=$TERRAFORM_VARIABLE_FILE"
+                  "-var=aws_region=$DEPLOYMENT_REGION"
+                )
+                if [ -n "$TERRAFORM_TARGET_ADDRESS" ]; then
+                  TERRAFORM_PLAN_ARGS+=("-target=$TERRAFORM_TARGET_ADDRESS")
+                fi
+              fi
 
               plan_file="$PLAN_DIRECTORY/terraform.tfplan"
               plan_lock="$PLAN_DIRECTORY/.terraform.lock.hcl"
@@ -309,17 +385,19 @@ stages:
               test -s "$plan_context"
 
               expected_context="$(printf '%s\n' \
-                "$BUILD_SOURCEVERSION" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY" "$TARGET_MODULE")"
+                "$BUILD_SOURCEVERSION" "$TARGET_ENVIRONMENT" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY" "$TARGET_MODULE")"
 
               [ "$(cat "$plan_context")" = "$expected_context" ] || {
-                echo "Saved plan does not match the selected commit, region, state or module choice." >&2
+                echo "Saved plan does not match the selected commit, environment, region, state or module choice." >&2
                 exit 1
               }
 
               cp "$plan_lock" .terraform.lock.hcl
 
-              python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" restore \
-                --artifact-directory "$PLAN_DIRECTORY"
+              if [ "$TARGET_ENVIRONMENT" = v2v ]; then
+                python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" restore \
+                  --artifact-directory "$PLAN_DIRECTORY"
+              fi
 
               refresh_v2v_credentials
 
@@ -333,7 +411,9 @@ stages:
                 -backend-config=encrypt=true
 
               terraform validate
-              validate_v2v_target_plan "$plan_file"
+              if [ "$TARGET_ENVIRONMENT" = v2v ]; then
+                validate_v2v_target_plan "$plan_file"
+              fi
               refresh_v2v_credentials
 
               # Apply executes the saved plan from this run's Plan stage.
@@ -341,6 +421,7 @@ stages:
             displayName: Terraform Apply
             workingDirectory: $(workingDirectory)
             env:
+              TARGET_ENVIRONMENT: ${{ parameters.targetEnvironment }}
               TARGET_MODULE: ${{ parameters.targetModule }}
               DEPLOYMENT_REGION: $(deploymentRegion)
               BACKEND_BUCKET: $(backendBucket)

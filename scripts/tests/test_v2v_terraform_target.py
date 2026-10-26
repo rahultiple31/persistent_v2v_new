@@ -9,6 +9,9 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
+RESOURCE_MODULE_CHOICES = {
+    "all", "cloudwatch", "ssm", "ecr", "iam", "networking", "alb", "waf", "ecs", "dns",
+}
 DATA_TABLE_CHOICES = {
     "BTSGSD-V2V-US-CustomerNumberDataTable": "customer_number_data_table",
     "BTSGSD-V2V-US-BTSGSD-CustomerNumber": "bts_gsd_customer_number_data_table",
@@ -91,7 +94,9 @@ fi
         self.assertEqual(len(choices), len(set(choices)))
         selector = (ROOT / "scripts/terraform-target-v2v.sh").read_text()
         registry = selector.split("done <<'V2V_CHOICES'\n", 1)[1].split("\nV2V_CHOICES", 1)[0]
-        self.assertEqual(set(choices), {row.split("|")[0] for row in registry.splitlines()})
+        v2v_choices = {row.split("|")[0] for row in registry.splitlines()}
+        self.assertEqual(set(choices), v2v_choices | RESOURCE_MODULE_CHOICES)
+        choices = [choice for choice in choices if choice in v2v_choices]
         modules = set()
         resources = set()
         for path in (ROOT / "environments/v2v").glob("*.tf"):
