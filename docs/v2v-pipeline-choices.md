@@ -17,6 +17,31 @@ ARN variables. An individual Lambda choice does not require those unrelated
 VMX3 inputs. `connect-resources` retains its separate backend key and requires
 `connect_resources_dependencies` containing the existing V2V resource UUIDs.
 
+Each of these flow names is an individual `targetModule` choice in the existing
+Connect state:
+
+```text
+BTSGSD-V2V-US-AbbVie_Views
+BTSGSD-V2V-US-stdgsd_Fieldforce_Flow
+BTSGSD-V2V-US-AgentToAgentTransferFlow
+BTSGSD-V2V-US-OutboundWhisperFlow
+BTSGSD-V2V-US-Transfer-To-Agent-CustomerQueueFlow
+BTSGSD-V2V-US-VoicemailFlow
+BTSGSD-V2V-US-btsgsd_HR
+BTSGSD-V2V-US-placeholder-inbound-flow
+BTSGSD-V2V-US-transfer-to-agent-customer-queue-flow
+BTSGSD-V2V-US-outbound-whisper-flow
+BTSGSD-V2V-US-agent-to-agent-transfer-flow
+BTSGSD-V2V-US-HR
+```
+
+`BTSGSD-V2V-US-AbbVie_Views` is an alias for `abbvie_views`. The other choices
+target individual contact-flow resources inside `module.connect_us_east_1[0]`.
+Terraform still includes dependencies. Imported flows share dependency
+expressions with the customer-queue resolver, so selecting one does not
+guarantee exclusion of existing VMX3 lookups. Review the plan before applying.
+The existing `connect_us_east_1` choice continues to target the entire module.
+
 Each of these data-table choices targets its own CloudFormation stack in the
 existing Connect state. Select the table name in `targetModule`; the `connect`
 choice is not required. Except for `BTSGSD-V2V-US-CustomerNumberDataTable`,

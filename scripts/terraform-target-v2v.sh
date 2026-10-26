@@ -18,6 +18,8 @@ TERRAFORM_STATE_MODULE=""
 TERRAFORM_TARGET_ADDRESS=""
 
 # choice | existing state group | optional resource or module target
+# Imported-flow targets retain shared dependency expressions, including the
+# customer-queue resolver's existing VMX3 lookup. Review dependencies in the plan.
 while IFS='|' read -r v2v_choice v2v_group v2v_address; do
   if [ "$v2v_choice" = "$DEPLOYMENT_TARGET" ]; then
     TERRAFORM_STATE_MODULE="$v2v_group"
@@ -39,6 +41,18 @@ connect_us_east_1|connect|module.connect_us_east_1[0]
 btsgsd-Main-IB-Flow|connect|module.btsgsd-Main-IB-Flow[0]
 connect_views|connect|module.connect_views[0]
 abbvie_views|connect|module.abbvie_views[0]
+BTSGSD-V2V-US-AbbVie_Views|connect|module.abbvie_views[0]
+BTSGSD-V2V-US-stdgsd_Fieldforce_Flow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["fieldforce"]
+BTSGSD-V2V-US-AgentToAgentTransferFlow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["agent_transfer"]
+BTSGSD-V2V-US-OutboundWhisperFlow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["outbound_whisper"]
+BTSGSD-V2V-US-Transfer-To-Agent-CustomerQueueFlow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["transfer_customer_queue"]
+BTSGSD-V2V-US-VoicemailFlow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["voicemail"]
+BTSGSD-V2V-US-btsgsd_HR|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["hr"]
+BTSGSD-V2V-US-placeholder-inbound-flow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.placeholder
+BTSGSD-V2V-US-transfer-to-agent-customer-queue-flow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.transfer_to_agent_customer_queue[0]
+BTSGSD-V2V-US-outbound-whisper-flow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.outbound_whisper[0]
+BTSGSD-V2V-US-agent-to-agent-transfer-flow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.agent_to_agent_transfer[0]
+BTSGSD-V2V-US-HR|connect|module.connect_us_east_1[0].aws_connect_contact_flow.hr[0]
 connect_queue|connect|module.connect_queue[0]
 BTSGSD-V2V-US-CustomerNumberDataTable|connect|aws_cloudformation_stack.customer_number_data_table[0]
 BTSGSD-V2V-US-BTSGSD-CustomerNumber|connect|aws_cloudformation_stack.bts_gsd_customer_number_data_table[0]

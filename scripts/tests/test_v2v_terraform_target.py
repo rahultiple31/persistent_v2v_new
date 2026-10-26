@@ -17,6 +17,20 @@ DATA_TABLE_CHOICES = {
     "BTSGSD-V2V-US-BTSGSD-Veeva_Transfer": "veeva_transfer_data_table",
     "BTSGSD-V2V-US-TopLevelBlockerMessage": "top_level_blocker_data_table",
 }
+FLOW_CHOICES = {
+    "BTSGSD-V2V-US-AbbVie_Views": "module.abbvie_views[0]",
+    "BTSGSD-V2V-US-stdgsd_Fieldforce_Flow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["fieldforce"]',
+    "BTSGSD-V2V-US-AgentToAgentTransferFlow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["agent_transfer"]',
+    "BTSGSD-V2V-US-OutboundWhisperFlow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["outbound_whisper"]',
+    "BTSGSD-V2V-US-Transfer-To-Agent-CustomerQueueFlow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["transfer_customer_queue"]',
+    "BTSGSD-V2V-US-VoicemailFlow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["voicemail"]',
+    "BTSGSD-V2V-US-btsgsd_HR": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["hr"]',
+    "BTSGSD-V2V-US-placeholder-inbound-flow": "module.connect_us_east_1[0].aws_connect_contact_flow.placeholder",
+    "BTSGSD-V2V-US-transfer-to-agent-customer-queue-flow": "module.connect_us_east_1[0].aws_connect_contact_flow.transfer_to_agent_customer_queue[0]",
+    "BTSGSD-V2V-US-outbound-whisper-flow": "module.connect_us_east_1[0].aws_connect_contact_flow.outbound_whisper[0]",
+    "BTSGSD-V2V-US-agent-to-agent-transfer-flow": "module.connect_us_east_1[0].aws_connect_contact_flow.agent_to_agent_transfer[0]",
+    "BTSGSD-V2V-US-HR": "module.connect_us_east_1[0].aws_connect_contact_flow.hr[0]",
+}
 if os.name == "nt":
     git_bash = Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Git/bin/bash.exe"
     BASH = str(git_bash) if git_bash.is_file() else None
@@ -107,6 +121,16 @@ fi
                 targets = [a for a in arguments if a.startswith("-target=")]
                 if choice in ("connect", "v2v", "code-signing"):
                     self.assertEqual(targets, [])
+                elif choice in FLOW_CHOICES:
+                    address = FLOW_CHOICES[choice]
+                    self.assertEqual(group, "connect")
+                    module = address.split(".", 2)[1].split("[", 1)[0]
+                    self.assertIn(module, modules)
+                    if ".aws_connect_contact_flow." in address:
+                        resource = address.split(".aws_connect_contact_flow.", 1)[1].split("[", 1)[0]
+                        module_source = (ROOT / "v2v_modules/connect/main.tf").read_text()
+                        self.assertIn(f'resource "aws_connect_contact_flow" "{resource}"', module_source)
+                    self.assertEqual(targets, [f"-target={address}"])
                 elif choice in DATA_TABLE_CHOICES:
                     resource = DATA_TABLE_CHOICES[choice]
                     self.assertEqual(group, "connect")
