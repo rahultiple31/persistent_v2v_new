@@ -53,7 +53,7 @@ locals {
     ]
 
     agent_arns = [
-      "${data.aws_cloudformation_stack.support_agent.outputs["AgentArn"]}:$LATEST",
+      data.aws_cloudformation_stack.support_agent.outputs["AgentArn"],
       data.aws_cloudformation_stack.support_agent.outputs["AgentVersionArn"],
     ]
   }

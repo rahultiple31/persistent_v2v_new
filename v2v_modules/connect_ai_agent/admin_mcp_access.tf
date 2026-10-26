@@ -11,7 +11,7 @@ locals {
     ]
 
     agent_arns = [
-      "${aws_cloudformation_stack.agent.outputs["AgentArn"]}:$LATEST",
+      aws_cloudformation_stack.agent.outputs["AgentArn"],
       aws_cloudformation_stack.agent.outputs["AgentVersionArn"],
     ]
   }

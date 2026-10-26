@@ -25,7 +25,7 @@ run "existing_stacks_supply_access_configuration" {
       terraform_data.admin_mcp_access.input.namespace == "registered-gateway-0123456789" &&
       terraform_data.admin_mcp_access.input.connect_instance_arn == var.connect_instance_arn &&
       toset(terraform_data.admin_mcp_access.input.agent_arns) == toset([
-        "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:$LATEST",
+        "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id",
         "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:4",
       ]) &&
       toset(terraform_data.admin_mcp_access.input.tool_names) == toset([

@@ -52,7 +52,7 @@ no AWS resources; its output is used by `btsgsd_support_agent`.
 Use `btsgsd_support_agent_tools_access` to grant the existing Connect `Admin`
 security profile access to the three configured MCP tools. This separate choice
 reads the existing gateway and support-agent CloudFormation stacks and assigns
-Admin to the agent's `$LATEST` and current published version. It does not deploy
+Admin to the agent's unversioned ARN and current numeric published-version ARN. It does not deploy
 the gateway, AI agent or prompt. Those stacks and the registered Connect MCP
 integration must already exist. Existing application/tool grants and other
 attached security profiles are retained. The original `btsgsd_support_agent`

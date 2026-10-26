@@ -44,12 +44,26 @@ def grant(config, aws_call=aws, sleep=time.sleep):
     agent_arns = set(config["agent_arns"])
     if not agent_arns or any(not arn.startswith(expected_prefix) for arn in agent_arns):
         raise ValueError("AI agent ARNs must match the account and region.")
-    # Each grant is scoped to one agent's latest and published versions.
-    if len({arn.rsplit(":", 1)[0] for arn in agent_arns}) != 1 or any(
-        not (arn.endswith(":$LATEST") or arn.rsplit(":", 1)[-1].isdigit())
-        for arn in agent_arns
-    ):
-        raise ValueError("Provide version-qualified ARNs belonging to one AI agent.")
+
+    def agent_identity(arn):
+        resource = arn[len(expected_prefix):]
+        agent_path, separator, version = resource.partition(":")
+        identifiers = agent_path.split("/")
+        if len(identifiers) != 2 or not all(identifiers):
+            raise ValueError(f"Invalid AI agent resource path: {arn}")
+        # Connect accepts the unversioned ARN or a positive numeric version,
+        # rather than Lambda-style qualifiers such as $LATEST.
+        if separator and not (
+            version.isascii() and version.isdigit() and int(version) > 0
+        ):
+            raise ValueError(
+                "Use an unversioned AI agent ARN or a positive "
+                f"numeric version ARN: {arn}"
+            )
+        return agent_path
+
+    if len({agent_identity(arn) for arn in agent_arns}) != 1:
+        raise ValueError("All configured ARNs must belong to the same AI agent.")
 
     def connect(operation, **payload):
         return aws_call(

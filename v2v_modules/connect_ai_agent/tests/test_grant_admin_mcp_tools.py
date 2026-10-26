@@ -24,7 +24,7 @@ CONFIG = {
     "connect_instance_arn": f"arn:aws:connect:us-east-1:518902362956:instance/{INSTANCE}",
     "namespace": "gateway-0123456789",
     "tool_names": TOOLS,
-    "agent_arns": [AGENT + ":$LATEST", AGENT + ":2"],
+    "agent_arns": [AGENT, AGENT + ":2"],
     "aws_profile": "deployment-profile",
 }
 
@@ -87,6 +87,9 @@ class AdminMcpAccessTests(unittest.TestCase):
         self.assertEqual(set(self.aws.applications[1]["ApplicationPermissions"]), set(TOOLS) | {"existing-tool"})
         updates = [call[4] for call in self.aws.writes() if call[2] == "update-security-profile"]
         self.assertEqual(set(updates[0]), {"InstanceId", "SecurityProfileId", "Applications"})
+        associations = [call[4]["EntityArn"] for call in self.aws.writes()
+                        if call[2] == "associate-security-profiles"]
+        self.assertEqual(set(associations), {AGENT, AGENT + ":2"})
         for arn, previous in before.items():
             expected = previous | {"admin-id"} if arn in CONFIG["agent_arns"] else previous
             self.assertEqual(self.aws.attached[arn], expected)
@@ -107,20 +110,39 @@ class AdminMcpAccessTests(unittest.TestCase):
         })
 
     def test_wrong_account_or_agent_scope_is_rejected_before_writes(self):
-        for case in ("account", "region", "different-agent", "unqualified-agent"):
+        for case in ("account", "region", "different-agent", "different-assistant"):
             with self.subTest(case=case):
                 self.setUp()
                 if case == "account":
                     self.aws.account = "000000000000"
                 elif case == "region":
-                    self.config["agent_arns"][0] = AGENT.replace("us-east-1", "us-west-2") + ":$LATEST"
+                    self.config["agent_arns"][0] = AGENT.replace("us-east-1", "us-west-2")
                 elif case == "different-agent":
-                    self.config["agent_arns"][0] = AGENT.replace("support-agent-id", "other-agent-id") + ":$LATEST"
+                    self.config["agent_arns"][0] = AGENT.replace("support-agent-id", "other-agent-id")
                 else:
-                    self.config["agent_arns"][0] = AGENT
+                    self.config["agent_arns"][0] = AGENT.replace("assistant-id", "other-assistant-id")
                 with self.assertRaises((ValueError, RuntimeError)):
                     self.grant()
                 self.assertEqual(self.aws.writes(), [])
+
+    def test_unsupported_agent_qualifiers_are_rejected_before_connect_calls(self):
+        for qualifier in ("$LATEST", "$SAVED", "0", "-1", "1:2", "", "\u0661"):
+            with self.subTest(qualifier=qualifier):
+                self.setUp()
+                self.config["agent_arns"][0] = AGENT + ":" + qualifier
+                with self.assertRaisesRegex(ValueError, "positive numeric version"):
+                    self.grant()
+                self.assertFalse(any(call[1] == "connect" for call in self.aws.calls))
+
+    def test_malformed_agent_paths_are_rejected_before_connect_calls(self):
+        prefix = AGENT.split("ai-agent/")[0] + "ai-agent/"
+        for path in ("assistant-only", "assistant/", "/agent", "assistant/agent/extra"):
+            with self.subTest(path=path):
+                self.setUp()
+                self.config["agent_arns"][0] = prefix + path
+                with self.assertRaisesRegex(ValueError, "Invalid AI agent resource path"):
+                    self.grant()
+                self.assertFalse(any(call[1] == "connect" for call in self.aws.calls))
 
     def test_admin_profile_must_exist_uniquely(self):
         for profiles in ([], [{"Name": "Admin", "Id": "one"}, {"Name": "Admin", "Id": "two"}]):
@@ -166,13 +188,13 @@ class AdminMcpAccessTests(unittest.TestCase):
             self.grant()
         self.assertEqual(self.aws.writes(), [])
 
-    def test_cli_preserves_literal_latest_and_profile_without_a_shell(self):
+    def test_cli_preserves_agent_arn_and_profile_without_a_shell(self):
         response = subprocess.CompletedProcess("aws", 0, "", "")
         with patch.object(ACCESS.subprocess, "run", return_value=response) as run:
             ACCESS.aws("us-east-1", "connect", "associate-security-profiles",
-                       aws_profile="deployment-profile", EntityArn=AGENT + ":$LATEST")
+                       aws_profile="deployment-profile", EntityArn=AGENT + ":2")
         arguments = run.call_args.args[0]
-        self.assertEqual(json.loads(arguments[arguments.index("--cli-input-json") + 1])["EntityArn"], AGENT + ":$LATEST")
+        self.assertEqual(json.loads(arguments[arguments.index("--cli-input-json") + 1])["EntityArn"], AGENT + ":2")
         self.assertEqual(arguments[arguments.index("--profile") + 1], "deployment-profile")
         self.assertNotIn("shell", run.call_args.kwargs)
         self.assertNotIn("--no-paginate", arguments)
