@@ -10,6 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_TABLE_CHOICES = {
+    "BTSGSD-V2V-US-CustomerNumberDataTable": "customer_number_data_table",
     "BTSGSD-V2V-US-BTSGSD-CustomerNumber": "bts_gsd_customer_number_data_table",
     "BTSGSD-V2V-US-BTSGSD-HR_Transfer": "hr_transfer_data_table",
     "BTSGSD-V2V-US-Survey-DataTable": "survey_data_table",

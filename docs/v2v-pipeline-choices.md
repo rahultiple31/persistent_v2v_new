@@ -19,17 +19,25 @@ VMX3 inputs. `connect-resources` retains its separate backend key and requires
 
 Each of these data-table choices targets its own CloudFormation stack in the
 existing Connect state. Select the table name in `targetModule`; the `connect`
-choice is not required. The table uses the existing instance resolved by
+choice is not required. Except for `BTSGSD-V2V-US-CustomerNumberDataTable`,
+the table uses the existing instance resolved by
 `connect_instance_alias`, without deploying the Connect module or requiring
 VMX3 inputs. The Connect instance must already exist.
 
 | Data table | Pipeline choice |
 | --- | --- |
+| BTSGSD-V2V-US-CustomerNumberDataTable | `BTSGSD-V2V-US-CustomerNumberDataTable` |
 | BTSGSD-V2V-US-BTSGSD-CustomerNumber | `BTSGSD-V2V-US-BTSGSD-CustomerNumber` |
 | BTSGSD-V2V-US-BTSGSD-HR_Transfer | `BTSGSD-V2V-US-BTSGSD-HR_Transfer` |
 | BTSGSD-V2V-US-Survey-DataTable | `BTSGSD-V2V-US-Survey-DataTable` |
 | BTSGSD-V2V-US-BTSGSD-Veeva_Transfer | `BTSGSD-V2V-US-BTSGSD-Veeva_Transfer` |
 | BTSGSD-V2V-US-TopLevelBlockerMessage | `BTSGSD-V2V-US-TopLevelBlockerMessage` |
+
+`BTSGSD-V2V-US-CustomerNumberDataTable` targets
+`aws_cloudformation_stack.customer_number_data_table[0]` in the existing
+Connect state. Its instance ARN comes from `module.connect_us_east_1[0]`,
+so Terraform also includes that module's dependencies in the plan. Review
+those changes before running the same choice with `terraformAction=apply`.
 
 `connect_external_vms` targets `module.external_vms[0]` in the same
 `connect-resources` state. It creates the `External VMs` phone quick connect

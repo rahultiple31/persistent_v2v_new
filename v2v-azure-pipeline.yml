@@ -22,6 +22,7 @@ parameters:
       - connect_views
       - abbvie_views
       - connect_queue
+      - BTSGSD-V2V-US-CustomerNumberDataTable
       - BTSGSD-V2V-US-BTSGSD-CustomerNumber
       - BTSGSD-V2V-US-BTSGSD-HR_Transfer
       - BTSGSD-V2V-US-Survey-DataTable
