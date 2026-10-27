@@ -28,8 +28,17 @@ data "archive_file" "code" {
   count = var.source_file != null ? 1 : 0
 
   type        = "zip"
-  source_file = var.source_file
   output_path = var.zip_path
+
+  source {
+    content  = file(var.source_file)
+    filename = "lambda_function.py"
+  }
+
+  source {
+    content  = file("${path.module}/warmup_wrapper.py")
+    filename = "warmup_wrapper.py"
+  }
 }
 
 resource "aws_cloudwatch_log_group" "this" {
@@ -122,7 +131,7 @@ resource "aws_lambda_function" "this" {
   role                           = aws_iam_role.execution.arn
   runtime                        = "python3.13"
   architectures                  = ["x86_64"]
-  handler                        = "lambda_function.handler"
+  handler                        = "warmup_wrapper.handler"
   package_type                   = "Zip"
   filename                       = var.source_file != null ? data.archive_file.code[0].output_path : var.zip_path
   source_code_hash               = var.source_file != null ? data.archive_file.code[0].output_base64sha256 : filebase64sha256(var.zip_path)
@@ -149,6 +158,7 @@ resource "aws_lambda_function" "this" {
       LOG_LEVEL        = "INFO"
       API_TIMEOUT      = "1.5"
       API_MAX_ATTEMPTS = "2"
+      ORIGINAL_HANDLER = "lambda_function.handler"
     }, module.application_signals.environment_variables)
   }
 

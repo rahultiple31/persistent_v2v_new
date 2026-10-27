@@ -12,6 +12,10 @@ CONNECT_DIRECTORIES = (
     "BTSGSD-lex-yesNo-dev_lambda-dev_lambda",
     "conversionOfQueueMetrics-dev_lambda",
 )
+WARMUP_WRAPPER = (
+    Path(__file__).resolve().parents[1]
+    / "v2v_modules/UpdateSessionAttributes-dev/warmup_wrapper.py"
+)
 
 
 def build(state_module, working_directory):
@@ -19,15 +23,20 @@ def build(state_module, working_directory):
         return
     for directory in CONNECT_DIRECTORIES:
         source = working_directory / "metadata" / directory / "lambda_function.py"
-        if not source.is_file():
-            raise FileNotFoundError("Missing Lambda source: " + str(source))
-        # Stable metadata prevents checkout timestamps from changing the hash.
-        entry = ZipInfo("lambda_function.py", date_time=(1980, 1, 1, 0, 0, 0))
-        entry.compress_type = ZIP_DEFLATED
-        entry.create_system = 3
-        entry.external_attr = 0o100644 << 16
+        sources = {"lambda_function.py": source}
+        if directory == "scr_lambda":
+            sources["warmup_wrapper.py"] = WARMUP_WRAPPER
+        for path in sources.values():
+            if not path.is_file():
+                raise FileNotFoundError("Missing Lambda source: " + str(path))
         with ZipFile(source.with_suffix(".zip"), "w") as package:
-            package.writestr(entry, source.read_bytes())
+            for name, path in sources.items():
+                # Stable metadata prevents checkout timestamps from changing the hash.
+                entry = ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                entry.compress_type = ZIP_DEFLATED
+                entry.create_system = 3
+                entry.external_attr = 0o100644 << 16
+                package.writestr(entry, path.read_bytes())
 
 
 def transfer(source_directory, destination_directory):

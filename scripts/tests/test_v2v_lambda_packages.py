@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 from zipfile import ZipFile
 
 
@@ -43,7 +44,11 @@ class V2VLambdaPackagesTests(unittest.TestCase):
         self.assertEqual(len(hashes), 4)
         for source in (self.plan / "metadata").rglob("*.py"):
             with ZipFile(source.with_suffix(".zip")) as package:
-                self.assertEqual(package.namelist(), ["lambda_function.py"])
+                expected = ["lambda_function.py"]
+                if source.parent.name == "scr_lambda":
+                    expected.append("warmup_wrapper.py")
+                    self.assertEqual(package.read("warmup_wrapper.py"), PACKAGES.WARMUP_WRAPPER.read_bytes())
+                self.assertEqual(package.namelist(), expected)
                 self.assertEqual(package.read("lambda_function.py"), source.read_bytes())
             os.utime(source, (1700000000, 1700000000))
         PACKAGES.build("connect", self.plan)
@@ -52,6 +57,12 @@ class V2VLambdaPackagesTests(unittest.TestCase):
     def test_missing_source_fails_before_terraform(self):
         with self.assertRaisesRegex(FileNotFoundError, "Missing Lambda source"):
             PACKAGES.build("connect", self.plan)
+
+    def test_missing_wrapper_fails_before_terraform(self):
+        self.sources()
+        with patch.object(PACKAGES, "WARMUP_WRAPPER", self.root / "missing_wrapper.py"):
+            with self.assertRaisesRegex(FileNotFoundError, "missing_wrapper.py"):
+                PACKAGES.build("connect", self.plan)
 
     def test_other_groups_do_not_require_connect_sources(self):
         PACKAGES.build("btsgsd-v2v-us-snow", self.plan)

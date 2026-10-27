@@ -5,7 +5,8 @@ Adds the contact flow's Invoke-Lambda parameters to the contact's Amazon Q in
 Connect session, so each becomes {{$.Custom.<KEY>}} in the AI agent prompt.
 Must run AFTER the "Connect assistant" block.
 
-Handler: lambda_function.handler  (lambda_function.lambda_handler also works)
+Lambda entry point: warmup_wrapper.handler
+ORIGINAL_HANDLER: lambda_function.handler
 
 Environment variables (all optional)
   NAMESPACE          Session-data namespace. Default "Custom".

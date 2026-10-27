@@ -1,6 +1,8 @@
 import importlib.util
 import os
 from pathlib import Path
+import sys
+from types import ModuleType
 import unittest
 from unittest.mock import Mock, patch
 from zipfile import ZipFile
@@ -12,6 +14,7 @@ SOURCE = (
     Path(__file__).resolve().parents[3]
     / "environments/v2v/metadata/scr_lambda/lambda_function.py"
 )
+WRAPPER_SOURCE = Path(__file__).resolve().parents[1] / "warmup_wrapper.py"
 spec = importlib.util.spec_from_file_location("session_attributes_handler", SOURCE)
 handler = importlib.util.module_from_spec(spec)
 with patch("boto3.client"), patch.dict(os.environ, {"NAMESPACE": "Custom", "LOG_LEVEL": "INFO"}):
@@ -26,6 +29,39 @@ def invocation(parameters):
         "ContactData": {"InstanceARN": INSTANCE_ARN, "ContactId": "contact-id"},
         "Parameters": parameters,
     }}
+
+
+def load_wrapper(original_module):
+    spec = importlib.util.spec_from_file_location("session_attributes_wrapper", WRAPPER_SOURCE)
+    wrapper = importlib.util.module_from_spec(spec)
+    with patch.dict(sys.modules, {"lambda_function": original_module}), patch.dict(
+        os.environ, {"ORIGINAL_HANDLER": "lambda_function.handler"}
+    ):
+        spec.loader.exec_module(wrapper)
+    return wrapper
+
+
+class WarmupWrapperTests(unittest.TestCase):
+    def setUp(self):
+        original_module = ModuleType("lambda_function")
+        self.original_handler = original_module.handler = Mock()
+        self.wrapper = load_wrapper(original_module)
+
+    def test_warmup_returns_success_without_running_business_logic(self):
+        self.assertEqual(self.wrapper.handler({"warmup": True}, object()), {
+            "Status": "Success", "Message": "warm",
+        })
+        self.original_handler.assert_not_called()
+
+    def test_other_events_delegate_unchanged_to_original_handler(self):
+        response, context = object(), object()
+        self.original_handler.return_value = response
+        for event in (None, [], {}, {"warmup": False}, {"warmup": "true"},
+                      {"warmup": 1}, invocation({"Name": "Alice"})):
+            with self.subTest(event=event):
+                self.original_handler.reset_mock()
+                self.assertIs(self.wrapper.handler(event, context), response)
+                self.original_handler.assert_called_once_with(event, context)
 
 
 class HandlerTests(unittest.TestCase):
@@ -124,10 +160,27 @@ class HandlerTests(unittest.TestCase):
         })
         self.qconnect.update_session_data.assert_not_called()
 
+    def test_wrapper_invokes_real_session_update_handler(self):
+        wrapper = load_wrapper(handler)
+        self.assertEqual(wrapper.handler(invocation({"Name": "Alice"}), None), {
+            "status": "success", "keysSet": "Name",
+        })
+        self.connect.describe_contact.assert_called_once()
+        self.qconnect.update_session_data.assert_called_once()
+
+    def test_warmup_does_not_call_connect_or_qconnect(self):
+        wrapper = load_wrapper(handler)
+        self.assertEqual(wrapper.handler({"warmup": True}, None), {
+            "Status": "Success", "Message": "warm",
+        })
+        self.connect.describe_contact.assert_not_called()
+        self.qconnect.update_session_data.assert_not_called()
+
     def test_deployment_zip_contains_current_handler_at_root(self):
         with ZipFile(SOURCE.with_suffix(".zip")) as package:
-            self.assertEqual(package.namelist(), ["lambda_function.py"])
+            self.assertEqual(package.namelist(), ["lambda_function.py", "warmup_wrapper.py"])
             self.assertEqual(package.read("lambda_function.py"), SOURCE.read_bytes())
+            self.assertEqual(package.read("warmup_wrapper.py"), WRAPPER_SOURCE.read_bytes())
 
 
 if __name__ == "__main__":
