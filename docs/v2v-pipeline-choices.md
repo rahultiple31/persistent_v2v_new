@@ -6,6 +6,24 @@ the existing V2V choices below. Select the resource's module in
 the same module with `terraformAction=apply` to run a new Plan stage followed
 by Apply of that run's saved plan. The earlier plan-only artifact is not reused.
 
+The retired survey resources have two destruction-only `targetModule` choices
+under `targetEnvironment=v2v`:
+
+| Choice | Resources | Existing state |
+| --- | --- | --- |
+| `destroy_survey_ai` | `BTSGSD-V2V-US-AI-Survey-Agent`, `BTSGSD-V2V-US-AI-Survey-Prompt`, and their module-owned versions/helpers | `terraform-state/v2v/us-east-1/connect/terraform.tfstate` |
+| `destroy_survey_lex` | `BTSGSD-V2V-US-AIAgent-Survey` and its module-owned locales/IAM resources | `terraform-state/v2v/us-east-1/lex_bot/terraform.tfstate` |
+
+Run each choice with `terraformAction=plan` to review its destruction plan.
+Use the same choice with `terraformAction=apply` to create and apply a new
+destruction plan. Both choices use `-destroy` with explicit module targets.
+Plan and Apply reject any managed changes except deletions inside those exact
+retired module instances. An empty plan means no matching resources remain in
+the selected state; verify state ownership if the resources still exist in AWS.
+The retired module definitions stay removed, and `btsgsd_ai_survey_agent` is a
+separate resource that these choices do not delete. Update the survey contact
+flow routing before using it after the referenced AI agent or bot is deleted.
+
 Select `targetEnvironment=v2v-resources` to deploy
 `environments/v2v-resources`, whose module sources are in `v2v-resource-modules`.
 Its `targetModule` choices are `cloudwatch`, `ssm`, `ecr`, `iam`, `networking`,

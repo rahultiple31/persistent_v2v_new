@@ -10,7 +10,9 @@ import tempfile
 import textwrap
 import unittest
 
-from scripts.tests.test_v2v_terraform_target import BASH, ROOT, RESOURCE_MODULE_CHOICES
+from scripts.tests.test_v2v_terraform_target import (
+    BASH, ROOT, RESOURCE_MODULE_CHOICES, DESTROY_CHOICES, change, plan,
+)
 
 
 STUBS = r'''
@@ -123,6 +125,7 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
                 trace = self.trace.read_text()
                 self.assertEqual(trace.count("<-backend-config=key=terraform-state/V2V-poc/terraform.tfstate>"), 2)
                 plan_command = next(line for line in trace.splitlines() if line.startswith("terraform <plan>"))
+                self.assertNotIn("<-destroy>", plan_command)
                 self.assertIn("<-var-file=terraform.dev.tfvars>", plan_command)
                 self.assertIn("<-var=aws_region=us-east-1>", plan_command)
                 if choice == "all":
@@ -147,9 +150,70 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
         self.assertIn("<-target=aws_lambda_permission.queue_metrics_connect[0]>", trace)
         for command in ("build", "save", "restore"):
             self.assertIn(f"packages <{command}>", trace)
+        self.assertNotIn("<-destroy>", trace)
+
+    def test_destroy_choices_plan_and_apply_only_their_saved_targeted_plans(self):
+        for choice, (group, modules) in DESTROY_CHOICES.items():
+            with self.subTest(choice=choice):
+                self.prepare("v2v", choice)
+                self.env["TEST_PLAN"] = json.dumps(plan(group=group, changes=[
+                    change(f"module.{name}[0].example_resource.this", ["delete"])
+                    for name in modules
+                ]))
+                for stage in (0, 1):
+                    result = self.run_stage(stage)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                trace = self.trace.read_text()
+                self.assertEqual(trace.count(
+                    f"<-backend-config=key=terraform-state/v2v/us-east-1/{group}/terraform.tfstate>"
+                ), 2)
+                plan_command = next(line for line in trace.splitlines() if line.startswith("terraform <plan>"))
+                self.assertIn("<-destroy>", plan_command)
+                self.assertIn(f'<-var=enabled_modules=["{group}"]>', plan_command)
+                self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), [
+                    f"module.{name}[0]" for name in modules
+                ])
+                apply_command = next(line for line in trace.splitlines() if line.startswith("terraform <apply>"))
+                self.assertIn("terraform.tfplan>", apply_command)
+                self.assertNotIn("<-target=", apply_command)
+                self.assertNotIn("<-destroy>", apply_command)
+                self.assertNotIn("packages <", trace)
+                self.assertNotIn("terraform <output>", trace)
+
+    def test_destroy_plan_rejects_unrelated_deletion_before_apply(self):
+        for choice, (group, _) in DESTROY_CHOICES.items():
+            with self.subTest(choice=choice):
+                self.prepare("v2v", choice)
+                self.env["TEST_PLAN"] = json.dumps(plan(group=group, changes=[
+                    change("module.btsgsd_ai_survey_agent[0].aws_cloudformation_stack.this", ["delete"]),
+                ]))
+                result = self.run_stage(0)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing changes other than deletion", result.stderr)
+                self.assertNotIn("terraform <apply>", self.trace.read_text())
+
+    def test_destroy_apply_revalidates_plan_before_executing(self):
+        for choice, (group, modules) in DESTROY_CHOICES.items():
+            with self.subTest(choice=choice):
+                self.prepare("v2v", choice)
+                self.env["TEST_PLAN"] = json.dumps(plan(group=group))
+                result = self.run_stage(0)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.trace.write_text("")
+                self.env["TEST_PLAN"] = json.dumps(plan(group=group, changes=[
+                    change(f"module.{modules[0]}[0].example_resource.this", ["create"]),
+                ]))
+                result = self.run_stage(1)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing changes other than deletion", result.stderr)
+                self.assertNotIn("terraform <apply>", self.trace.read_text())
 
     def test_choices_from_the_other_environment_fail_before_terraform_init(self):
-        for environment, choice in (("v2v-resources", "connect"), ("v2v", "ecr")):
+        for environment, choice in (
+            ("v2v-resources", "connect"), ("v2v", "ecr"),
+            ("v2v-resources", "destroy_survey_ai"),
+            ("v2v-resources", "destroy_survey_lex"),
+        ):
             with self.subTest(environment=environment, choice=choice):
                 self.prepare(environment, choice)
                 for stage in (0, 1):

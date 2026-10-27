@@ -20,6 +20,10 @@ DATA_TABLE_CHOICES = {
     "BTSGSD-V2V-US-BTSGSD-Veeva_Transfer": "veeva_transfer_data_table",
     "BTSGSD-V2V-US-TopLevelBlockerMessage": "top_level_blocker_data_table",
 }
+DESTROY_CHOICES = {
+    "destroy_survey_ai": ("connect", ("connect_ai_agent", "survey_ai_prompt")),
+    "destroy_survey_lex": ("lex_bot", ("lex_aiagent_survey_bot",)),
+}
 FLOW_CHOICES = {
     "BTSGSD-V2V-US-AbbVie_Views": "module.abbvie_views[0]",
     "BTSGSD-V2V-US-stdgsd_Fieldforce_Flow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["fieldforce"]',
@@ -124,6 +128,17 @@ fi
                 self.assertEqual(backend, f"terraform-state/v2v/us-east-1/{state}/terraform.tfstate")
                 self.assertIn(f'-var=enabled_modules=["{group}"]', arguments)
                 targets = [a for a in arguments if a.startswith("-target=")]
+                if choice in DESTROY_CHOICES:
+                    expected_group, retired_modules = DESTROY_CHOICES[choice]
+                    self.assertEqual(group, expected_group)
+                    self.assertIn("-destroy", arguments)
+                    self.assertEqual(targets, [
+                        f"-target=module.{name}[0]" for name in retired_modules
+                    ])
+                    for name in retired_modules:
+                        self.assertNotIn(name, modules)
+                    continue
+                self.assertNotIn("-destroy", arguments)
                 if choice in ("connect", "v2v", "code-signing"):
                     self.assertEqual(targets, [])
                 elif choice in FLOW_CHOICES:
@@ -153,6 +168,55 @@ fi
         result = self.run_selector("unknown-module")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Unsupported V2V module", result.stderr)
+
+    def test_retired_deployment_choices_remain_unavailable(self):
+        for target in ("connect_ai_agent", "survey_ai_prompt", "lex_aiagent_survey_bot"):
+            with self.subTest(target=target):
+                result = self.run_selector(target)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Unsupported V2V module", result.stderr)
+
+    def test_destroy_choices_accept_expected_deletions_and_empty_plans(self):
+        for target, (group, modules) in DESTROY_CHOICES.items():
+            for deletions in ([], [
+                change(f"module.{name}[0].example_resource.this", ["delete"])
+                for name in modules
+            ]):
+                with self.subTest(target=target, deletions=deletions):
+                    result = self.run_selector(target, plan(group=group, changes=deletions + [
+                        change("module.connect_queue[0].aws_connect_queue.queue", ["no-op"]),
+                        change("data.aws_connect_instance.target[0]", ["read"], mode="data"),
+                    ]))
+                    self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_destroy_choices_reject_deletions_outside_exact_module_instances(self):
+        for target, (group, modules) in DESTROY_CHOICES.items():
+            for address in (
+                "module.connect_us_east_1[0].aws_connect_instance.this",
+                "module.btsgsd_ai_survey_agent[0].aws_cloudformation_stack.this",
+                f"module.{modules[0]}[1].example_resource.this",
+                f"module.{modules[0]}_extra[0].example_resource.this",
+                "terraform_data.example",
+                "module.lex_aiagent_survey_bot[0].aws_lexv2models_bot.this"
+                if group == "connect" else
+                "module.connect_ai_agent[0].awscc_wisdom_ai_agent.survey_agent",
+            ):
+                with self.subTest(target=target, address=address):
+                    result = self.run_selector(target, plan(group=group, changes=[
+                        change(address, ["delete"]),
+                    ]))
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("Refusing changes other than deletion", result.stderr)
+
+    def test_destroy_choices_reject_creates_updates_and_replacements(self):
+        for target, (group, modules) in DESTROY_CHOICES.items():
+            for actions in (["create"], ["update"], ["delete", "create"], ["create", "delete"]):
+                with self.subTest(target=target, actions=actions):
+                    result = self.run_selector(target, plan(group=group, changes=[
+                        change(f"module.{modules[0]}[0].example_resource.this", actions),
+                    ]))
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("Refusing changes other than deletion", result.stderr)
 
     def test_choices_use_separate_state_and_enable_only_their_own_group(self):
         for target, group in (

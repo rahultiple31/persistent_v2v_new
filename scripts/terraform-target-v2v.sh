@@ -16,6 +16,7 @@ fi
 
 TERRAFORM_STATE_MODULE=""
 TERRAFORM_TARGET_ADDRESS=""
+TERRAFORM_DESTROY_ONLY=false
 
 # choice | existing state group | optional resource or module target
 # Imported-flow targets retain shared dependency expressions, including the
@@ -63,6 +64,8 @@ BTSGSD-V2V-US-TopLevelBlockerMessage|connect|aws_cloudformation_stack.top_level_
 btsgsd_support_agent|connect|module.btsgsd_support_agent[0]
 btsgsd_support_agent_tools_access|connect|module.btsgsd_support_agent_tools_access[0]
 btsgsd_ai_survey_agent|connect|module.btsgsd_ai_survey_agent[0]
+destroy_survey_ai|connect|module.connect_ai_agent[0]
+destroy_survey_lex|lex_bot|module.lex_aiagent_survey_bot[0]
 agentcore_gateway|connect|module.agentcore_gateway[0]
 connect_Integrations|connect|module.connect_Integrations[0]
 lambda_us_east_1|lambda|module.lambda_us_east_1[0]
@@ -133,6 +136,18 @@ if [ -n "$TERRAFORM_TARGET_ADDRESS" ]; then
   TERRAFORM_PLAN_ARGS+=("-target=$TERRAFORM_TARGET_ADDRESS")
 fi
 
+# These retired modules remain addressable in state without restoring their code.
+case "$DEPLOYMENT_TARGET" in
+  destroy_survey_ai)
+    TERRAFORM_DESTROY_ONLY=true
+    TERRAFORM_PLAN_ARGS+=("-destroy" "-target=module.survey_ai_prompt[0]")
+    ;;
+  destroy_survey_lex)
+    TERRAFORM_DESTROY_ONLY=true
+    TERRAFORM_PLAN_ARGS+=("-destroy")
+    ;;
+esac
+
 # The Connect invocation grant is owned by the root, outside the Lambda module.
 if [ "$DEPLOYMENT_TARGET" = conversion_of_queue_metrics ]; then
   TERRAFORM_PLAN_ARGS+=("-target=aws_lambda_permission.queue_metrics_connect[0]")
@@ -140,7 +155,7 @@ fi
 
 # Call after Terraform init to preserve an existing gateway audience.
 preserve_v2v_target_outputs() {
-  if [ "$TERRAFORM_STATE_MODULE" != connect ]; then
+  if [ "$TERRAFORM_STATE_MODULE" != connect ] || [ "$TERRAFORM_DESTROY_ONLY" = true ]; then
     return 0
   fi
 
@@ -169,7 +184,7 @@ import sys
 
 plan = json.load(sys.stdin)
 variables = plan.get("variables", {})
-group, environment = sys.argv[1:3]
+group, environment, target = sys.argv[1:4]
 
 if variables.get("environment", {}).get("value") != environment:
     raise SystemExit("Plan environment does not match the V2V selection.")
@@ -183,6 +198,25 @@ changes = [
     if change.get("mode") == "managed"
     and change.get("change", {}).get("actions") != ["no-op"]
 ]
+
+destroy_prefixes = {
+    "destroy_survey_ai": (
+        "module.connect_ai_agent[0].",
+        "module.survey_ai_prompt[0].",
+    ),
+    "destroy_survey_lex": ("module.lex_aiagent_survey_bot[0].",),
+}
+if target in destroy_prefixes:
+    unexpected = [
+        change["address"] for change in changes
+        if not change["address"].startswith(destroy_prefixes[target])
+        or change.get("change", {}).get("actions") != ["delete"]
+    ]
+    if unexpected:
+        raise SystemExit(
+            "Refusing changes other than deletion of the selected retired survey modules: "
+            + ", ".join(unexpected)
+        )
 
 signing_prefixes = ("module.signing_profile[0].", "module.code_signing_config[0].")
 if group == "code-signing":
@@ -230,5 +264,5 @@ if group != "connect-resources":
         )
 
 print("Validated V2V plan for group: " + group)
-' "$TERRAFORM_STATE_MODULE" "$DEPLOYMENT_ENVIRONMENT"
+' "$TERRAFORM_STATE_MODULE" "$DEPLOYMENT_ENVIRONMENT" "$DEPLOYMENT_TARGET"
 }

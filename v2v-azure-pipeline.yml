@@ -43,6 +43,8 @@ parameters:
       - btsgsd_support_agent
       - btsgsd_support_agent_tools_access
       - btsgsd_ai_survey_agent
+      - destroy_survey_ai
+      - destroy_survey_lex
       - agentcore_gateway
       - connect_Integrations
       - lambda_us_east_1
@@ -213,7 +215,8 @@ stages:
               test -s "$TERRAFORM_VARIABLE_FILE"
 
               # Build file-based packages before Terraform evaluates their hashes.
-              if [ "$TARGET_ENVIRONMENT" = v2v ]; then
+              # Retired survey module destruction does not deploy Lambda packages.
+              if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TERRAFORM_DESTROY_ONLY" != true ]; then
                 python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" build \
                   --state-module "$TERRAFORM_STATE_MODULE"
               fi
@@ -246,7 +249,7 @@ stages:
               fi
 
               # Include provider-generated ZIPs for standalone Lambdas as well.
-              if [ "$TARGET_ENVIRONMENT" = v2v ]; then
+              if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TERRAFORM_DESTROY_ONLY" != true ]; then
                 python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" save \
                   --artifact-directory "$PLAN_DIRECTORY"
               fi
@@ -391,7 +394,7 @@ stages:
 
               cp "$plan_lock" .terraform.lock.hcl
 
-              if [ "$TARGET_ENVIRONMENT" = v2v ]; then
+              if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TERRAFORM_DESTROY_ONLY" != true ]; then
                 python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" restore \
                   --artifact-directory "$PLAN_DIRECTORY"
               fi
