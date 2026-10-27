@@ -14,7 +14,7 @@ data "external" "capacity" {
   }
 }
 
-# Package ./src with lambda_function.py at the ZIP root.
+# Package ./src with lambda_function.py and warmup_wrapper.py at the ZIP root.
 data "archive_file" "snow" {
   type        = "zip"
   source_dir  = "${path.module}/src"
@@ -73,7 +73,7 @@ resource "aws_lambda_function" "snow" {
   role                           = data.aws_iam_role.execution.arn
   runtime                        = "python3.13"
   architectures                  = ["x86_64"]
-  handler                        = "lambda_function.lambda_handler"
+  handler                        = "warmup_wrapper.handler"
   package_type                   = "Zip"
   filename                       = data.archive_file.snow.output_path
   source_code_hash               = data.archive_file.snow.output_base64sha256
@@ -97,7 +97,13 @@ resource "aws_lambda_function" "snow" {
   }
 
   environment {
-    variables = merge(var.environment_variables, module.application_signals.environment_variables)
+    variables = merge(
+      var.environment_variables,
+      module.application_signals.environment_variables,
+      {
+        ORIGINAL_HANDLER = "lambda_function.lambda_handler"
+      }
+    )
   }
   lifecycle {
     precondition {

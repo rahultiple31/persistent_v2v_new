@@ -42,7 +42,8 @@ run "requested_lambda_configuration" {
       aws_lambda_function.interaction.function_name == "BTSGSD-V2V-US-ServiceNow_Interaction" &&
       aws_lambda_function.interaction.runtime == "python3.13" &&
       aws_lambda_function.interaction.architectures == tolist(["x86_64"]) &&
-      aws_lambda_function.interaction.handler == "lambda_function.lambda_handler" &&
+      aws_lambda_function.interaction.handler == "warmup_wrapper.handler" &&
+      aws_lambda_function.interaction.environment[0].variables.ORIGINAL_HANDLER == "lambda_function.lambda_handler" &&
       aws_lambda_function.interaction.memory_size == 512 &&
       aws_lambda_function.interaction.timeout == 8 &&
       aws_lambda_function.interaction.ephemeral_storage[0].size == 512 &&
@@ -71,15 +72,19 @@ run "environment_override_preserves_other_defaults" {
   command = plan
 
   variables {
-    environment_variables = { SN_INSTANCE = "exampledev" }
+    environment_variables = {
+      SN_INSTANCE      = "exampledev"
+      ORIGINAL_HANDLER = "warmup_wrapper.handler"
+    }
   }
 
   assert {
     condition = (
       aws_lambda_function.interaction.environment[0].variables.SN_INSTANCE == "exampledev" &&
-      aws_lambda_function.interaction.environment[0].variables.SN_CTI_RULE == "cti_gsd"
+      aws_lambda_function.interaction.environment[0].variables.SN_CTI_RULE == "cti_gsd" &&
+      aws_lambda_function.interaction.environment[0].variables.ORIGINAL_HANDLER == "lambda_function.lambda_handler"
     )
-    error_message = "An instance override must retain the CTI rule default."
+    error_message = "Preserve instance overrides and CTI defaults while delegating to the business handler without recursion."
   }
 }
 

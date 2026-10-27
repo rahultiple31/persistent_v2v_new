@@ -1,9 +1,13 @@
+import importlib
 import importlib.util
 import os
 from pathlib import Path
+import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
+from zipfile import ZipFile
 
 
 SOURCE = Path(__file__).parents[1] / "src" / "lambda_function.py"
@@ -135,6 +139,72 @@ class HandlerTests(unittest.TestCase):
         self.assertEqual(handler.lambda_handler({"Details": None}, None)["Error"], "MissingContactId")
         url = handler.build_screen_pop_url("TEST-123", CONTACT_ID, "")
         self.assertNotIn("sysparm_u_description", parse_qs(urlsplit(url).query))
+
+
+class WarmupWrapperTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        archive = Path(temporary.name) / "interaction.zip"
+        # Import both real Python files from the ZIP root, matching source_dir.
+        with ZipFile(archive, "w") as package:
+            for name in ("lambda_function.py", "warmup_wrapper.py"):
+                package.write(SOURCE.parent / name, name)
+        for temporary_patch in (
+            patch.dict(sys.modules),
+            patch.dict(os.environ, {
+                "ORIGINAL_HANDLER": "lambda_function.lambda_handler",
+                "SN_INSTANCE": "abbvienowdev",
+                "SN_CTI_RULE": "cti_gsd",
+            }),
+            patch.object(sys, "path", [str(archive), *sys.path]),
+        ):
+            temporary_patch.start()
+            self.addCleanup(temporary_patch.stop)
+        sys.modules.pop("lambda_function", None)
+        sys.modules.pop("warmup_wrapper", None)
+        self.wrapper = importlib.import_module("warmup_wrapper")
+        self.business = sys.modules["lambda_function"]
+
+    def test_warmup_skips_screen_pop_generation(self):
+        with patch.object(self.business, "build_screen_pop_url") as build:
+            self.assertEqual(self.wrapper.handler({"warmup": True}, None), {
+                "Status": "Success", "Message": "warm",
+            })
+            build.assert_not_called()
+
+    def test_other_events_delegate_unchanged(self):
+        response, context = object(), object()
+        with patch.object(self.wrapper, "_original_handler", return_value=response) as original:
+            for event in (None, [], {}, {"warmup": False}, {"warmup": "true"}, {"warmup": 1}):
+                with self.subTest(event=event):
+                    original.reset_mock()
+                    self.assertIs(self.wrapper.handler(event, context), response)
+                    original.assert_called_once_with(event, context)
+
+    def test_zip_entry_point_generates_contact_flow_screen_pop(self):
+        self.assertIs(self.wrapper._original_handler, self.business.lambda_handler)
+        response = self.wrapper.handler({"Details": {
+            "Parameters": {},
+            "ContactData": {
+                "ContactId": CONTACT_ID,
+                "Attributes": {"UPI": "TEST-123", "CallSummary": "Caller needs IT & account assistance."},
+            },
+        }}, None)
+        self.assertEqual(response["Status"], "success")
+        url = urlsplit(response["ScreenPopURL"])
+        self.assertEqual(url.netloc, "abbvienowdev.service-now.com")
+        self.assertEqual(parse_qs(url.query), {
+            "sysparm_cti_rule": ["cti_gsd"],
+            "sysparm_caller_id": ["TEST-123"],
+            "sysparm_correlation_id": [CONTACT_ID],
+            "sysparm_u_description": ["Caller needs IT & account assistance."],
+        })
+
+    def test_original_handler_errors_propagate(self):
+        with patch.object(self.business, "build_screen_pop_url", side_effect=ValueError("test URL failure")):
+            with self.assertRaisesRegex(ValueError, "test URL failure"):
+                self.wrapper.handler({"UPI": "TEST-123", "ContactId": CONTACT_ID}, None)
 
 
 if __name__ == "__main__":

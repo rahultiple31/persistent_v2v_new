@@ -15,7 +15,8 @@ v10.1:
   * Gateway / bot responses are otherwise unchanged (full record + profile).
   * BUILD is logged at cold start and on every call, so CloudWatch shows which
     code version actually ran.
-Handler: lambda_function.lambda_handler
+Lambda entry point: warmup_wrapper.handler
+ORIGINAL_HANDLER: lambda_function.lambda_handler
 """
 import base64
 import http.client

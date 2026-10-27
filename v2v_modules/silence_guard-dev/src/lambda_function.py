@@ -1,16 +1,31 @@
-"""silence_guard v11 - advisory guard for the Complete / Escalate hand-back.
+"""silence_guard v13 - advisory guard for the Complete / Escalate hand-back.
 
-Why v11: v10 BLOCKED the call ("I can't safely continue this call") on soft defects such as
-an intent label with a stray space/case difference, a short CallSummary, or VerifiedVia
-missing. Blocking never helps the caller: it only disconnects them. v11 therefore:
-  * normalises values (case, whitespace, dash variants) before checking;
-  * NEVER blocks by default - it always returns GuardAllowed="true" and reports any
-    problems in GuardReason / CloudWatch so they can be fixed in the prompt;
-  * keeps a STRICT_MODE env var (true/false, default false) to restore blocking for a
-    test environment only;
-  * fails open on any internal error.
-Output is a flat string map (flow uses STRING_MAP):
-  {"GuardAllowed": "true"|"false", "GuardReason": "...", "NormalizedIntent": "..."}
+v13 fix: _LOOKUP keys are normalised like the incoming intent (v11/v12 rewrote the hyphen in
+  "Password Reset - PingID Re-enable" to "Re - enable" on the incoming side only, so that valid
+  label was logged intent_unknown and would be BLOCKED in STRICT_MODE). No other change.
+
+v12 changes (aligned to prompt v50 + flow 23); behaviour otherwise identical to v11:
+  * Adds the two prompt labels v11 did not know:
+      "Out of Scope - Medical Request", "Out of Scope - Unverified/WrongNumber Misroute"
+    (v11 logged them as intent_unknown and would BLOCK them in STRICT_MODE).
+  * CLOSE_ONLY now also covers those two labels and "Unverified - Verification Failed"
+    (the prompt only ever uses them with Complete).
+  * Advisory consistency checks for the routing pairs:
+      FieldForce  <-> "Field Force - Direct Routing" and Authenticated caller
+      HR          <-> an "HR - ..." intent
+      Veeva/Medcom <-> the matching "... - LATAM Helpdesk" intent
+  * Flow 23 already bypasses this Lambda for FieldForce and LATAM Veeva/Medcom
+    escalates, so those checks only fire if the flow is changed back.
+
+Unchanged from v11:
+  * NEVER blocks by default - always returns GuardAllowed="true" and reports problems in
+    GuardReason / CloudWatch. STRICT_MODE=true (env var) restores blocking for test only.
+  * Fails open on any internal error.
+  * Output is a flat string map (flow uses STRING_MAP):
+      {"GuardAllowed": "true"|"false", "GuardReason": "...", "NormalizedIntent": "..."}
+
+Lambda entry point: warmup_wrapper.handler
+ORIGINAL_HANDLER: lambda_function.lambda_handler
 """
 import logging
 import os
@@ -38,13 +53,20 @@ BASE_INTENTS = {
     "Patient/Customer - Misroute", "Unverified - Misroute", "Unverified - Manufacturing",
     "Unverified - M&A", "Unverified - Verification Failed", "Unverified - Lookup Error",
     "Out of Scope - Unrelated Request",
+    "Out of Scope - Medical Request",                       # v12: prompt v50 label
+    "Out of Scope - Unverified/WrongNumber Misroute",       # v12: prompt v50 label
     "System - Bot Unavailable",
-    # Reserved for the LATAM Veeva / MedCom journeys (labels to be confirmed).
     "Veeva - LATAM Helpdesk", "Medcom - LATAM Helpdesk",
     "Veeva - Live Agent", "Medcom - Live Agent",
 }
-CLOSE_ONLY = {"Patient/Customer - Misroute", "Unverified - Misroute", "Out of Scope - Unrelated Request"}
+# Intents the prompt only ever ends with Complete (never Escalate).
+CLOSE_ONLY = {
+    "Patient/Customer - Misroute", "Unverified - Misroute", "Out of Scope - Unrelated Request",
+    "Out of Scope - Medical Request", "Out of Scope - Unverified/WrongNumber Misroute",
+    "Unverified - Verification Failed",
+}
 ROUTING_VALUES = {"", "HR", "FieldForce", "Veeva", "Medcom"}
+LATAM_INTENT = {"Veeva": "Veeva - LATAM Helpdesk", "Medcom": "Medcom - LATAM Helpdesk"}
 CALLER_REQUEST = "live agent - caller request"
 FILLERS = {"placeholder", "pending", "unknown", "n/a", "na", "test", "null", "none", "tbd"}
 
@@ -57,7 +79,7 @@ def _norm(value):
     return _DASHES.sub(" - ", value)
 
 
-_LOOKUP = {i.casefold(): i for i in BASE_INTENTS}
+_LOOKUP = {_norm(i).casefold(): i for i in BASE_INTENTS}   # v13: same normalisation as incoming intent
 
 
 def _canonical_intent(intent):
@@ -78,11 +100,14 @@ def _check(p):
     summary = _norm(p.get("CallSummary"))
     routing = _norm(p.get("RoutingIntent"))
     region = _norm(p.get("region")).upper()
+    verified = _norm(p.get("VerificationStatus")) == "Authenticated"
     issues = []
+
     if expected not in ("Complete", "Escalate"):
         return issues, intent_raw
     if tool.casefold() != expected.casefold():
         issues.append("tool_mismatch")
+
     intent = _canonical_intent(intent_raw) if intent_raw else None
     if not intent_raw:
         issues.append("intent_missing")
@@ -90,16 +115,30 @@ def _check(p):
         issues.append("intent_unknown")
     elif expected == "Escalate" and intent in CLOSE_ONLY:
         issues.append("close_only_intent_on_escalate")
+
     if len(summary) < 20 or summary.casefold() in FILLERS:
         issues.append("summary_short")
-    if _norm(p.get("VerificationStatus")) == "Authenticated" and _norm(p.get("VerifiedVia")) not in ("Phone", "UPI"):
+    if verified and _norm(p.get("VerifiedVia")) not in ("Phone", "UPI"):
         issues.append("verified_without_method")
     if expected == "Complete" and routing:
         issues.append("routing_intent_on_complete")
     if routing not in ROUTING_VALUES:
         issues.append("routing_value_unknown")
-    if routing in ("Veeva", "Medcom") and region != "LATAM":
-        issues.append("veeva_medcom_outside_latam")
+
+    # Routing consistency (advisory only)
+    if routing in ("Veeva", "Medcom"):
+        if region != "LATAM":
+            issues.append("veeva_medcom_outside_latam")
+        if intent and intent != LATAM_INTENT[routing]:
+            issues.append("routing_intent_label_mismatch")
+    if routing == "FieldForce":
+        if not verified:
+            issues.append("fieldforce_unverified")
+        if intent and intent != "Field Force - Direct Routing":
+            issues.append("routing_intent_label_mismatch")
+    if routing == "HR" and intent and not intent.startswith("HR - "):
+        issues.append("routing_intent_label_mismatch")
+
     return issues, intent or intent_raw
 
 

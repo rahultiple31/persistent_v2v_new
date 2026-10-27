@@ -61,7 +61,7 @@ data "external" "capacity" {
   }
 }
 
-# Packages lambda_function.py at the ZIP root.
+# Packages lambda_function.py and warmup_wrapper.py at the ZIP root.
 data "archive_file" "interaction" {
   type        = "zip"
   source_dir  = "${path.module}/src"
@@ -121,7 +121,7 @@ resource "aws_lambda_function" "interaction" {
   role                           = aws_iam_role.execution.arn
   runtime                        = "python3.13"
   architectures                  = ["x86_64"]
-  handler                        = "lambda_function.lambda_handler"
+  handler                        = "warmup_wrapper.handler"
   package_type                   = "Zip"
   filename                       = data.archive_file.interaction.output_path
   source_code_hash               = data.archive_file.interaction.output_base64sha256
@@ -141,10 +141,17 @@ resource "aws_lambda_function" "interaction" {
   }
 
   environment {
-    variables = merge({
-      SN_INSTANCE = "abbvienowdev"
-      SN_CTI_RULE = "cti_gsd"
-    }, var.environment_variables, module.application_signals.environment_variables)
+    variables = merge(
+      {
+        SN_INSTANCE = "abbvienowdev"
+        SN_CTI_RULE = "cti_gsd"
+      },
+      var.environment_variables,
+      module.application_signals.environment_variables,
+      {
+        ORIGINAL_HANDLER = "lambda_function.lambda_handler"
+      }
+    )
   }
   lifecycle {
     precondition {

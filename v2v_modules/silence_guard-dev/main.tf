@@ -93,7 +93,7 @@ resource "aws_lambda_function" "this" {
   role                           = aws_iam_role.execution.arn
   runtime                        = "python3.13"
   architectures                  = ["x86_64"]
-  handler                        = "lambda_function.lambda_handler"
+  handler                        = "warmup_wrapper.handler"
   package_type                   = "Zip"
   filename                       = data.archive_file.code.output_path
   source_code_hash               = data.archive_file.code.output_base64sha256
@@ -111,9 +111,15 @@ resource "aws_lambda_function" "this" {
   }
 
   environment {
-    variables = merge({
-      STRICT_MODE = "false"
-    }, module.application_signals.environment_variables)
+    variables = merge(
+      {
+        STRICT_MODE = "false"
+      },
+      module.application_signals.environment_variables,
+      {
+        ORIGINAL_HANDLER = "lambda_function.lambda_handler"
+      }
+    )
   }
 
   tags = var.common_tags

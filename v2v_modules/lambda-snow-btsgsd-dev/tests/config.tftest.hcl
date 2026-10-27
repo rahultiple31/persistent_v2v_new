@@ -26,7 +26,8 @@ run "requested_configuration_and_published_version" {
       aws_lambda_function.snow.function_name == "BTSGSD-V2V-US-SNOW" &&
       aws_lambda_function.snow.runtime == "python3.13" &&
       aws_lambda_function.snow.architectures == tolist(["x86_64"]) &&
-      aws_lambda_function.snow.handler == "lambda_function.lambda_handler" &&
+      aws_lambda_function.snow.handler == "warmup_wrapper.handler" &&
+      aws_lambda_function.snow.environment[0].variables.ORIGINAL_HANDLER == "lambda_function.lambda_handler" &&
       aws_lambda_function.snow.memory_size == 512 &&
       aws_lambda_function.snow.timeout == 8 &&
       aws_lambda_function.snow.ephemeral_storage[0].size == 512 &&
@@ -84,16 +85,18 @@ run "servicenow_environment_configuration" {
   command = plan
   variables {
     environment_variables = {
-      SN_INSTANCE    = "https://example.service-now.com"
-      SN_SECRET_NAME = "dev/snow/credentials"
+      SN_INSTANCE      = "https://example.service-now.com"
+      SN_SECRET_NAME   = "dev/snow/credentials"
+      ORIGINAL_HANDLER = "warmup_wrapper.handler"
     }
   }
   assert {
     condition = (
       aws_lambda_function.snow.environment[0].variables.SN_INSTANCE == "https://example.service-now.com" &&
-      aws_lambda_function.snow.environment[0].variables.SN_SECRET_NAME == "dev/snow/credentials"
+      aws_lambda_function.snow.environment[0].variables.SN_SECRET_NAME == "dev/snow/credentials" &&
+      aws_lambda_function.snow.environment[0].variables.ORIGINAL_HANDLER == "lambda_function.lambda_handler"
     )
-    error_message = "Pass the ServiceNow instance and secret name to the handler."
+    error_message = "Preserve ServiceNow settings and delegate to the business handler without recursion."
   }
 }
 
