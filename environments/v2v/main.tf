@@ -2224,16 +2224,21 @@ data "external" "survey_flow_dependencies" {
     content = replace(
       replace(
         replace(
-          file("${path.module}/metadata/contact-flows/BTSGSD-AIAgent-SurveyFlow.json"),
-          "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
-          local.survey_data_table_id
+          replace(
+            file("${path.module}/metadata/contact-flows/BTSGSD-AIAgent-SurveyFlow.json"),
+            "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
+            local.survey_data_table_id
+          ),
+          "arn:aws:lambda:us-east-1:518902362956:function:UpdateSessionAttributes",
+          module.BTSGSD-V2V-US-UpdateSessionAttributes[0].lambda_arn
         ),
-        "arn:aws:lambda:us-east-1:518902362956:function:UpdateSessionAttributes",
-        module.BTSGSD-V2V-US-UpdateSessionAttributes[0].lambda_arn
+        "sureveyFlow_1",
+        "VM_instruction_Survey"
       ),
-      "sureveyFlow_1",
-      "VM_instruction_Survey"
+      "arn:aws:lambda:us-east-1:518902362956:function:VMX3-VoicemailTimestamper-abbvie-sd-contactcenter-dev-us",
+      var.vmx3_timestamper_lambda_arn
     )
+
   }
 }
 
@@ -2275,15 +2280,15 @@ module "connect_resources" {
   instance_id  = data.aws_connect_instance.target[0].id
   instance_arn = data.aws_connect_instance.target[0].arn
 
-  connect_queue_queue_id = var.connect_resources_dependencies.main_queue_id
-  outbound_flow_id      = module.connect_us_east_1[0].outbound_whisper_flow_id
-  quick_connect_flow_id = module.connect_us_east_1[0].imported_contact_flow_ids["agent_transfer"]
-  help_desk_quick_connect_ids = values(module.connect_queue[0].quick_connect_ids)
+  # Created by the connect deployment group (separate state); supplied by ID.
+  connect_queue_queue_id      = var.connect_resources_dependencies.main_queue_id
+  outbound_flow_id            = var.connect_resources_dependencies.outbound_flow_id
+  quick_connect_flow_id       = var.connect_resources_dependencies.quick_connect_flow_id
+  help_desk_quick_connect_ids = var.connect_resources_dependencies.help_desk_quick_connect_ids
 
   outbound_caller_id_number_id = local.resolved_outbound_phone_number_id
   moh_30sec_prompt_s3_uri      = var.moh_30sec_prompt_s3_uri
   tags                         = local.common_tags
-
 }
 
 # signing_profile

@@ -36,12 +36,12 @@ allowed_cidrs = [
 endpoint_extra_cidrs = []
 
 # ── Site / TLS ────────────────────────────────────────────────────────────────
-hostname         = "v2vconnectus.iai-accas-dev.awscloud.abbvienet.com"
+hostname         = "v2v.iai-accas-dev.awscloud.abbvienet.com"
 hosted_zone_id   = "Z03204381MY7P9A6ZENZD"
 hosted_zone_name = "iai-accas-dev.awscloud.abbvienet.com"
 
 # Leave empty for HTTP/port-80 (test stage 1). Set to ACM ARN for HTTPS/443.
-certificate_arn = "arn:aws:acm:us-east-1:518902362956:certificate/78c9215b-da2b-4d0d-aa07-57a7b851452d"
+certificate_arn = "arn:aws:acm:us-east-1:518902362956:certificate/58ceae37-6723-495c-b5ef-ed11d8a28a75"
 csp_enforced    = false
 
 # ── Amazon Connect ────────────────────────────────────────────────────────────

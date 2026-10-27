@@ -12,7 +12,7 @@ data "aws_lambda_function" "phone_lookup" {
 }
 
 resource "aws_lambda_permission" "phone_lookup" {
-  statement_id  = "AllowConnectMainInboundPhoneLookup"
+  statement_id  = "AllowConnectMainInboundPhoneLookup-${local.instance_id}"
   action        = "lambda:InvokeFunction"
   function_name = data.aws_lambda_function.phone_lookup.function_name
   principal     = "connect.amazonaws.com"

@@ -116,10 +116,10 @@ variable "connect_resources_dependencies" {
   description = "Existing Connect resource UUIDs used by the standalone connect-resources deployment."
 
   type = object({
-    hours_of_operation_id = string
-    main_queue_id         = string
-    outbound_flow_id      = string
-    quick_connect_flow_id = string
+    main_queue_id               = string
+    outbound_flow_id            = string
+    quick_connect_flow_id       = string
+    help_desk_quick_connect_ids = optional(list(string), [])
   })
 
   default = null
@@ -137,7 +137,14 @@ variable "connect_resources_dependencies" {
 
   validation {
     condition = var.connect_resources_dependencies == null ? true : alltrue([
-      for id in values(var.connect_resources_dependencies) :
+      for id in concat(
+        [
+          var.connect_resources_dependencies.main_queue_id,
+          var.connect_resources_dependencies.outbound_flow_id,
+          var.connect_resources_dependencies.quick_connect_flow_id,
+        ],
+        var.connect_resources_dependencies.help_desk_quick_connect_ids,
+      ) :
       can(regex(
         "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
         id
@@ -145,6 +152,17 @@ variable "connect_resources_dependencies" {
     ])
 
     error_message = "Every connect_resources_dependencies value must be an actual resource UUID."
+  }
+
+  validation {
+    condition = (
+      !contains(
+        [for name in var.enabled_modules : lower(name)],
+        "connect-resources"
+      ) || try(length(var.connect_resources_dependencies.help_desk_quick_connect_ids) > 0, false)
+    )
+
+    error_message = "Set connect_resources_dependencies.help_desk_quick_connect_ids to the FF and HR Help Desk quick connect IDs."
   }
 }
 

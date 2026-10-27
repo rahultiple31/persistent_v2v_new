@@ -21,19 +21,21 @@ outbound_phone_number    = "+18557117965"
 outbound_phone_number_id = null
 
 # Existing resources in V2V instance bcc989e5-cd9d-494f-9cd4-434f39ccc90e.
+# Existing resources in V2V instance bcc989e5-cd9d-494f-9cd4-434f39ccc90e.
 connect_resources_dependencies = {
-  # Basic Hours
-  hours_of_operation_id = "23004b85-0f01-4884-9014-aa330cc5149c"
-
-  # BasicQueue
-  main_queue_id = "0752f0ed-7bde-4692-b057-847d80f80297"
-
-  # Default outbound - OUTBOUND_WHISPER
-  outbound_flow_id = "d8bb7620-d2e6-4d7d-9366-212b0b4e8754"
-
-  # Default agent transfer - AGENT_TRANSFER
-  quick_connect_flow_id = "8bad7b58-ee57-4ed1-88d8-6d7c3c510d0f"
+  # BTSGSD-V2V-US-DEV SSO-US-MAIN-QUEUE (connect_queue)
+  main_queue_id = "6805cf06-6bbc-4c88-af05-baf9eaf23ec5"
+  # BTSGSD-V2V-US-outbound-whisper-flow
+  outbound_flow_id = "721e589f-fc7f-4965-a64d-3cd0a4a3dd06"
+  # BTSGSD-V2V-US-AgentToAgentTransferFlow
+  quick_connect_flow_id = "07f52496-7690-41c4-adfa-3c0327c30271"
+  # BTSGSD-V2V-US-FF Help Desk, BTSGSD-V2V-US-HR Help Desk
+  help_desk_quick_connect_ids = [
+    "9d1d6dc1-0c97-4254-bd99-2f4b3255233c",
+    "1a3c9499-3beb-4c9a-92b1-383fcf052a55",
+  ]
 }
+
 
 # Standalone connect-resources requires the existing V2V dependency UUIDs.
 # Uncomment and fill these values before selecting connect-resources.
@@ -49,7 +51,7 @@ connect_resources_dependencies = {
 
 # Resolve exported customer-queue dependencies to their existing Dev names.
 connect_customer_queue_dependency_names = {
-  "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us" = "VMX3_Main_VM_Module_btsgsd-dev-v2v-poc-us-east-1"
+  "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us" = "voicemail-v2v-module"
   "CustomerQueueMOH"                                   = "CustomerQueue.wav"
 }
 
@@ -173,8 +175,14 @@ secrets_manager_existing_arns = {
 
 
 # Existing inbound-flow dependency names.
-main_ib_latam_queue_name           = "BTSGSD-DEV-SSO-LATAM-MAIN-QUEUE"
+main_ib_latam_queue_name           = "BTSGSD-V2V-LATAM-MAIN-QUEUE"
 main_ib_phone_lookup_function_name = "SNOW_Abbvie"
+
+
+# VMX3 voicemail module dependencies in V2V instance bcc989e5-cd9d-494f-9cd4-434f39ccc90e.
+vmx3_voicemail_queue_arn    = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/queue/257cafaf-87c4-4e32-9f0b-3fbb8b942433"
+vmx3_beep_prompt_arn        = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/prompt/ccf6f51f-b39a-4ccd-aa65-80349b07bf65"
+vmx3_timestamper_lambda_arn = "arn:aws:lambda:us-east-1:518902362956:function:voicemail-v2v-VoicemailTimestamper"
 
 enable_external_vms = true
 
