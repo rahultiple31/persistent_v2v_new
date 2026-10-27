@@ -69,3 +69,9 @@ run "queue_metrics_choice_includes_scoped_invocation_permission" {
     error_message = "The single Connect grant must be restricted to the selected V2V instance and account."
   }
 }
+
+# Terraform cannot import through a mock provider; override only the test resource.
+override_resource {
+  target = aws_lambda_permission.queue_metrics_connect[0]
+  values = { id = "connect-test-permission" }
+}

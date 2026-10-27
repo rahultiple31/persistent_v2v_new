@@ -8,11 +8,6 @@ variable "expected_instance_arn" {
   default     = null
 }
 
-variable "flow_json" {
-  description = "Complete contact flow JSON."
-  type        = string
-}
-
 variable "latam_queue_name" {
   type    = string
   default = "BTSGSD-DEV-SSO-LATAM-MAIN-QUEUE"

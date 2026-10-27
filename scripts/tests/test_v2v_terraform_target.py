@@ -12,6 +12,14 @@ ROOT = Path(__file__).resolve().parents[2]
 RESOURCE_MODULE_CHOICES = {
     "all", "cloudwatch", "ssm", "ecr", "iam", "networking", "alb", "waf", "ecs", "dns",
 }
+ALL_FLOW_TARGETS = (
+    "module.btsgsd-Main-IB-Flow[0]",
+    "module.aiagent_survey_flow[0]",
+    "module.agent_to_agent_transfer_flow[0]",
+    "module.outbound_whisper_flow[0]",
+    "module.customer_queue_flow[0]",
+    "module.abbvie_views[0]",
+)
 DATA_TABLE_CHOICES = {
     "BTSGSD-V2V-US-CustomerNumberDataTable": "customer_number_data_table",
     "BTSGSD-V2V-US-BTSGSD-CustomerNumber": "bts_gsd_customer_number_data_table",
@@ -25,12 +33,12 @@ DESTROY_CHOICES = {
     "destroy_survey_lex": ("lex_bot", ("lex_aiagent_survey_bot",)),
 }
 FLOW_CHOICES = {
-    "BTSGSD-V2V-US-AIAgent-SurveyFlow": "aws_connect_contact_flow.survey[0]",
-    "BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["customer_queue"]',
-    "BTSGSD-V2V-US-AbbVie_Views": "module.abbvie_views[0]",
+    "BTSGSD-V2V-US-AIAgent-SurveyFlow": "module.aiagent_survey_flow[0]",
+    "BTSGSD-V2V-US-CustomerQueueFlow": 'module.customer_queue_flow[0]',
+    "BTSGSD-V2V-US-Views": "module.abbvie_views[0]",
     "BTSGSD-V2V-US-stdgsd_Fieldforce_Flow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["fieldforce"]',
-    "BTSGSD-V2V-US-AgentToAgentTransferFlow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["agent_transfer"]',
-    "BTSGSD-V2V-US-OutboundWhisperFlow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["outbound_whisper"]',
+    "BTSGSD-V2V-US-AgentToAgentTransferFlow": 'module.agent_to_agent_transfer_flow[0]',
+    "BTSGSD-V2V-US-OutboundWhisperFlow": 'module.outbound_whisper_flow[0]',
     "BTSGSD-V2V-US-Transfer-To-Agent-CustomerQueueFlow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["transfer_customer_queue"]',
     "BTSGSD-V2V-US-VoicemailFlow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["voicemail"]',
     "BTSGSD-V2V-US-btsgsd_HR": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["hr"]',
@@ -143,6 +151,11 @@ fi
                 self.assertNotIn("-destroy", arguments)
                 if choice in ("connect", "v2v", "code-signing"):
                     self.assertEqual(targets, [])
+                elif choice == "all-flows":
+                    self.assertEqual(group, "connect")
+                    self.assertEqual(targets, [f"-target={address}" for address in ALL_FLOW_TARGETS])
+                    for address in ALL_FLOW_TARGETS:
+                        self.assertIn(address.split(".", 1)[1].split("[", 1)[0], modules)
                 elif choice in FLOW_CHOICES:
                     address = FLOW_CHOICES[choice]
                     self.assertEqual(group, "connect")

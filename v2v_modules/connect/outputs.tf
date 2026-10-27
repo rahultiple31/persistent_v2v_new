@@ -25,7 +25,7 @@ output "admin_user_id" {
 
 output "customer_queue_flow_arn" {
   description = "Imported customer queue flow ARN for inbound flow hooks."
-  value       = try(aws_connect_contact_flow.imported["customer_queue"].arn, null)
+  value       = try(aws_connect_contact_flow.imported["customer_queue"].arn, var.external_imported_contact_flows["customer_queue"].arn, null)
 }
 
 output "outbound_whisper_flow_id" {
@@ -40,5 +40,13 @@ output "agent_transfer_flow_id" {
 
 output "imported_contact_flow_ids" {
   description = "Imported contact flow IDs keyed by imported_contact_flows key (e.g. the transfer-to-agent flow used by user quick connects)."
-  value       = { for key, flow in aws_connect_contact_flow.imported : key => flow.contact_flow_id }
+  value = merge(
+    { for key, flow in var.external_imported_contact_flows : key => flow.id },
+    { for key, flow in aws_connect_contact_flow.imported : key => flow.contact_flow_id }
+  )
+}
+
+output "managed_transfer_customer_queue_flow_arn" {
+  description = "Existing generated transfer-to-agent queue flow used by agent transfer."
+  value       = try(aws_connect_contact_flow.transfer_to_agent_customer_queue[0].arn, null)
 }

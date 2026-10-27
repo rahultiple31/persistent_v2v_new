@@ -53,9 +53,9 @@ Each of these flow names is an individual `targetModule` choice in the existing
 Connect state:
 
 ```text
-BTSGSD-V2V-US-AbbVie_Views
+BTSGSD-V2V-US-Views
 BTSGSD-V2V-US-AIAgent-SurveyFlow
-BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow
+BTSGSD-V2V-US-CustomerQueueFlow
 BTSGSD-V2V-US-stdgsd_Fieldforce_Flow
 BTSGSD-V2V-US-AgentToAgentTransferFlow
 BTSGSD-V2V-US-OutboundWhisperFlow
@@ -69,16 +69,78 @@ BTSGSD-V2V-US-agent-to-agent-transfer-flow
 BTSGSD-V2V-US-HR
 ```
 
-`BTSGSD-V2V-US-AbbVie_Views` is an alias for `abbvie_views`.
-`BTSGSD-V2V-US-AIAgent-SurveyFlow` targets the root resource
-`aws_connect_contact_flow.survey[0]`. The customer-queue choice targets
-`module.connect_us_east_1[0].aws_connect_contact_flow.imported["customer_queue"]`.
-The remaining choices target individual contact-flow resources inside
-`module.connect_us_east_1[0]`. All of these choices use the existing Connect state.
-Terraform still includes dependencies. Imported flows share dependency
-expressions with the customer-queue resolver, so selecting one does not
-guarantee exclusion of existing VMX3 lookups. Review the plan before applying.
-The existing `connect_us_east_1` choice continues to target the entire module.
+The following choices use dedicated child modules, with each JSON export stored
+under that module's `assets` directory:
+
+| Choice | Child module |
+| --- | --- |
+| `BTSGSD-V2V-US-AIAgent-SurveyFlow` | `aiagent_survey_flow` |
+| `BTSGSD-V2V-US-AgentToAgentTransferFlow` | `agent_to_agent_transfer_flow` |
+| `BTSGSD-V2V-US-OutboundWhisperFlow` | `outbound_whisper_flow` |
+| `BTSGSD-V2V-US-CustomerQueueFlow` | `customer_queue_flow` |
+| `BTSGSD-V2V-US-Views` (also `abbvie_views`) | `abbvie_views` |
+
+The four new modules share `v2v_modules/connect_flow_resource` for resource
+creation and dependency resolution. The existing `abbvie_views` resource keeps
+its address. Root `main.tf` contains module calls and dependency wiring for
+these flows; `flow_inputs.tf` holds shared settings. Names, descriptions, tags,
+JSON exports, resolver replacements, and the agent-transfer destination are
+preserved. The other flow choices still target individual resources inside
+`module.connect_us_east_1[0]`. Connect's public imported-flow outputs continue
+to include the extracted flows.
+
+To deploy all six dedicated flows together after the initial state migration,
+select `targetModule=all-flows` with `targetEnvironment=v2v`:
+
+```yaml
+targetEnvironment: v2v
+targetModule: all-flows
+terraformAction: plan
+```
+
+This choice targets the main inbound, survey, agent-transfer, outbound-whisper,
+customer-queue, and views modules in one plan. It uses the existing Connect
+state and includes required Terraform dependencies. Review the plan, then run
+with `terraformAction=apply` to generate and apply that run's saved plan.
+`connect` continues to select the complete Connect group. The `all` choice
+continues to belong to `v2v-resources`.
+
+To deploy one of these flows after the initial state migration, select its
+full resource name in `targetModule`, with `targetEnvironment=v2v`. For example:
+
+```yaml
+targetEnvironment: v2v
+targetModule: BTSGSD-V2V-US-AIAgent-SurveyFlow
+terraformAction: plan
+```
+
+Choose `terraformAction=apply` with the same flow choice to create and apply
+that run's saved targeted plan. The five choices target their respective
+`module.<name>[0]` addresses and include required Terraform dependencies.
+
+The existing `btsgsd-Main-IB-Flow` choice also uses its own child module.
+Its JSON export is stored at
+`v2v_modules/btsgsd-Main-IB-Flow/assets/BTSGSD-Main-IB-Flow.json` and is loaded
+inside that module. Root `main.tf` retains the module source, provider mapping,
+and dependency inputs. This asset relocation keeps the existing resource
+address `module.btsgsd-Main-IB-Flow[0].aws_connect_contact_flow.this` and needs
+no additional state move. The deployed name remains `BTSGSD-V2V-US-Main-IB-Flow`.
+
+All choices retain the existing Connect backend:
+`terraform-state/v2v/us-east-1/connect/terraform.tfstate`.
+Before the first deployment of this refactor, select `targetEnvironment=v2v`,
+`targetModule=connect`, and `terraformAction=plan`. Root `moved.tf` moves the
+survey and three imported resources into their new addresses. Keep these moves
+until every relevant state has migrated. Confirm that the existing flows have
+no create, update, or delete actions before applying; a structural refactor
+alone does not prove an unchanged live plan. Complete this group migration
+before returning to individual choices, because targeted plans can exclude
+other resource moves. Do not import the same flows into a new state.
+
+The `connect_us_east_1` choice now targets the remaining Connect module plus
+its Terraform dependencies. Use `connect` for all Connect resources, including
+the extracted flows. Individual choices also include Terraform dependencies;
+review the complete plan before applying.
 
 Each of these data-table choices targets its own CloudFormation stack in the
 existing Connect state. Select the table name in `targetModule`; the `connect`

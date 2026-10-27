@@ -29,7 +29,9 @@ resource "aws_connect_lambda_function_association" "phone_lookup" {
 }
 
 locals {
-  main_ib_source = jsondecode(var.flow_json)
+  main_ib_source = jsondecode(
+    file("${path.module}/assets/BTSGSD-Main-IB-Flow.json")
+  )
 
   # Override only resource references; retain the supplied graph and parameters.
   main_ib_parameter_overrides = {

@@ -28,24 +28,6 @@ locals {
       type     = "CONTACT_FLOW"
     }
 
-    customer_queue = {
-      filename = "BTSGSD_Abbvie_CustomerQueueFlow.json"
-      name     = "BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow"
-      type     = "CUSTOMER_QUEUE"
-    }
-
-    agent_transfer = {
-      filename = "BTSGSD-AgentToAgentTransferFlow.json"
-      name     = "BTSGSD-V2V-US-AgentToAgentTransferFlow"
-      type     = "AGENT_TRANSFER"
-    }
-
-    outbound_whisper = {
-      filename = "BTSGSD-OutboundWhisperFlow.json"
-      name     = "BTSGSD-V2V-US-OutboundWhisperFlow"
-      type     = "OUTBOUND_WHISPER"
-    }
-
     transfer_customer_queue = {
       filename = "BTSGSD-Transfer-To-Agent-CustomerQueueFlow.json"
       name     = "BTSGSD-V2V-US-Transfer-To-Agent-CustomerQueueFlow"
@@ -65,20 +47,11 @@ locals {
     }
   }
 
-  # Stack outputs bind table lookups and defer dependency lookup until creation.
   rendered_imported_contact_flows = local.deploy_connect ? {
     for key, flow in local.imported_flow_definitions : key => {
-      name = flow.name
-      type = flow.type
-      content = key == "customer_queue" ? replace(
-        replace(
-          file("${local.imported_flow_directory}/${flow.filename}"),
-          "arn:aws:lambda:us-east-1:518902362956:function:conversionOfQueueMetrics",
-          aws_connect_lambda_function_association.queue_metrics[0].function_arn
-        ),
-        "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
-        local.survey_data_table_id
-      ) : file("${local.imported_flow_directory}/${flow.filename}")
+      name    = flow.name
+      type    = flow.type
+      content = file("${local.imported_flow_directory}/${flow.filename}")
     }
   } : {}
 }
@@ -118,9 +91,82 @@ module "connect_us_east_1" {
     "${path.module}/metadata/contact-flows/AbbVie_HR.json"
   )
   imported_contact_flows = local.rendered_imported_contact_flows
+  external_imported_contact_flows = local.deploy_connect ? {
+    agent_transfer = {
+      id  = module.agent_to_agent_transfer_flow[0].flow_id
+      arn = module.agent_to_agent_transfer_flow[0].flow_arn
+    }
+    outbound_whisper = {
+      id  = module.outbound_whisper_flow[0].flow_id
+      arn = module.outbound_whisper_flow[0].flow_arn
+    }
+    customer_queue = {
+      id  = module.customer_queue_flow[0].flow_id
+      arn = module.customer_queue_flow[0].flow_arn
+    }
+  } : {}
 
   flow_dependency_python_executable = var.connect_flow_python_executable
   customer_queue_dependency_names   = var.connect_customer_queue_dependency_names
+}
+
+module "aiagent_survey_flow" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/aiagent_survey_flow"
+
+  providers = {
+    aws      = aws.us_east_1
+    external = external
+  }
+
+  settings = merge(local.connect_flow_settings, {
+    survey_data_table_id          = local.survey_data_table_id
+    session_attributes_lambda_arn = module.BTSGSD-V2V-US-UpdateSessionAttributes[0].lambda_arn
+    timestamper_lambda_arn        = var.vmx3_timestamper_lambda_arn
+  })
+
+  depends_on = [module.BTSGSD-V2V-US-UpdateSessionAttributes]
+}
+
+module "agent_to_agent_transfer_flow" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/agent_to_agent_transfer_flow"
+
+  providers = {
+    aws      = aws.us_east_1
+    external = external
+  }
+
+  settings = merge(local.imported_flow_settings, {
+    transfer_customer_queue_flow_arn = module.connect_us_east_1[0].managed_transfer_customer_queue_flow_arn
+  })
+}
+
+module "outbound_whisper_flow" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/outbound_whisper_flow"
+
+  providers = {
+    aws      = aws.us_east_1
+    external = external
+  }
+
+  settings = local.imported_flow_settings
+}
+
+module "customer_queue_flow" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/customer_queue_flow"
+
+  providers = {
+    aws      = aws.us_east_1
+    external = external
+  }
+
+  settings = merge(local.imported_flow_settings, {
+    survey_data_table_id     = local.survey_data_table_id
+    queue_metrics_lambda_arn = aws_connect_lambda_function_association.queue_metrics[0].function_arn
+  })
 }
 
 module "vmx3_main_vm_module" {
@@ -152,7 +198,6 @@ module "btsgsd-Main-IB-Flow" {
 
   instance_arn          = module.connect_us_east_1[0].instance_arn
   expected_instance_arn = local.connect_target_instance_arn
-  flow_json             = file("${path.module}/metadata/contact-flows/BTSGSD-Main-IB-Flow.json")
 
   latam_queue_name           = var.main_ib_latam_queue_name
   phone_lookup_function_name = var.main_ib_phone_lookup_function_name
@@ -160,7 +205,7 @@ module "btsgsd-Main-IB-Flow" {
   flow_dependencies = {
     us_queue_arn            = module.connect_queue[0].queue_arn
     customer_queue_flow_arn = module.connect_us_east_1[0].customer_queue_flow_arn
-    survey_flow_arn         = aws_connect_contact_flow.survey[0].arn
+    survey_flow_arn         = module.aiagent_survey_flow[0].flow_arn
     agent_ui_flow_arn       = module.abbvie_views[0].flow_arn
 
     language_table_id = element(
@@ -212,10 +257,6 @@ module "abbvie_views" {
 
   connect_instance_arn      = module.connect_us_east_1[0].instance_arn
   customer_details_view_arn = module.connect_views[0].view_latest_arn
-
-  flow_content = file(
-    "${path.module}/metadata/contact-flows/abbvie_views.json"
-  )
 
   common_tags = local.common_tags
 }
@@ -2204,66 +2245,6 @@ resource "aws_cloudformation_stack" "bts_gsd_customer_number_data_table" {
 
   tags = local.common_tags
 
-}
-
-# Configuration consolidated from survey_flow.tf
-data "external" "survey_flow_dependencies" {
-  count = local.deploy_connect ? 1 : 0
-
-  program = [
-    var.connect_flow_python_executable,
-    "${path.module}/../../v2v_modules/connect/scripts/resolve_customer_queue_dependencies.py"
-  ]
-
-  query = {
-    region         = "us-east-1"
-    instance_id    = module.connect_us_east_1[0].instance_id
-    instance_arn   = module.connect_us_east_1[0].instance_arn
-    name_overrides = jsonencode(var.connect_customer_queue_dependency_names)
-
-    content = replace(
-      replace(
-        replace(
-          replace(
-            file("${path.module}/metadata/contact-flows/BTSGSD-AIAgent-SurveyFlow.json"),
-            "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
-            local.survey_data_table_id
-          ),
-          "arn:aws:lambda:us-east-1:518902362956:function:UpdateSessionAttributes",
-          module.BTSGSD-V2V-US-UpdateSessionAttributes[0].lambda_arn
-        ),
-        "sureveyFlow_1",
-        "VM_instruction_Survey"
-      ),
-      "arn:aws:lambda:us-east-1:518902362956:function:VMX3-VoicemailTimestamper-abbvie-sd-contactcenter-dev-us",
-      var.vmx3_timestamper_lambda_arn
-    )
-
-  }
-}
-
-resource "aws_connect_contact_flow" "survey" {
-  count    = local.deploy_connect ? 1 : 0
-  provider = aws.us_east_1
-
-  instance_id = module.connect_us_east_1[0].instance_id
-  name        = "BTSGSD-V2V-US-AIAgent-SurveyFlow"
-  description = "AI agent customer satisfaction survey."
-  type        = "CONTACT_FLOW"
-  content     = data.external.survey_flow_dependencies[0].result.content
-
-  tags = merge(local.common_tags, {
-    Name = "BTSGSD-V2V-US-AIAgent-SurveyFlow"
-  })
-
-  depends_on = [module.BTSGSD-V2V-US-UpdateSessionAttributes]
-
-  lifecycle {
-    precondition {
-      condition     = module.connect_us_east_1[0].instance_id == local.connect_target_instance_id
-      error_message = "Deploy the survey only to the selected V2V Connect instance."
-    }
-  }
 }
 
 # Adding new modules for Connect resources (users, queues, prompts etc)

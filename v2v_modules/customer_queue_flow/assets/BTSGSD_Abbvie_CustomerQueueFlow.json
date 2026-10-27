@@ -591,7 +591,7 @@
       }
     },
     "Annotations": [],
-    "name": "BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow",
+    "name": "BTSGSD-V2V-US-CustomerQueueFlow",
     "description": "",
     "type": "customerQueue",
     "status": "PUBLISHED",

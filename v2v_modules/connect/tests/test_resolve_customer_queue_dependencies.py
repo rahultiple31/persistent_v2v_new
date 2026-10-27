@@ -22,7 +22,7 @@ MODULE_NAME = "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us"
 class DependencyResolutionTests(unittest.TestCase):
     def setUp(self):
         self.source = (
-            REPO_DIR / "environments/v2v/metadata/contact-flows"
+            REPO_DIR / "v2v_modules/customer_queue_flow/assets"
             / "BTSGSD_Abbvie_CustomerQueueFlow.json"
         ).read_text(encoding="utf-8-sig")
         self.query = {
@@ -80,7 +80,7 @@ class DependencyResolutionTests(unittest.TestCase):
 
     def test_survey_resolves_module_and_table_preserves_flow_graph(self):
         source = (
-            REPO_DIR / "environments/v2v/metadata/contact-flows"
+            REPO_DIR / "v2v_modules/aiagent_survey_flow/assets"
             / "BTSGSD-AIAgent-SurveyFlow.json"
         ).read_text(encoding="utf-8-sig")
         original = json.loads(source)

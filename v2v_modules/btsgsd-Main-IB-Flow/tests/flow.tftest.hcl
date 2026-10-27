@@ -14,7 +14,6 @@ mock_provider "aws" {
 
 variables {
   instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-  flow_json    = file("../../environments/v2v/metadata/contact-flows/BTSGSD-Main-IB-Flow.json")
   flow_dependencies = {
     us_queue_arn                  = "arn:aws:connect:us-east-1:518902362956:instance/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/queue/44444444-4444-4444-4444-444444444444"
     customer_queue_flow_arn       = "arn:aws:connect:us-east-1:518902362956:instance/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/contact-flow/33333333-3333-3333-3333-333333333333"

@@ -21,12 +21,14 @@ parameters:
       - btsgsd-Main-IB-Flow
       - connect_views
       - abbvie_views
-      - BTSGSD-V2V-US-AbbVie_Views
+      # Deploy all six dedicated flow modules together, or select one below.
+      - all-flows
       - BTSGSD-V2V-US-AIAgent-SurveyFlow
-      - BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow
-      - BTSGSD-V2V-US-stdgsd_Fieldforce_Flow
       - BTSGSD-V2V-US-AgentToAgentTransferFlow
       - BTSGSD-V2V-US-OutboundWhisperFlow
+      - BTSGSD-V2V-US-CustomerQueueFlow
+      - BTSGSD-V2V-US-Views
+      - BTSGSD-V2V-US-stdgsd_Fieldforce_Flow
       - BTSGSD-V2V-US-Transfer-To-Agent-CustomerQueueFlow
       - BTSGSD-V2V-US-VoicemailFlow
       - BTSGSD-V2V-US-btsgsd_HR

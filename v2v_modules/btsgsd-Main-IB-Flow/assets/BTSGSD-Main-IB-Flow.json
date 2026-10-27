@@ -328,7 +328,7 @@
         "parameters": {
           "EventHooks": {
             "CustomerQueue": {
-              "displayName": "BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow"
+              "displayName": "BTSGSD-V2V-US-CustomerQueueFlow"
             }
           }
         },
@@ -571,7 +571,7 @@
         "parameters": {
           "EventHooks": {
             "DefaultAgentUI": {
-              "displayName": "BTSGSD-V2V-US-AbbVie_Views",
+              "displayName": "BTSGSD-V2V-US-Views",
               "useSetEventHook": true
             }
           }

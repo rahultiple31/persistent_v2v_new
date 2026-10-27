@@ -11,7 +11,7 @@ import textwrap
 import unittest
 
 from scripts.tests.test_v2v_terraform_target import (
-    BASH, ROOT, RESOURCE_MODULE_CHOICES, DESTROY_CHOICES, change, plan,
+    BASH, ROOT, RESOURCE_MODULE_CHOICES, DESTROY_CHOICES, ALL_FLOW_TARGETS, change, plan,
 )
 
 
@@ -152,11 +152,13 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
             self.assertIn(f"packages <{command}>", trace)
         self.assertNotIn("<-destroy>", trace)
 
-    def test_survey_and_customer_queue_choices_apply_saved_targeted_flow_plans(self):
+    def test_dedicated_flow_choices_apply_saved_targeted_module_plans(self):
         for choice, address in (
-            ("BTSGSD-V2V-US-AIAgent-SurveyFlow", "aws_connect_contact_flow.survey[0]"),
-            ("BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow",
-             'module.connect_us_east_1[0].aws_connect_contact_flow.imported["customer_queue"]'),
+            ("BTSGSD-V2V-US-AIAgent-SurveyFlow", "module.aiagent_survey_flow[0]"),
+            ("BTSGSD-V2V-US-AgentToAgentTransferFlow", "module.agent_to_agent_transfer_flow[0]"),
+            ("BTSGSD-V2V-US-OutboundWhisperFlow", "module.outbound_whisper_flow[0]"),
+            ("BTSGSD-V2V-US-CustomerQueueFlow", "module.customer_queue_flow[0]"),
+            ("BTSGSD-V2V-US-Views", "module.abbvie_views[0]"),
         ):
             with self.subTest(choice=choice):
                 self.prepare("v2v", choice)
@@ -177,6 +179,27 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
                 apply_command = next(line for line in trace.splitlines() if line.startswith("terraform <apply>"))
                 self.assertIn("terraform.tfplan>", apply_command)
                 self.assertNotIn("<-target=", apply_command)
+
+    def test_all_flows_choice_applies_one_saved_plan_for_six_modules(self):
+        self.prepare("v2v", "all-flows")
+        self.env["TEST_PLAN"] = json.dumps(plan(group="connect", changes=[
+            change(f"{address}.aws_connect_contact_flow.this", ["update"])
+            for address in ALL_FLOW_TARGETS
+        ]))
+        for stage in (0, 1):
+            result = self.run_stage(stage)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        trace = self.trace.read_text()
+        self.assertEqual(trace.count(
+            "<-backend-config=key=terraform-state/v2v/us-east-1/connect/terraform.tfstate>"
+        ), 2)
+        plan_command = next(line for line in trace.splitlines() if line.startswith("terraform <plan>"))
+        self.assertIn('<-var=enabled_modules=["connect"]>', plan_command)
+        self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), list(ALL_FLOW_TARGETS))
+        self.assertNotIn("<-destroy>", trace)
+        apply_command = next(line for line in trace.splitlines() if line.startswith("terraform <apply>"))
+        self.assertIn("terraform.tfplan>", apply_command)
+        self.assertNotIn("<-target=", apply_command)
 
     def test_destroy_choices_plan_and_apply_only_their_saved_targeted_plans(self):
         for choice, (group, modules) in DESTROY_CHOICES.items():

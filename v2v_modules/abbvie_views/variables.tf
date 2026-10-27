@@ -16,20 +16,6 @@ variable "customer_details_view_arn" {
   type        = string
 }
 
-variable "flow_content" {
-  description = "Contact flow JSON containing the view ARN placeholder."
-  type        = string
-
-  validation {
-    condition = (
-      can(jsondecode(var.flow_content).StartAction) &&
-      can(jsondecode(var.flow_content).Actions) &&
-      strcontains(var.flow_content, "__CUSTOMER_DETAILS_VIEW_ARN__")
-    )
-    error_message = "Supply complete flow JSON containing StartAction, Actions, and __CUSTOMER_DETAILS_VIEW_ARN__."
-  }
-}
-
 variable "common_tags" {
   description = "Tags applied to the contact flow."
   type        = map(string)

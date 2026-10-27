@@ -166,3 +166,12 @@ variable "customer_queue_dependency_names" {
   type        = map(string)
   default     = {}
 }
+
+variable "external_imported_contact_flows" {
+  description = "Imported flows owned by sibling modules, retained in the public flow outputs."
+  type = map(object({
+    id  = string
+    arn = string
+  }))
+  default = {}
+}

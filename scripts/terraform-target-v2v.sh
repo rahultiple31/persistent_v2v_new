@@ -19,8 +19,8 @@ TERRAFORM_TARGET_ADDRESS=""
 TERRAFORM_DESTROY_ONLY=false
 
 # choice | existing state group | optional resource or module target
-# Imported-flow targets retain shared dependency expressions, including the
-# customer-queue resolver's existing VMX3 lookup. Review dependencies in the plan.
+# Flow targets include their Terraform dependencies. Run the full connect group
+# first when migrating resource addresses; review dependencies in the plan.
 while IFS='|' read -r v2v_choice v2v_group v2v_address; do
   if [ "$v2v_choice" = "$DEPLOYMENT_TARGET" ]; then
     TERRAFORM_STATE_MODULE="$v2v_group"
@@ -29,6 +29,7 @@ while IFS='|' read -r v2v_choice v2v_group v2v_address; do
   fi
 done <<'V2V_CHOICES'
 connect|connect|
+all-flows|connect|
 lambda|lambda|module.lambda_us_east_1[0]
 v2v|v2v|
 dynamodb|dynamodb|module.queue_info_dynamodb[0]
@@ -42,12 +43,12 @@ connect_us_east_1|connect|module.connect_us_east_1[0]
 btsgsd-Main-IB-Flow|connect|module.btsgsd-Main-IB-Flow[0]
 connect_views|connect|module.connect_views[0]
 abbvie_views|connect|module.abbvie_views[0]
-BTSGSD-V2V-US-AbbVie_Views|connect|module.abbvie_views[0]
-BTSGSD-V2V-US-AIAgent-SurveyFlow|connect|aws_connect_contact_flow.survey[0]
-BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["customer_queue"]
+BTSGSD-V2V-US-Views|connect|module.abbvie_views[0]
+BTSGSD-V2V-US-AIAgent-SurveyFlow|connect|module.aiagent_survey_flow[0]
+BTSGSD-V2V-US-CustomerQueueFlow|connect|module.customer_queue_flow[0]
 BTSGSD-V2V-US-stdgsd_Fieldforce_Flow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["fieldforce"]
-BTSGSD-V2V-US-AgentToAgentTransferFlow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["agent_transfer"]
-BTSGSD-V2V-US-OutboundWhisperFlow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["outbound_whisper"]
+BTSGSD-V2V-US-AgentToAgentTransferFlow|connect|module.agent_to_agent_transfer_flow[0]
+BTSGSD-V2V-US-OutboundWhisperFlow|connect|module.outbound_whisper_flow[0]
 BTSGSD-V2V-US-Transfer-To-Agent-CustomerQueueFlow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["transfer_customer_queue"]
 BTSGSD-V2V-US-VoicemailFlow|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["voicemail"]
 BTSGSD-V2V-US-btsgsd_HR|connect|module.connect_us_east_1[0].aws_connect_contact_flow.imported["hr"]
@@ -136,6 +137,19 @@ TERRAFORM_PLAN_ARGS=(
 # Apply executes the saved plan; targeting belongs on the Plan command.
 if [ -n "$TERRAFORM_TARGET_ADDRESS" ]; then
   TERRAFORM_PLAN_ARGS+=("-target=$TERRAFORM_TARGET_ADDRESS")
+fi
+
+# Deploy the six dedicated flow modules in one plan using the existing state.
+# Terraform includes the dependencies required by these targets.
+if [ "$DEPLOYMENT_TARGET" = all-flows ]; then
+  TERRAFORM_PLAN_ARGS+=(
+    "-target=module.btsgsd-Main-IB-Flow[0]"
+    "-target=module.aiagent_survey_flow[0]"
+    "-target=module.agent_to_agent_transfer_flow[0]"
+    "-target=module.outbound_whisper_flow[0]"
+    "-target=module.customer_queue_flow[0]"
+    "-target=module.abbvie_views[0]"
+  )
 fi
 
 # These retired modules remain addressable in state without restoring their code.

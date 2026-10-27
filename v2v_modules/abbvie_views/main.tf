@@ -9,18 +9,18 @@ terraform {
 
 resource "aws_connect_contact_flow" "this" {
   instance_id = split("/", var.connect_instance_arn)[1]
-  name        = "BTSGSD-V2V-US-AbbVie_Views"
+  name        = "BTSGSD-V2V-US-Views"
   description = "Displays customer details in the agent workspace."
   type        = "CONTACT_FLOW"
 
   content = replace(
-    var.flow_content,
+    file("${path.module}/assets/abbvie_views.json"),
     "__CUSTOMER_DETAILS_VIEW_ARN__",
     var.customer_details_view_arn
   )
 
   tags = merge(var.common_tags, {
-    Name = "BTSGSD-V2V-US-AbbVie_Views"
+    Name = "BTSGSD-V2V-US-Views"
   })
 
   lifecycle {

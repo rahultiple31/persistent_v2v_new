@@ -270,7 +270,7 @@ output "bts_gsd_customer_number_data_table" {
 }
 
 output "survey_flow_arn" {
-  value = try(aws_connect_contact_flow.survey[0].arn, null)
+  value = try(module.aiagent_survey_flow[0].flow_arn, null)
 }
 
 output "lex_yesno_published_version" {
