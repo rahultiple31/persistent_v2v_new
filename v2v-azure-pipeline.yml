@@ -22,6 +22,8 @@ parameters:
       - connect_views
       - abbvie_views
       - BTSGSD-V2V-US-AbbVie_Views
+      - BTSGSD-V2V-US-AIAgent-SurveyFlow
+      - BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow
       - BTSGSD-V2V-US-stdgsd_Fieldforce_Flow
       - BTSGSD-V2V-US-AgentToAgentTransferFlow
       - BTSGSD-V2V-US-OutboundWhisperFlow

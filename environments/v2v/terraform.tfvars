@@ -130,7 +130,7 @@ nexthink_handoff_python_executable = "python"
 # null omits the reservation property and skips the reservation capacity check.
 # Do not use 0: it disables function invocation.
 # Restore 200 after increasing the quota or releasing other reservations.
-nexthink_handoff_reserved_concurrency = 200
+nexthink_handoff_reserved_concurrency = null
 
 # The supplied handler's default HTTP read timeout is 10 seconds; the Lambda
 # timeout is 8 seconds. Optional shorter HTTP timeouts reduce that risk, but

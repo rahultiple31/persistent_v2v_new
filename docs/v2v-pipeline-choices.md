@@ -54,6 +54,8 @@ Connect state:
 
 ```text
 BTSGSD-V2V-US-AbbVie_Views
+BTSGSD-V2V-US-AIAgent-SurveyFlow
+BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow
 BTSGSD-V2V-US-stdgsd_Fieldforce_Flow
 BTSGSD-V2V-US-AgentToAgentTransferFlow
 BTSGSD-V2V-US-OutboundWhisperFlow
@@ -67,8 +69,12 @@ BTSGSD-V2V-US-agent-to-agent-transfer-flow
 BTSGSD-V2V-US-HR
 ```
 
-`BTSGSD-V2V-US-AbbVie_Views` is an alias for `abbvie_views`. The other choices
-target individual contact-flow resources inside `module.connect_us_east_1[0]`.
+`BTSGSD-V2V-US-AbbVie_Views` is an alias for `abbvie_views`.
+`BTSGSD-V2V-US-AIAgent-SurveyFlow` targets the root resource
+`aws_connect_contact_flow.survey[0]`. The customer-queue choice targets
+`module.connect_us_east_1[0].aws_connect_contact_flow.imported["customer_queue"]`.
+The remaining choices target individual contact-flow resources inside
+`module.connect_us_east_1[0]`. All of these choices use the existing Connect state.
 Terraform still includes dependencies. Imported flows share dependency
 expressions with the customer-queue resolver, so selecting one does not
 guarantee exclusion of existing VMX3 lookups. Review the plan before applying.

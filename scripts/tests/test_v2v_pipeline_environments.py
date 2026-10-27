@@ -152,6 +152,32 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
             self.assertIn(f"packages <{command}>", trace)
         self.assertNotIn("<-destroy>", trace)
 
+    def test_survey_and_customer_queue_choices_apply_saved_targeted_flow_plans(self):
+        for choice, address in (
+            ("BTSGSD-V2V-US-AIAgent-SurveyFlow", "aws_connect_contact_flow.survey[0]"),
+            ("BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow",
+             'module.connect_us_east_1[0].aws_connect_contact_flow.imported["customer_queue"]'),
+        ):
+            with self.subTest(choice=choice):
+                self.prepare("v2v", choice)
+                self.env["TEST_PLAN"] = json.dumps(plan(group="connect", changes=[
+                    change(address, ["update"]),
+                ]))
+                for stage in (0, 1):
+                    result = self.run_stage(stage)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                trace = self.trace.read_text()
+                self.assertEqual(trace.count(
+                    "<-backend-config=key=terraform-state/v2v/us-east-1/connect/terraform.tfstate>"
+                ), 2)
+                plan_command = next(line for line in trace.splitlines() if line.startswith("terraform <plan>"))
+                self.assertIn('<-var=enabled_modules=["connect"]>', plan_command)
+                self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), [address])
+                self.assertNotIn("<-destroy>", plan_command)
+                apply_command = next(line for line in trace.splitlines() if line.startswith("terraform <apply>"))
+                self.assertIn("terraform.tfplan>", apply_command)
+                self.assertNotIn("<-target=", apply_command)
+
     def test_destroy_choices_plan_and_apply_only_their_saved_targeted_plans(self):
         for choice, (group, modules) in DESTROY_CHOICES.items():
             with self.subTest(choice=choice):

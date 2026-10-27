@@ -25,6 +25,8 @@ DESTROY_CHOICES = {
     "destroy_survey_lex": ("lex_bot", ("lex_aiagent_survey_bot",)),
 }
 FLOW_CHOICES = {
+    "BTSGSD-V2V-US-AIAgent-SurveyFlow": "aws_connect_contact_flow.survey[0]",
+    "BTSGSD-V2V-US-BTSGSD_Abbvie_CustomerQueueFlow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["customer_queue"]',
     "BTSGSD-V2V-US-AbbVie_Views": "module.abbvie_views[0]",
     "BTSGSD-V2V-US-stdgsd_Fieldforce_Flow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["fieldforce"]',
     "BTSGSD-V2V-US-AgentToAgentTransferFlow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["agent_transfer"]',
@@ -144,12 +146,16 @@ fi
                 elif choice in FLOW_CHOICES:
                     address = FLOW_CHOICES[choice]
                     self.assertEqual(group, "connect")
-                    module = address.split(".", 2)[1].split("[", 1)[0]
-                    self.assertIn(module, modules)
-                    if ".aws_connect_contact_flow." in address:
-                        resource = address.split(".aws_connect_contact_flow.", 1)[1].split("[", 1)[0]
-                        module_source = (ROOT / "v2v_modules/connect/main.tf").read_text()
-                        self.assertIn(f'resource "aws_connect_contact_flow" "{resource}"', module_source)
+                    if address.startswith("aws_connect_contact_flow."):
+                        resource = address.split(".", 1)[1].split("[", 1)[0]
+                        self.assertIn(("aws_connect_contact_flow", resource), resources)
+                    else:
+                        module = address.split(".", 2)[1].split("[", 1)[0]
+                        self.assertIn(module, modules)
+                        if ".aws_connect_contact_flow." in address:
+                            resource = address.split(".aws_connect_contact_flow.", 1)[1].split("[", 1)[0]
+                            module_source = (ROOT / "v2v_modules/connect/main.tf").read_text()
+                            self.assertIn(f'resource "aws_connect_contact_flow" "{resource}"', module_source)
                     self.assertEqual(targets, [f"-target={address}"])
                 elif choice in DATA_TABLE_CHOICES:
                     resource = DATA_TABLE_CHOICES[choice]
