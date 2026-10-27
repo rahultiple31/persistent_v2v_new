@@ -362,3 +362,8 @@ output "external_vms_id" {
 output "external_vms_arn" {
   value = try(module.external_vms[0].external_vm_arn, null)
 }
+
+output "imported_contact_flow_ids" {
+  description = "Imported contact flow IDs keyed by imported_contact_flows key (e.g. the transfer-to-agent flow used by user quick connects)."
+  value       = { for key, flow in aws_connect_contact_flow.imported : key => flow.contact_flow_id }
+}

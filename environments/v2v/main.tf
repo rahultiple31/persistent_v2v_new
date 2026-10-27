@@ -2317,21 +2317,15 @@ module "connect_resources" {
   instance_id  = data.aws_connect_instance.target[0].id
   instance_arn = data.aws_connect_instance.target[0].arn
 
-  hours_of_operation_id  = var.connect_resources_dependencies.hours_of_operation_id
   connect_queue_queue_id = var.connect_resources_dependencies.main_queue_id
-  outbound_flow_id       = var.connect_resources_dependencies.outbound_flow_id
-  quick_connect_flow_id  = var.connect_resources_dependencies.quick_connect_flow_id
+  outbound_flow_id      = module.connect_us_east_1[0].outbound_whisper_flow_id
+  quick_connect_flow_id = module.connect_us_east_1[0].imported_contact_flow_ids["agent_transfer"]
+  help_desk_quick_connect_ids = values(module.connect_queue[0].quick_connect_ids)
 
   outbound_caller_id_number_id = local.resolved_outbound_phone_number_id
   moh_30sec_prompt_s3_uri      = var.moh_30sec_prompt_s3_uri
   tags                         = local.common_tags
 
-  # Match the module's existing TASK/VOICE routing configuration.
-  blended_routing_profile_default_outbound_queue = "us_out"
-  blended_routing_profile_media_concurrencies = [
-    { channel = "TASK", concurrency = 1 },
-    { channel = "VOICE", concurrency = 1 },
-  ]
 }
 
 # signing_profile

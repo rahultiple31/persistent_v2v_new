@@ -19,11 +19,6 @@ variable "name_prefix" {
   }
 }
 
-variable "hours_of_operation_id" {
-  description = "Hours of operation used by the queues (module.connect_queue.hours_of_operation_id)."
-  type        = string
-}
-
 variable "connect_queue_queue_id" {
   description = "Main queue ID supplied by the connect-queue module."
   type        = string
@@ -58,49 +53,6 @@ variable "outbound_flow_id" {
   validation {
     condition     = var.outbound_flow_id != null
     error_message = "outbound_flow_id is required; supply outbound_whisper_flow_content to the connect module so the flow is created."
-  }
-}
-
-# --------------------------------------------------------------------------
-# US/LATAM VM blended routing profile
-# Its configuration was not captured from the source instance; supply it from
-# describe-routing-profile / list-routing-profile-queues output.
-# Queue keys: latam_main, latam_out, us_main, us_out, us_vm.
-# --------------------------------------------------------------------------
-variable "blended_routing_profile_default_outbound_queue" {
-  description = "Queue key used as the blended routing profile's default outbound queue."
-  type        = string
-
-  validation {
-    condition     = contains(["latam_main", "latam_out", "us_main", "us_out", "us_vm"], var.blended_routing_profile_default_outbound_queue)
-    error_message = "blended_routing_profile_default_outbound_queue must be one of: latam_main, latam_out, us_main, us_out, us_vm."
-  }
-}
-
-variable "blended_routing_profile_media_concurrencies" {
-  description = "Channel concurrency for the blended routing profile."
-  type = list(object({
-    channel     = string
-    concurrency = number
-  }))
-}
-
-variable "blended_routing_profile_queues" {
-  description = "Queues routed by the blended routing profile, referenced by queue key."
-  type = list(object({
-    queue    = string
-    channel  = string
-    priority = number
-    delay    = number
-  }))
-  default = []
-
-  validation {
-    condition = alltrue([
-      for q in var.blended_routing_profile_queues :
-      contains(["latam_main", "latam_out", "us_main", "us_out", "us_vm"], q.queue)
-    ])
-    error_message = "Each blended_routing_profile_queues entry must use a queue key: latam_main, latam_out, us_main, us_out, us_vm."
   }
 }
 
@@ -337,6 +289,11 @@ variable "quick_connect_flow_id" {
   }
 }
 
+variable "help_desk_quick_connect_ids" {
+  description = "Help-desk quick connects created by the connect-queue module, attached to the main queues (values(module.connect_queue.quick_connect_ids))."
+  type        = list(string)
+}
+
 variable "quick_connect_mahendra_username" {
   description = "Connect username backing the 'Mahendra Kumar' quick connect."
   type        = string
@@ -357,7 +314,7 @@ variable "quick_connect_govind_username" {
 
 # --------------------------------------------------------------------------
 # Users (the SAML admin user is managed by the connect module)
-# routing_profile keys: basic, us_agent, us_latam_vm_blended
+# routing_profile keys: basic, us_agent, latam_agent, us_latam_vm_blended
 # --------------------------------------------------------------------------
 variable "create_users" {
   description = "Whether to create Connect users. SAML usernames must match the IdP."
@@ -391,8 +348,8 @@ variable "users" {
 
   validation {
     condition = alltrue([
-      for user in values(var.users) : contains(["basic", "us_agent", "us_latam_vm_blended"], user.routing_profile)
+      for user in values(var.users) : contains(["basic", "us_agent", "latam_agent", "us_latam_vm_blended"], user.routing_profile)
     ])
-    error_message = "Each user's routing_profile must be one of: basic, us_agent, us_latam_vm_blended."
+    error_message = "Each user's routing_profile must be one of: basic, us_agent, latam_agent, us_latam_vm_blended."
   }
 }

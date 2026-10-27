@@ -37,3 +37,8 @@ output "agent_transfer_flow_id" {
   description = "Agent-to-agent transfer flow ID."
   value       = try(aws_connect_contact_flow.agent_to_agent_transfer[0].contact_flow_id, null)
 }
+
+output "imported_contact_flow_ids" {
+  description = "Imported contact flow IDs keyed by imported_contact_flows key (e.g. the transfer-to-agent flow used by user quick connects)."
+  value       = { for key, flow in aws_connect_contact_flow.imported : key => flow.contact_flow_id }
+}

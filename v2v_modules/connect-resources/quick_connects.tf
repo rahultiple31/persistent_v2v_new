@@ -1,5 +1,20 @@
 # User quick connects. The FF Help Desk and HR Help Desk phone quick connects
 # are managed by the connect-queue module.
+# Agent transfer flow passed in by ID. The postcondition stops the quick
+# connects from being created or updated if "Default agent transfer" is
+# wired in from the root module.
+data "aws_connect_contact_flow" "quick_connect" {
+  instance_id     = local.instance_id
+  contact_flow_id = var.quick_connect_flow_id
+
+  lifecycle {
+    postcondition {
+      condition     = self.name != "Default agent transfer"
+      error_message = "quick_connect_flow_id must be the transfer-to-agent flow, not \"Default agent transfer\"."
+    }
+  }
+}
+
 locals {
   quick_connect_usernames = toset([
     var.quick_connect_mahendra_username,
@@ -31,7 +46,7 @@ resource "aws_connect_quick_connect" "mahendra_kumar" {
     quick_connect_type = "USER"
     user_config {
       user_id         = local.quick_connect_user_ids[var.quick_connect_mahendra_username]
-      contact_flow_id = var.quick_connect_flow_id
+      contact_flow_id = data.aws_connect_contact_flow.quick_connect.contact_flow_id
     }
   }
 
@@ -46,7 +61,7 @@ resource "aws_connect_quick_connect" "smita_kulkarni" {
     quick_connect_type = "USER"
     user_config {
       user_id         = local.quick_connect_user_ids[var.quick_connect_smita_username]
-      contact_flow_id = var.quick_connect_flow_id
+      contact_flow_id = data.aws_connect_contact_flow.quick_connect.contact_flow_id
     }
   }
 
@@ -61,7 +76,7 @@ resource "aws_connect_quick_connect" "govind_khandelwal" {
     quick_connect_type = "USER"
     user_config {
       user_id         = local.quick_connect_user_ids[var.quick_connect_govind_username]
-      contact_flow_id = var.quick_connect_flow_id
+      contact_flow_id = data.aws_connect_contact_flow.quick_connect.contact_flow_id
     }
   }
 

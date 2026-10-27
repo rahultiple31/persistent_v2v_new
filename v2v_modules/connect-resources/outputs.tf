@@ -14,8 +14,13 @@ output "queue_ids" {
   }
 }
 
+output "hours_of_operation_id" {
+  description = "V2V hours of operation ID used by the queues."
+  value       = aws_connect_hours_of_operation.v2v.hours_of_operation_id
+}
+
 output "routing_profile_ids" {
-  description = "Routing profile IDs keyed by routing profile key (basic, us_agent, us_latam_vm_blended)."
+  description = "Routing profile IDs keyed by routing profile key (basic, us_agent, latam_agent, us_latam_vm_blended)."
   value       = local.routing_profile_ids
 }
 

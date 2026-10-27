@@ -2,6 +2,7 @@
 resource "aws_connect_security_profile" "client_realtime_metrix" {
   instance_id = local.instance_id
   name        = "Client Realtime Metrix"
+  description = "Client Realtime Metrix"
   permissions = var.client_realtime_metrix_permissions
   tags        = merge(var.tags, { Name = "Client Realtime Metrix" })
 }
@@ -9,6 +10,7 @@ resource "aws_connect_security_profile" "client_realtime_metrix" {
 resource "aws_connect_security_profile" "supervisor" {
   instance_id = local.instance_id
   name        = "Supervisor"
+  description = "BTSGSD_Supervisor"
   permissions = var.supervisor_permissions
   tags        = merge(var.tags, { Name = "Supervisor" })
 }
@@ -16,6 +18,7 @@ resource "aws_connect_security_profile" "supervisor" {
 resource "aws_connect_security_profile" "agent_realtime_report_metric" {
   instance_id = local.instance_id
   name        = "Agent Realtime Report Metric"
+  description = "Agent Realtime Report Metric"
   permissions = var.agent_realtime_report_metric_permissions
   tags        = merge(var.tags, { Name = "Agent Realtime Report Metric" })
 }
@@ -23,6 +26,7 @@ resource "aws_connect_security_profile" "agent_realtime_report_metric" {
 resource "aws_connect_security_profile" "agent_lead_access" {
   instance_id = local.instance_id
   name        = "Agent Lead Access"
+  description = "Agent Lead Access"
   permissions = var.agent_lead_access_permissions
   tags        = merge(var.tags, { Name = "Agent Lead Access" })
 }
@@ -30,6 +34,7 @@ resource "aws_connect_security_profile" "agent_lead_access" {
 resource "aws_connect_security_profile" "limited_access_agent" {
   instance_id = local.instance_id
   name        = "Limited access agent"
+  description = "Very limited access granted to an agent"
   permissions = var.limited_access_agent_permissions
   tags        = merge(var.tags, { Name = "Limited access agent" })
 }
