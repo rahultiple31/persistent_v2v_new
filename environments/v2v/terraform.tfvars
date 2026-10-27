@@ -115,8 +115,8 @@ connect_integrations_enabled = true
 enabled_modules                          = ["secrets_manager"]
 servicenow_interaction_python_executable = "python"
 
-# Reserve 150 executions; the capacity check requires sufficient regional quota.
-servicenow_interaction_reserved_concurrency = 200
+# Use the shared unreserved concurrency pool.
+servicenow_interaction_reserved_concurrency = null
 
 servicenow_interaction_environment_variables = {
   SN_INSTANCE = "abbvienowstage"
@@ -190,7 +190,7 @@ enable_external_vms = true
 external_vm_phone_number = "+18557117965"
 
 # BTSGSD-V2V-US-SNOW reserved concurrency.
-snow_lambda_reserved_concurrency = 200
+snow_lambda_reserved_concurrency = null
 
 # Allow the specified Lex V2 alias to invoke the V2V callback Lambda.
 lex_queueflow_callback_bot_alias_arn = "arn:aws:lex:us-east-1:518902362956:bot-alias/RD35A35EAU/HJAVDZTZBO"
