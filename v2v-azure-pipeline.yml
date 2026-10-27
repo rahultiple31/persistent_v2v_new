@@ -37,14 +37,12 @@ parameters:
       - BTSGSD-V2V-US-CustomerNumberDataTable
       - BTSGSD-V2V-US-BTSGSD-CustomerNumber
       - BTSGSD-V2V-US-BTSGSD-HR_Transfer
-      - BTSGSD-V2V-US-Survey-DataTable
+      - BTSGSD-V2V-US-PROMPT-DATATABLE
       - BTSGSD-V2V-US-BTSGSD-Veeva_Transfer
       - BTSGSD-V2V-US-TopLevelBlockerMessage
       - btsgsd_support_agent
       - btsgsd_support_agent_tools_access
       - btsgsd_ai_survey_agent
-      - survey_ai_prompt
-      - connect_ai_agent
       - agentcore_gateway
       - connect_Integrations
       - lambda_us_east_1
@@ -71,7 +69,6 @@ parameters:
       - lex_bot
       - lex_yesno_bot
       - lex_customer_queue_flow_bot
-      - lex_aiagent_survey_bot
       - s3_v2v
       - cloudfront_v2v
       - cognito_v2v

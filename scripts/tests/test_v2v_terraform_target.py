@@ -16,7 +16,7 @@ DATA_TABLE_CHOICES = {
     "BTSGSD-V2V-US-CustomerNumberDataTable": "customer_number_data_table",
     "BTSGSD-V2V-US-BTSGSD-CustomerNumber": "bts_gsd_customer_number_data_table",
     "BTSGSD-V2V-US-BTSGSD-HR_Transfer": "hr_transfer_data_table",
-    "BTSGSD-V2V-US-Survey-DataTable": "survey_data_table",
+    "BTSGSD-V2V-US-PROMPT-DATATABLE": "survey_data_table",
     "BTSGSD-V2V-US-BTSGSD-Veeva_Transfer": "veeva_transfer_data_table",
     "BTSGSD-V2V-US-TopLevelBlockerMessage": "top_level_blocker_data_table",
 }

@@ -2,7 +2,7 @@
 locals {
   survey_csv_input_rows = csvdecode(
     trimprefix(
-      file("${path.module}/metadata/data-tables/BTSGSD-V2V-US-Survey-DataTable.csv"),
+      file("${path.module}/metadata/data-tables/BTSGSD-V2V-US-PROMPT-DATATABLE.csv"),
       "\uFEFF"
     )
   )

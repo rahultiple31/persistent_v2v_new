@@ -38,7 +38,7 @@ class DependencyResolutionTests(unittest.TestCase):
                 "Arn": INSTANCE_ARN + "/prompt/dev-prompt",
             }],
             "list-data-tables": [{
-                "Name": "BTSGSD-V2V-US-Survey-DataTable", "Id": "dev-table",
+                "Name": "BTSGSD-V2V-US-PROMPT-DATATABLE", "Id": "dev-table",
                 "Arn": INSTANCE_ARN + "/data-table/dev-table",
             }],
             "list-contact-flow-modules": [{
@@ -75,7 +75,7 @@ class DependencyResolutionTests(unittest.TestCase):
         self.inventory = {key: [] for key in self.inventory}
         with self.assertRaises(ValueError) as caught:
             resolver.resolve(self.query, self.load)
-        for name in ("CustomerQueueMOH", "BTSGSD-V2V-US-Survey-DataTable", MODULE_NAME):
+        for name in ("CustomerQueueMOH", "BTSGSD-V2V-US-PROMPT-DATATABLE", MODULE_NAME):
             self.assertIn(name, str(caught.exception))
 
     def test_survey_resolves_module_and_table_preserves_flow_graph(self):

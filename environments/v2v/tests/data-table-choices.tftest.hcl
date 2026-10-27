@@ -64,7 +64,7 @@ run "survey" {
   assert {
     condition = (
       aws_cloudformation_stack.survey_data_table[0].parameters.InstanceArn == data.aws_connect_instance.target[0].arn &&
-      jsondecode(aws_cloudformation_stack.survey_data_table[0].template_body).Resources.SurveyTable.Properties.Name == "BTSGSD-V2V-US-Survey-DataTable"
+      jsondecode(aws_cloudformation_stack.survey_data_table[0].template_body).Resources.SurveyTable.Properties.Name == "BTSGSD-V2V-US-PROMPT-DATATABLE"
     )
     error_message = "The survey choice must use its own table and the existing V2V instance."
   }

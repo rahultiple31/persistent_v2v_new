@@ -322,7 +322,7 @@
         },
         "parameters": {
           "DataTableId": {
-            "displayName": "BTSGSD-V2V-US-Survey-DataTable"
+            "displayName": "BTSGSD-V2V-US-PROMPT-DATATABLE"
           }
         }
       },

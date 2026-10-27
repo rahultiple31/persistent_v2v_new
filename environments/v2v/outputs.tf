@@ -35,18 +35,6 @@ output "btsgsd_ai_survey_agent" {
   value       = try(module.btsgsd_ai_survey_agent[0].deployment, null)
 }
 
-output "sso_survey_ai_agent_id" {
-  value = try(module.connect_ai_agent[0].ai_agent_id, null)
-}
-
-output "sso_survey_ai_agent_arn" {
-  value = try(module.connect_ai_agent[0].ai_agent_arn, null)
-}
-
-output "sso_survey_ai_agent_version_arn" {
-  value = try(module.connect_ai_agent[0].ai_agent_version_arn, null)
-}
-
 output "dev_ai_admin_security_profile" {
   description = "Existing Admin profile assigned to custom AI agents during apply, or null when disabled."
   value = local.dev_ai_admin_security_profile_enabled ? {
@@ -244,9 +232,9 @@ output "hr_transfer_data_table" {
 }
 
 output "survey_data_table" {
-  description = "BTSGSD-Survey-DataTable identifiers for flow configuration."
+  description = "BTSGSD-V2V-US-PROMPT-DATATABLE identifiers for flow configuration."
   value = try({
-    name = "BTSGSD-V2V-US-Survey-DataTable"
+    name = "BTSGSD-V2V-US-PROMPT-DATATABLE"
     arn  = aws_cloudformation_stack.survey_data_table[0].outputs["DataTableArn"]
     id   = local.survey_data_table_id
   }, null)

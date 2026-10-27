@@ -305,34 +305,6 @@ module "btsgsd_ai_survey_agent" {
   ]
 }
 
-# Publish the survey prompt under the existing assistant.
-module "survey_ai_prompt" {
-  count  = local.dev_survey_ai_enabled ? 1 : 0
-  source = "../../v2v_modules/connect-ai-prompt"
-
-  providers = {
-    awscc = awscc.us_east_1
-  }
-
-  assistant_id     = local.dev_ai_assistant_id
-  prompt_yaml_file = "${path.module}/metadata/prompts/BTSGSD-SSO-US-AI-Survey-Prompt.yaml"
-}
-
-# Keep the existing agent address and attach the published survey prompt.
-module "connect_ai_agent" {
-  count  = local.dev_survey_ai_enabled ? 1 : 0
-  source = "../../v2v_modules/connect-ai-agent"
-
-  providers = {
-    aws   = aws.us_east_1
-    awscc = awscc.us_east_1
-  }
-
-  assistant_id            = local.dev_ai_assistant_id
-  connect_instance_arn    = module.connect_us_east_1[0].instance_arn
-  orchestration_prompt_id = module.survey_ai_prompt[0].versioned_prompt_id
-}
-
 module "lambda_us_east_1" {
   code_signing_config_arn = var.lambda_code_signing_config_arn
 
@@ -825,20 +797,6 @@ module "customer_queue_lex_log_group" {
   }
 
   log_group_name = "/aws/lex/BTSGSD-V2V-US-customerQueueFlowBot"
-}
-
-module "lex_aiagent_survey_bot" {
-  count  = contains(local.enabled_module_set, "lex_bot") ? 1 : 0
-  source = "../../v2v_modules/lex_bot"
-
-  providers = {
-    aws   = aws.us_east_1
-    awscc = awscc.us_east_1
-  }
-
-  bot_name       = "BTSGSD-V2V-US-AIAgent-Survey"
-  locale_ids     = ["en_US", "pt_BR", "es_419"]
-  child_directed = true
 }
 
 # Invoke this Lambda after the Connect assistant block in the contact flow.
@@ -1710,13 +1668,13 @@ locals {
           Type = "AWS::Connect::DataTable"
           Properties = {
             InstanceArn    = { Ref = "InstanceArn" }
-            Name           = "BTSGSD-V2V-US-Survey-DataTable"
+            Name           = "BTSGSD-V2V-US-PROMPT-DATATABLE"
             Description    = "Survey, callback and voicemail configuration by language."
             Status         = "PUBLISHED"
             TimeZone       = "UTC"
             ValueLockLevel = "NONE"
             Tags = [
-              for key, value in merge(local.common_tags, { Name = "BTSGSD-V2V-US-Survey-DataTable" }) : {
+              for key, value in merge(local.common_tags, { Name = "BTSGSD-V2V-US-PROMPT-DATATABLE" }) : {
                 Key   = key
                 Value = value
               }

@@ -68,7 +68,7 @@ VMX3 inputs. The Connect instance must already exist.
 | BTSGSD-V2V-US-CustomerNumberDataTable | `BTSGSD-V2V-US-CustomerNumberDataTable` |
 | BTSGSD-V2V-US-BTSGSD-CustomerNumber | `BTSGSD-V2V-US-BTSGSD-CustomerNumber` |
 | BTSGSD-V2V-US-BTSGSD-HR_Transfer | `BTSGSD-V2V-US-BTSGSD-HR_Transfer` |
-| BTSGSD-V2V-US-Survey-DataTable | `BTSGSD-V2V-US-Survey-DataTable` |
+| BTSGSD-V2V-US-PROMPT-DATATABLE | `BTSGSD-V2V-US-PROMPT-DATATABLE` |
 | BTSGSD-V2V-US-BTSGSD-Veeva_Transfer | `BTSGSD-V2V-US-BTSGSD-Veeva_Transfer` |
 | BTSGSD-V2V-US-TopLevelBlockerMessage | `BTSGSD-V2V-US-TopLevelBlockerMessage` |
 
@@ -104,8 +104,8 @@ identified and reconciled with its owning Terraform state.
 | BTSGSD-V2V-US-lex-QueueFlow-Callback | `BTSGSD-V2V-US-lex-QueueFlow-Callback` or `lex_queueflow_callback` |
 | BTSGSD-V2V-US-lex-yesNo | `BTSGSD-V2V-US-lex-yesNo` or `lex_yesno` |
 
-`lex_bot`, `lex_yesno_bot`, `lex_customer_queue_flow_bot`, and
-`lex_aiagent_survey_bot` now target their respective bots. `cloudwatch_log_group`
+`lex_bot`, `lex_yesno_bot`, and `lex_customer_queue_flow_bot`
+now target their respective bots. `cloudwatch_log_group`
 and `lex_yesno_log_group` select their respective log groups. The
 `support_agent_tools` choice was removed because that helper module creates
 no AWS resources; its output is used by `btsgsd_support_agent`.
