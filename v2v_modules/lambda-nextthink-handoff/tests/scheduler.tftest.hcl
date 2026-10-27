@@ -1,0 +1,70 @@
+mock_provider "aws" {
+  mock_data "aws_iam_role" {
+    defaults = {
+      arn = "arn:aws:iam::518902362956:role/Nextthink_Handoff_btsgsd-dev-role"
+    }
+  }
+
+  mock_data "aws_secretsmanager_secret" {
+    defaults = {
+      arn = "arn:aws:secretsmanager:us-east-1:518902362956:secret:Nextthink/Clientid/Secretkey-abcdef"
+    }
+  }
+
+  mock_resource "aws_lambda_function" {
+    defaults = {
+      arn = "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-V2V-US-Nextthink_Handoff"
+    }
+  }
+}
+
+mock_provider "external" {}
+mock_provider "time" {}
+
+variables {
+  reserved_concurrency = null
+}
+
+override_data {
+  target = data.aws_iam_role.warmup_scheduler
+  values = {
+    arn = "arn:aws:iam::518902362956:role/BTSGSD-IVA-Lambda-Warmup-Scheduler-Role"
+  }
+}
+
+run "hourly_nextthink_warmup" {
+  command = apply
+
+  assert {
+    condition = (
+      aws_scheduler_schedule.warmup.name == "BTSGSD-V2V-US-Nextthink_Handoff-warmup" &&
+      aws_scheduler_schedule.warmup.group_name == "default" &&
+      aws_scheduler_schedule.warmup.schedule_expression == "rate(1 hour)" &&
+      aws_scheduler_schedule.warmup.state == "ENABLED" &&
+      aws_scheduler_schedule.warmup.flexible_time_window[0].mode == "OFF" &&
+      aws_scheduler_schedule.warmup.target[0].arn == aws_lambda_function.handoff.arn &&
+      aws_lambda_function.handoff.function_name == "BTSGSD-V2V-US-Nextthink_Handoff" &&
+      aws_scheduler_schedule.warmup.target[0].role_arn == "arn:aws:iam::518902362956:role/BTSGSD-IVA-Lambda-Warmup-Scheduler-Role" &&
+      data.aws_iam_role.warmup_scheduler.name == "BTSGSD-IVA-Lambda-Warmup-Scheduler-Role" &&
+      aws_scheduler_schedule.warmup.target[0].input == jsonencode({ warmup = true }) &&
+      aws_scheduler_schedule.warmup.target[0].retry_policy[0].maximum_event_age_in_seconds == 86400 &&
+      aws_scheduler_schedule.warmup.target[0].retry_policy[0].maximum_retry_attempts == 185
+    )
+    error_message = "Warm Nextthink Handoff hourly using the specified role, payload, one-day retention, and 185 retries."
+  }
+
+  assert {
+    condition = (
+      aws_iam_role_policy.warmup_scheduler_invoke.role == data.aws_iam_role.warmup_scheduler.name &&
+      jsondecode(aws_iam_role_policy.warmup_scheduler_invoke.policy).Statement[0].Effect == "Allow" &&
+      jsondecode(aws_iam_role_policy.warmup_scheduler_invoke.policy).Statement[0].Action == ["lambda:InvokeFunction"] &&
+      jsondecode(aws_iam_role_policy.warmup_scheduler_invoke.policy).Statement[0].Resource == aws_lambda_function.handoff.arn &&
+      aws_lambda_function.handoff.handler == "warmup_wrapper.handler" &&
+      aws_lambda_function.handoff.environment[0].variables.ORIGINAL_HANDLER == "lambda_function.lambda_handler" &&
+      aws_lambda_function.handoff.environment[0].variables.NEXTHINK_SECRET_NAME == "Nextthink/Clientid/Secretkey" &&
+      length(data.external.capacity) == 0 &&
+      aws_lambda_function.handoff.reserved_concurrent_executions == -1
+    )
+    error_message = "Scope Scheduler invocation to Nextthink and preserve its warm-up handler, required secret, and unreserved concurrency option."
+  }
+}

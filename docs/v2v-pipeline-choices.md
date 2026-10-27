@@ -122,6 +122,128 @@ identified and reconciled with its owning Terraform state.
 | BTSGSD-V2V-US-lex-QueueFlow-Callback | `BTSGSD-V2V-US-lex-QueueFlow-Callback` or `lex_queueflow_callback` |
 | BTSGSD-V2V-US-lex-yesNo | `BTSGSD-V2V-US-lex-yesNo` or `lex_yesno` |
 
+The `BTSGSD-V2V-US-UpdateSessionAttributes` choice also manages the
+`BTSGSD-V2V-US-UpdateSessionAttributes-warmup` EventBridge Scheduler schedule in the existing
+Connect state. It runs every five minutes with flexible time window disabled,
+targets that Lambda with `{"warmup":true}`, and retries delivery up to 185 times
+within a maximum event age of 86400 seconds (one day).
+
+The execution role `BTSGSD-IVA-Lambda-Warmup-Scheduler-Role` must already exist
+and trust `scheduler.amazonaws.com`. The module adds an inline policy allowing
+that role to invoke this Lambda. The deployment identity needs permission to
+read the role, manage its inline policy and the schedule, and pass the role to
+Scheduler.
+
+If the schedule already exists in the `default` group outside Terraform, add
+this import block to `environments/v2v/imports.tf` before running Plan/Apply.
+Omit it when creating a new schedule. Do not import a schedule owned by another
+Terraform state without first transferring its ownership.
+
+```hcl
+import {
+  for_each = local.deploy_connect ? {
+    existing = "default/BTSGSD-V2V-US-UpdateSessionAttributes-warmup"
+  } : {}
+
+  to = module.BTSGSD-V2V-US-UpdateSessionAttributes[0].aws_scheduler_schedule.warmup
+  id = each.value
+}
+```
+
+The `BTSGSD-V2V-US-SNOW` choice also manages `BTSGSD-V2V-US-SNOW-warmup` in the
+existing `terraform-state/v2v/us-east-1/lambda-snow-btsgsd-dev/terraform.tfstate`
+state. The enabled schedule runs hourly (`rate(1 hour)`) with flexible time
+window disabled and targets `BTSGSD-V2V-US-SNOW` with `{"warmup":true}`.
+It uses the same existing warm-up execution role, with a separate inline policy
+limited to the SNOW function, a maximum event age of 86400 seconds, and 185
+delivery retries. Its unqualified Lambda ARN targets `$LATEST`.
+
+If this schedule already exists in the `default` group outside Terraform, add
+the following import block before running the SNOW choice. Omit it for a new
+schedule, and transfer state ownership first if another state manages it.
+
+```hcl
+import {
+  for_each = contains(local.enabled_module_set, "btsgsd-v2v-us-snow") ? {
+    existing = "default/BTSGSD-V2V-US-SNOW-warmup"
+  } : {}
+
+  to = module.BTSGSD-V2V-US-SNOW[0].aws_scheduler_schedule.warmup
+  id = each.value
+}
+```
+
+The `silence_guard-dev` choice also manages the enabled
+`BTSGSD-V2V-US-silence_guard-warmup` schedule in the existing Connect state. It invokes
+`BTSGSD-V2V-US-silence_guard` hourly with flexible time window disabled and
+`{"warmup":true}`, so the wrapper bypasses guard business logic. It reuses
+`BTSGSD-IVA-Lambda-Warmup-Scheduler-Role` with its own inline invoke policy,
+a maximum event age of 86400 seconds, and 185 delivery retries.
+
+If this schedule already exists in the `default` group outside Terraform, add
+the following import block before running `silence_guard-dev`. Omit it for a
+new schedule, and transfer ownership first if another Terraform state owns it.
+
+```hcl
+import {
+  for_each = local.deploy_connect ? {
+    existing = "default/BTSGSD-V2V-US-silence_guard-warmup"
+  } : {}
+
+  to = module.silence_guard-dev[0].aws_scheduler_schedule.warmup
+  id = each.value
+}
+```
+
+The `BTSGSD-V2V-US-ServiceNow_Interaction` choice also manages the enabled
+`BTSGSD-V2V-US-ServiceNow_Interaction-warmup` schedule in its existing
+`terraform-state/v2v/us-east-1/lambda-servicenow-interaction/terraform.tfstate`
+state. It runs hourly with flexible time window disabled, targeting
+`BTSGSD-V2V-US-ServiceNow_Interaction` with `{"warmup":true}`. It reuses
+`BTSGSD-IVA-Lambda-Warmup-Scheduler-Role` with an inline policy scoped to this
+function, a maximum event age of 86400 seconds, and 185 delivery retries.
+
+If this schedule already exists in the `default` group outside Terraform, add
+the following import block before running the ServiceNow Interaction choice.
+Omit it for a new schedule, and transfer ownership first if another state owns it.
+
+```hcl
+import {
+  for_each = contains(local.enabled_module_set, "btsgsd-v2v-us-servicenow_interaction") ? {
+    existing = "default/BTSGSD-V2V-US-ServiceNow_Interaction-warmup"
+  } : {}
+
+  to = module.BTSGSD-V2V-US-ServiceNow_Interaction[0].aws_scheduler_schedule.warmup
+  id = each.value
+}
+```
+
+The `BTSGSD-V2V-US-Nextthink_Handoff` choice also manages the enabled
+`BTSGSD-V2V-US-Nextthink_Handoff-warmup` schedule in its existing
+`terraform-state/v2v/us-east-1/lambda-nextthink-handoff/terraform.tfstate` state.
+It runs hourly with flexible time window disabled and invokes that Lambda
+with `{"warmup":true}`. It reuses `BTSGSD-IVA-Lambda-Warmup-Scheduler-Role`
+with its own narrowly scoped invoke policy, a maximum event age of 86400
+seconds, and 185 delivery retries. The function uses `warmup_wrapper.handler`
+with `ORIGINAL_HANDLER=lambda_function.lambda_handler` so scheduled pings skip
+the Nexthink authentication and handoff calls. The existing business handler
+and required secret-name setting are preserved.
+
+If this schedule already exists in the `default` group outside Terraform, add
+the following import block before running the Nextthink Handoff choice. Omit
+it for a new schedule, and transfer ownership first if another state owns it.
+
+```hcl
+import {
+  for_each = contains(local.enabled_module_set, "btsgsd-v2v-us-nextthink_handoff") ? {
+    existing = "default/BTSGSD-V2V-US-Nextthink_Handoff-warmup"
+  } : {}
+
+  to = module.BTSGSD-V2V-US-Nextthink_Handoff[0].aws_scheduler_schedule.warmup
+  id = each.value
+}
+```
+
 `lex_bot`, `lex_yesno_bot`, and `lex_customer_queue_flow_bot`
 now target their respective bots. `cloudwatch_log_group`
 and `lex_yesno_log_group` select their respective log groups. The

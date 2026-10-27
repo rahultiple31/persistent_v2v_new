@@ -168,7 +168,7 @@ resource "aws_lambda_function" "handoff" {
   role                           = data.aws_iam_role.execution.arn
   runtime                        = "python3.13"
   architectures                  = ["x86_64"]
-  handler                        = "lambda_function.lambda_handler"
+  handler                        = "warmup_wrapper.handler"
   package_type                   = "Zip"
   filename                       = data.archive_file.handoff.output_path
   source_code_hash               = data.archive_file.handoff.output_base64sha256
@@ -188,9 +188,16 @@ resource "aws_lambda_function" "handoff" {
   }
 
   environment {
-    variables = merge(var.environment_variables, {
-      NEXTHINK_SECRET_NAME = local.secret_name
-    }, module.application_signals.environment_variables)
+    variables = merge(
+      var.environment_variables,
+      {
+        NEXTHINK_SECRET_NAME = local.secret_name
+      },
+      module.application_signals.environment_variables,
+      {
+        ORIGINAL_HANDLER = "lambda_function.lambda_handler"
+      }
+    )
   }
   lifecycle {
     precondition {

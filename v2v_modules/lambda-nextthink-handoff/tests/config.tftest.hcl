@@ -1,4 +1,10 @@
 mock_provider "aws" {
+  mock_resource "aws_lambda_function" {
+    defaults = {
+      arn = "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-V2V-US-Nextthink_Handoff"
+    }
+  }
+
   mock_data "aws_iam_role" {
     defaults = {
       arn = "arn:aws:iam::518902362956:role/Nextthink_Handoff_btsgsd-dev-role"
@@ -31,6 +37,13 @@ mock_provider "external" {
   }
 }
 
+override_data {
+  target = data.aws_iam_role.warmup_scheduler
+  values = {
+    arn = "arn:aws:iam::518902362956:role/BTSGSD-IVA-Lambda-Warmup-Scheduler-Role"
+  }
+}
+
 run "requested_lambda_configuration" {
   command = plan
 
@@ -40,7 +53,8 @@ run "requested_lambda_configuration" {
       aws_lambda_function.handoff.role == "arn:aws:iam::518902362956:role/Nextthink_Handoff_btsgsd-dev-role" &&
       aws_lambda_function.handoff.runtime == "python3.13" &&
       aws_lambda_function.handoff.architectures == tolist(["x86_64"]) &&
-      aws_lambda_function.handoff.handler == "lambda_function.lambda_handler" &&
+      aws_lambda_function.handoff.handler == "warmup_wrapper.handler" &&
+      aws_lambda_function.handoff.environment[0].variables.ORIGINAL_HANDLER == "lambda_function.lambda_handler" &&
       aws_lambda_function.handoff.memory_size == 128 &&
       aws_lambda_function.handoff.timeout == 8 &&
       aws_lambda_function.handoff.reserved_concurrent_executions == 200 &&
@@ -77,6 +91,7 @@ run "kms_access_and_environment_overrides" {
     environment_variables = {
       NEXTHINK_SECRET_NAME = "must-not-replace-required-secret"
       READ_TIMEOUT_SECONDS = "1"
+      ORIGINAL_HANDLER     = "warmup_wrapper.handler"
     }
   }
 
@@ -88,7 +103,8 @@ run "kms_access_and_environment_overrides" {
       jsondecode(aws_iam_role_policy.execution.policy).Statement[2].Condition.StringEquals["kms:ViaService"] == "secretsmanager.us-east-1.amazonaws.com" &&
       jsondecode(aws_iam_role_policy.execution.policy).Statement[2].Condition.StringEquals["kms:EncryptionContext:SecretARN"] == data.aws_secretsmanager_secret.credentials.arn &&
       aws_lambda_function.handoff.environment[0].variables.NEXTHINK_SECRET_NAME == "Nextthink/Clientid/Secretkey" &&
-      aws_lambda_function.handoff.environment[0].variables.READ_TIMEOUT_SECONDS == "1"
+      aws_lambda_function.handoff.environment[0].variables.READ_TIMEOUT_SECONDS == "1" &&
+      aws_lambda_function.handoff.environment[0].variables.ORIGINAL_HANDLER == "lambda_function.lambda_handler"
     )
     error_message = "KMS decryption must be limited to the configured key and secret; preserve the required secret name when adding overrides."
   }
