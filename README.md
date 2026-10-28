@@ -304,7 +304,9 @@ The deployment region is fixed to `us-east-1` for both environments.
 To remove the complete V2V stack in `dev` or `dev-nsso`, first run
 `targetModule=prepare-destroy-v2v` with `terraformAction=plan`, review it, then
 run the same choice with `terraformAction=apply`. This records
-`force_destroy=true` for the two versioned V2V S3 buckets. Next run
+`force_destroy=true` for the two versioned V2V S3 buckets. Preparation targets
+only those buckets and their legacy addresses so previously deleted Cognito or
+CloudFront resources are not recreated. Next run
 `targetModule=destroy-v2v-stack` with `terraformAction=plan`, review the full
 deletion plan, then run it with `terraformAction=apply`. Repeat both steps for
 the other environment. The cleanup plan uses each environment's existing `v2v`

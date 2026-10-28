@@ -26,6 +26,14 @@ def reject(message):
     raise ValueError(message)
 
 
+def plan_bool(value):
+    if value is True or value == "true":
+        return True
+    if value is False or value == "false":
+        return False
+    reject(f"Expected a Terraform boolean, got {value!r}")
+
+
 def validate(plan, choice, environment):
     if choice not in {"prepare-destroy-v2v", "destroy-v2v-stack"}:
         reject(f"Unsupported V2V cleanup choice: {choice}")
@@ -41,6 +49,8 @@ def validate(plan, choice, environment):
     }
     for name, expected_value in expected.items():
         actual = variables.get(name, {}).get("value")
+        if name in {"force_destroy_v2v_buckets", "destroy_v2v_stack"}:
+            actual = plan_bool(actual)
         if actual != expected_value:
             reject(f"Plan has unexpected {name}: {actual!r}")
 
@@ -53,6 +63,8 @@ def validate(plan, choice, environment):
             continue
 
         if choice == "prepare-destroy-v2v":
+            if actions == ["forget"] and address in RETIRED_ASSET_ADDRESSES:
+                continue
             before = change.get("before") or {}
             after = change.get("after") or {}
             if not (

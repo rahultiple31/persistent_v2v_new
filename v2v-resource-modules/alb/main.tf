@@ -171,7 +171,7 @@ resource "aws_lb" "main" {
 resource "aws_lb_target_group" "proxy" {
   name        = "${var.stack_name}-proxy-tg"
   port        = 8080
-  protocol    = "HTTP"
+  protocol    = "HTTPS"
   target_type = "ip"
   vpc_id      = var.vpc_id
 
@@ -199,7 +199,7 @@ resource "aws_lb_listener" "http" {
   count             = var.https ? 0 : 1
   load_balancer_arn = aws_lb.main.arn
   port              = 80
-  protocol          = "HTTP"
+  protocol          = "HTTPS"
 
   default_action {
     type             = "forward"
@@ -207,7 +207,7 @@ resource "aws_lb_listener" "http" {
   }
 
   tags = {
-    Name = "${var.stack_name}-listener-http"
+    Name = "${var.stack_name}-listener-https"
   }
 }
 

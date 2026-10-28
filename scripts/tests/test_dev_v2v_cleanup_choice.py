@@ -30,13 +30,13 @@ def resource(address, actions, *, before=None, after=None):
     }
 
 
-def plan(environment="dev", changes=(), *, prepared=True, destroy=True):
+def plan(environment="dev", changes=(), *, prepared=True, destroy=True, string_bools=False):
     return {
         "variables": {
             "environment": {"value": environment},
             "enabled_modules": {"value": ["v2v"]},
-            "force_destroy_v2v_buckets": {"value": prepared},
-            "destroy_v2v_stack": {"value": destroy},
+            "force_destroy_v2v_buckets": {"value": str(prepared).lower() if string_bools else prepared},
+            "destroy_v2v_stack": {"value": str(destroy).lower() if string_bools else destroy},
         },
         "resource_changes": list(changes),
     }
@@ -63,8 +63,13 @@ class V2VCleanupPlanTests(unittest.TestCase):
             resource("module.cloudfront_v2v[0].aws_cloudfront_distribution.v2v", ["no-op"]),
         ]
         self.assertEqual(VALIDATOR.validate(plan(changes=updates, destroy=False), "prepare-destroy-v2v", "dev"), 0)
+        self.assertEqual(VALIDATOR.validate(plan(changes=updates, destroy=False, string_bools=True), "prepare-destroy-v2v", "dev"), 0)
+        forgotten_asset = resource("module.s3_v2v[0].aws_s3_object.v2v_assets", ["forget"])
+        self.assertEqual(VALIDATOR.validate(plan(changes=updates + [forgotten_asset], destroy=False), "prepare-destroy-v2v", "dev"), 0)
         for extra in (
             resource("module.cognito_v2v[0].aws_cognito_user_pool.this", ["delete"]),
+            resource("module.cognito_v2v[0].aws_cognito_user_pool.this", ["create"]),
+            resource("module.cloudfront_v2v[0].aws_cloudfront_distribution.v2v", ["create"]),
             resource(BUCKET, ["update"], before={"force_destroy": False}, after={"force_destroy": False}),
             resource(BUCKET, ["update"], before={"force_destroy": False, "tags": {"a": "b"}}, after={"force_destroy": True, "tags": {"a": "c"}}),
             resource("module.s3_v2v[0].aws_s3_bucket_policy.v2v", ["update"]),
@@ -79,10 +84,11 @@ class V2VCleanupPlanTests(unittest.TestCase):
     def test_destroy_allows_five_modules_and_root_marker(self):
         for environment in ("dev", "dev-nsso"):
             with self.subTest(environment=environment):
-                self.assertEqual(
-                    VALIDATOR.validate(plan(environment, ALL_MODULE_CHANGES), "destroy-v2v-stack", environment),
-                    len(ALL_MODULE_CHANGES),
-                )
+                for string_bools in (False, True):
+                    self.assertEqual(
+                        VALIDATOR.validate(plan(environment, ALL_MODULE_CHANGES, string_bools=string_bools), "destroy-v2v-stack", environment),
+                        len(ALL_MODULE_CHANGES),
+                    )
 
     def test_destroy_accepts_legacy_moved_addresses_and_state_only_asset_removal(self):
         changes = [
@@ -116,6 +122,10 @@ class V2VCleanupPlanTests(unittest.TestCase):
             VALIDATOR.validate(plan(changes=ALL_MODULE_CHANGES, prepared=False), "destroy-v2v-stack", "dev")
         with self.assertRaises(ValueError):
             VALIDATOR.validate(plan(changes=ALL_MODULE_CHANGES, destroy=False), "destroy-v2v-stack", "dev")
+        malformed = plan(changes=ALL_MODULE_CHANGES)
+        malformed["variables"]["force_destroy_v2v_buckets"]["value"] = "TRUE"
+        with self.assertRaises(ValueError):
+            VALIDATOR.validate(malformed, "destroy-v2v-stack", "dev")
 
 
 @unittest.skipUnless(BASH, "Bash is required to test the pipeline selector")
@@ -146,9 +156,16 @@ printf '%s\\n' "$TERRAFORM_STATE_MODULE" "$TERRAFORM_BACKEND_KEY" "${TERRAFORM_P
                         '-var=enabled_modules=["v2v"]',
                         "-var=force_destroy_v2v_buckets=true",
                     ])
-                    self.assertEqual(lines[4:], [
-                        f"-var=destroy_v2v_stack={'true' if choice == 'destroy-v2v-stack' else 'false'}"
-                    ])
+                    if choice == "prepare-destroy-v2v":
+                        self.assertEqual(lines[4:], [
+                            "-var=destroy_v2v_stack=false",
+                            "-target=module.s3_v2v[0].aws_s3_bucket.v2v",
+                            "-target=module.s3_v2v[0].aws_s3_bucket.v2v_logs",
+                            "-target=module.s3[0].aws_s3_bucket.webapp",
+                            "-target=module.s3[0].aws_s3_bucket.webapp_logs",
+                        ])
+                    else:
+                        self.assertEqual(lines[4:], ["-var=destroy_v2v_stack=true"])
 
     def test_pipeline_exposes_both_choices(self):
         pipeline = (ROOT / "azure-pipelines.yml").read_text(encoding="utf-8")

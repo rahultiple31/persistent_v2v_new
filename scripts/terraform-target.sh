@@ -39,7 +39,13 @@ case "$DEPLOYMENT_TARGET" in
       '-var=force_destroy_v2v_buckets=true'
     )
     if [ "$DEPLOYMENT_TARGET" = "prepare-destroy-v2v" ]; then
-      TERRAFORM_PLAN_ARGS+=('-var=destroy_v2v_stack=false')
+      TERRAFORM_PLAN_ARGS+=(
+        '-var=destroy_v2v_stack=false'
+        '-target=module.s3_v2v[0].aws_s3_bucket.v2v'
+        '-target=module.s3_v2v[0].aws_s3_bucket.v2v_logs'
+        '-target=module.s3[0].aws_s3_bucket.webapp'
+        '-target=module.s3[0].aws_s3_bucket.webapp_logs'
+      )
     else
       TERRAFORM_PLAN_ARGS+=('-var=destroy_v2v_stack=true')
     fi
