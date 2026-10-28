@@ -18,7 +18,36 @@ from scripts.tests.test_v2v_terraform_target import (
 
 STUBS = r'''
 curl() { printf '%s' '{"oidcToken":"test-token"}'; }
-aws() { printf '%s\n' "$EXPECTED_ACCOUNT_ID"; }
+aws() {
+  if [[ "${1:-}" == secretsmanager && "${2:-}" == put-secret-value ]]; then
+    local argument
+    for argument in "$@"; do
+      if [[ "$argument" == file://* ]]; then
+        "$TEST_PYTHON" - "${argument#file://}" <<'PY'
+import hashlib
+import json
+import os
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as file:
+    request = json.load(file)
+assert request["SecretId"] == "BTSGSD-V2V-US-Datalake/dev"
+assert json.loads(request["SecretString"]) == {
+    "aws_access_key_id": os.environ["DATALAKE_AWS_ACCESS_KEY_ID"],
+    "aws_secret_access_key": os.environ["DATALAKE_AWS_SECRET_ACCESS_KEY"],
+}
+assert request["ClientRequestToken"] == hashlib.sha256(
+    request["SecretString"].encode()
+).hexdigest()
+PY
+        printf 'aws <secretsmanager> <put-secret-value>\n' >> "$TEST_TRACE"
+        return 0
+      fi
+    done
+    return 1
+  fi
+  printf '%s\n' "$EXPECTED_ACCOUNT_ID"
+}
 python3() {
   if [[ "${1:-}" == */scripts/v2v-lambda-packages.py ]]; then
     printf 'packages <%s>\n' "$2" >> "$TEST_TRACE"
@@ -152,6 +181,41 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
         for command in ("build", "save", "restore"):
             self.assertIn(f"packages <{command}>", trace)
         self.assertNotIn("<-destroy>", trace)
+
+    def test_secrets_manager_choice_creates_and_populates_datalake_secret(self):
+        self.prepare("v2v", "secrets_manager")
+        self.env.update({
+            "DATALAKE_AWS_ACCESS_KEY_ID": "example-access-key",
+            "DATALAKE_AWS_SECRET_ACCESS_KEY": "example-secret-key",
+            "TEST_PLAN": json.dumps(plan(group="secrets_manager", changes=[
+                change("module.datalake_secret[0].aws_secretsmanager_secret.this", ["create"]),
+            ])),
+        })
+        for stage in (0, 1):
+            result = self.run_stage(stage)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+        trace = self.trace.read_text()
+        plan_command = next(line for line in trace.splitlines() if line.startswith("terraform <plan>"))
+        self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), [
+            "module.secrets_manager[0]", "module.datalake_secret[0]",
+        ])
+        self.assertEqual(trace.count("aws <secretsmanager> <put-secret-value>"), 1)
+        self.assertNotIn("example-secret-key", trace)
+        self.assertIn("DATALAKE_AWS_ACCESS_KEY_ID: $(DATALAKE_AWS_ACCESS_KEY_ID)", self.pipeline)
+        self.assertIn("DATALAKE_AWS_SECRET_ACCESS_KEY: $(DATALAKE_AWS_SECRET_ACCESS_KEY)", self.pipeline)
+
+    def test_secrets_manager_apply_requires_secret_variables_before_terraform(self):
+        self.prepare("v2v", "secrets_manager")
+        self.env.pop("DATALAKE_AWS_ACCESS_KEY_ID", None)
+        self.env.pop("DATALAKE_AWS_SECRET_ACCESS_KEY", None)
+        self.env["TEST_PLAN"] = json.dumps(plan(group="secrets_manager"))
+
+        self.assertEqual(self.run_stage(0).returncode, 0)
+        result = self.run_stage(1)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Set the Azure secret variable DATALAKE_AWS_ACCESS_KEY_ID", result.stderr)
+        self.assertNotIn("terraform <apply>", self.trace.read_text())
 
     def test_dedicated_flow_choices_apply_saved_targeted_module_plans(self):
         for choice, address in (

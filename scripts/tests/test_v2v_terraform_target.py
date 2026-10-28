@@ -195,6 +195,9 @@ fi
                     module = aliases.get(choice, choice)
                     self.assertIn(module, modules)
                     expected = [f"-target=module.{module}[0]"]
+                    if choice == "secrets_manager":
+                        self.assertIn("datalake_secret", modules)
+                        expected.append("-target=module.datalake_secret[0]")
                     if group == "connect":
                         expected.extend(f"-target={address}" for address in MOVED_CONNECT_TARGETS)
                     if choice == "conversion_of_queue_metrics":

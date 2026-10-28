@@ -49,6 +49,14 @@ ARN variables. An individual Lambda choice does not require those unrelated
 VMX3 inputs. `connect-resources` retains its separate backend key and requires
 `connect_resources_dependencies` containing the existing V2V resource UUIDs.
 
+The `secrets_manager` choice also creates `BTSGSD-V2V-US-Datalake/dev` through
+`v2v_modules/datalake_secret`. Before applying, configure the Azure pipeline
+secret variables `DATALAKE_AWS_ACCESS_KEY_ID` and
+`DATALAKE_AWS_SECRET_ACCESS_KEY`. The Apply stage checks that both are set
+before running Terraform, then writes a JSON secret value with keys
+`aws_access_key_id` and `aws_secret_access_key`. The Datalake value is not
+stored in Terraform state or the repository.
+
 Each of these flow names is an individual `targetModule` choice in the existing
 Connect state:
 

@@ -436,15 +436,6 @@ module "iam-ctr" {
   providers = {
     aws = aws.us_east_1
   }
-
-  policy_name   = "BTSGSD-V2V-US-ctr-reporting-policy"
-  s3_object_arn = "arn:aws:s3:::btsgsd-v2v-us-connect-reporting-bucket/connect/daily-interactions/*"
-
-  role_names = [
-    "BTSGSD-V2V-US-CTR-Survey-lambda-role",
-    "BTSGSD-V2V-US-connect-daily-ctr-export-lambda-role",
-    "BTSGSD-V2V-US-CTR-Raw-lambda-role"
-  ]
 }
 
 module "s3_connect_reporting" {
@@ -454,9 +445,6 @@ module "s3_connect_reporting" {
   providers = {
     aws = aws.us_east_1
   }
-
-  bucket_name = "btsgsd-v2v-us-connect-reporting-bucket"
-  common_tags = local.common_tags
 }
 
 data "aws_region" "current" {
@@ -711,6 +699,15 @@ module "secrets_manager" {
 
   secrets     = var.secrets_manager_secrets
   common_tags = local.common_tags
+}
+
+module "datalake_secret" {
+  count  = contains(local.enabled_module_set, "secrets_manager") ? 1 : 0
+  source = "../../v2v_modules/datalake_secret"
+
+  providers = {
+    aws = aws.us_east_1
+  }
 }
 
 # Deploys with the btsgsd-intent-kb selection.
