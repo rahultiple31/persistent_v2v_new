@@ -366,49 +366,21 @@ module "lambda_us_east_1" {
 }
 
 module "lambda-ctr-survey" {
-  code_signing_config_arn = var.lambda_code_signing_config_arn
-
   count  = contains(local.enabled_module_set, "lambda-ctr-survey") ? 1 : 0
   source = "../../v2v_modules/lambda-ctr-survey"
 
   providers = {
     aws = aws.us_east_1
   }
-
-  source_file            = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_.py")
-  handler                = "lambda_function_ctr_.lambda_handler"
-  connect_instance_alias = var.connect_instance_alias
-  common_tags            = local.common_tags
 }
 
 module "lambda-connect-daily-ctr-export" {
-  code_signing_config_arn = var.lambda_code_signing_config_arn
-
   count  = contains(local.enabled_module_set, "lambda-connect-daily-ctr-export") ? 1 : 0
   source = "../../v2v_modules/lambda-connect-daily-ctr-export"
 
   providers = {
     aws = aws.us_east_1
   }
-
-  source_file            = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_export.py")
-  connect_instance_alias = var.connect_instance_alias
-  common_tags            = local.common_tags
-}
-
-module "lambda-ctr-raw" {
-  code_signing_config_arn = var.lambda_code_signing_config_arn
-
-  count  = contains(local.enabled_module_set, "lambda-ctr-raw") ? 1 : 0
-  source = "../../v2v_modules/lambda-ctr-raw"
-
-  providers = {
-    aws = aws.us_east_1
-  }
-
-  source_file            = abspath("${path.module}/metadata/lambda-ctr/lambda_function_ctr_raw.py")
-  connect_instance_alias = var.connect_instance_alias
-  common_tags            = local.common_tags
 }
 
 module "BTSGSD-V2V-US-SNOW" {

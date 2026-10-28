@@ -1,7 +1,7 @@
 # Package the source using the module name expected by the Python handler.
 data "archive_file" "export" {
   type                    = "zip"
-  source_content          = file(var.source_file)
+  source_content          = file(var.source_file == null ? "${path.module}/src/lambda_function_ctr_export.py" : var.source_file)
   source_content_filename = "${split(".", var.handler)[0]}.py"
   output_path             = "${path.root}/metadata/lambda-connect-daily-ctr-export/${var.function_name}.zip"
 }
@@ -30,7 +30,7 @@ resource "aws_lambda_function" "export" {
   package_type     = "Zip"
   filename         = data.archive_file.export.output_path
   source_code_hash = data.archive_file.export.output_base64sha256
-  tags             = var.common_tags
+  tags             = local.effective_tags
 
   ephemeral_storage {
     size = var.ephemeral_storage_size
@@ -39,6 +39,9 @@ resource "aws_lambda_function" "export" {
   environment {
     variables = merge(var.environment_variables, {
       CONNECT_INSTANCE_ID = data.aws_connect_instance.selected.id
+      S3_BUCKET           = var.s3_bucket_name
+      S3_PREFIX           = local.s3_prefix_by_area[var.deployment_area]
+      S3_REGION           = data.aws_region.current.name
     }, module.application_signals.environment_variables)
   }
 

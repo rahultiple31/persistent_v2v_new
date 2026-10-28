@@ -39,6 +39,7 @@ DATA_TABLE_CHOICES = {
 DESTROY_CHOICES = {
     "destroy_survey_ai": ("connect", ("connect_ai_agent", "survey_ai_prompt")),
     "destroy_survey_lex": ("lex_bot", ("lex_aiagent_survey_bot",)),
+    "destroy_ctr_raw": ("lambda-ctr-raw", ("lambda-ctr-raw",)),
 }
 FLOW_CHOICES = {
     "BTSGSD-V2V-US-AIAgent-SurveyFlow": "module.aiagent_survey_flow[0]",
@@ -150,9 +151,10 @@ fi
                     expected_group, retired_modules = DESTROY_CHOICES[choice]
                     self.assertEqual(group, expected_group)
                     self.assertIn("-destroy", arguments)
-                    self.assertEqual(targets, [
+                    expected_targets = [] if choice == "destroy_ctr_raw" else [
                         f"-target=module.{name}[0]" for name in retired_modules
-                    ])
+                    ]
+                    self.assertEqual(targets, expected_targets)
                     for name in retired_modules:
                         self.assertNotIn(name, modules)
                     continue
@@ -210,7 +212,7 @@ fi
         self.assertIn("Unsupported V2V module", result.stderr)
 
     def test_retired_deployment_choices_remain_unavailable(self):
-        for target in ("connect_ai_agent", "survey_ai_prompt", "lex_aiagent_survey_bot"):
+        for target in ("connect_ai_agent", "survey_ai_prompt", "lex_aiagent_survey_bot", "lambda-ctr-raw"):
             with self.subTest(target=target):
                 result = self.run_selector(target)
                 self.assertNotEqual(result.returncode, 0)

@@ -6,6 +6,10 @@ DEPLOYMENT_ENVIRONMENT="${2:?Environment is required}"
 DEPLOYMENT_REGION="${3:-us-east-1}"
 
 case "$DEPLOYMENT_TARGET" in
+  v2v)
+    echo "V2V deployment is retired in dev and dev-nsso. Use prepare-destroy-v2v and destroy-v2v-stack." >&2
+    return 1
+    ;;
   dynamodb|connect-queue|Connect_integrations|data_table|agentcore_gateway|ai_agent_tools|delete-BTSGSD-SSO-US-AI-Survey-Agent|lambda-servicenow-interaction|lambda-nextthink-handoff|silence_guard-dev|UpdateSessionAttributes-dev|conversionOfQueueMetrics-dev|BTSGSD-lex-yesNo-dev|BTSGSD-lex-QueueFlow-Callback-dev)
     if [ "$DEPLOYMENT_ENVIRONMENT" != "dev" ]; then
       echo "$DEPLOYMENT_TARGET is supported only for dev." >&2
@@ -20,6 +24,26 @@ TERRAFORM_PLAN_ARGS=(
 )
 
 case "$DEPLOYMENT_TARGET" in
+  prepare-destroy-v2v|destroy-v2v-stack)
+    case "$DEPLOYMENT_ENVIRONMENT" in
+      dev|dev-nsso) ;;
+      *)
+        echo "$DEPLOYMENT_TARGET supports only dev and dev-nsso." >&2
+        return 1
+        ;;
+    esac
+
+    TERRAFORM_STATE_MODULE="v2v"
+    TERRAFORM_PLAN_ARGS=(
+      '-var=enabled_modules=["v2v"]'
+      '-var=force_destroy_v2v_buckets=true'
+    )
+    if [ "$DEPLOYMENT_TARGET" = "prepare-destroy-v2v" ]; then
+      TERRAFORM_PLAN_ARGS+=('-var=destroy_v2v_stack=false')
+    else
+      TERRAFORM_PLAN_ARGS+=('-var=destroy_v2v_stack=true')
+    fi
+    ;;
   connect-queue)
     TERRAFORM_STATE_MODULE="connect"
     TERRAFORM_PLAN_ARGS=(
@@ -99,6 +123,11 @@ TERRAFORM_BACKEND_KEY="terraform-state/$DEPLOYMENT_ENVIRONMENT/$DEPLOYMENT_REGIO
 
 validate_terraform_target_plan() {
   case "$DEPLOYMENT_TARGET" in
+    prepare-destroy-v2v|destroy-v2v-stack)
+      terraform show -json "${1:-tfplan}" |
+        python3 "$(dirname "${BASH_SOURCE[0]}")/validate-dev-v2v-cleanup-plan.py" \
+          "$DEPLOYMENT_TARGET" "$DEPLOYMENT_ENVIRONMENT" || return 1
+      ;;
     delete-BTSGSD-SSO-US-AI-Survey-Agent)
       terraform show -json "${1:-tfplan}" |
         python3 -c '

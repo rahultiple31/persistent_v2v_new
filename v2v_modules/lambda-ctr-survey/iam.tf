@@ -5,7 +5,7 @@ resource "aws_iam_role" "execution" {
   }
 
   name = "${var.function_name}-${each.key}-role"
-  tags = var.common_tags
+  tags = local.effective_tags
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

@@ -5,7 +5,7 @@ variable "function_name" {
 
 variable "runtime" {
   type    = string
-  default = "python3.13"
+  default = "python3.14"
 }
 
 variable "handler" {
@@ -14,28 +14,29 @@ variable "handler" {
 }
 
 variable "source_file" {
-  description = "Absolute path to the Python source file."
+  description = "Absolute source path, or null to use the module's daily CTR export source."
   type        = string
+  default     = null
 }
 
 variable "architectures" {
   type    = list(string)
-  default = ["x86_64"]
+  default = ["arm64"]
 }
 
 variable "memory_size" {
   type    = number
-  default = 1024
+  default = 2048
 }
 
 variable "timeout" {
   type    = number
-  default = 60
+  default = 900
 }
 
 variable "ephemeral_storage_size" {
   type    = number
-  default = 512
+  default = 4096
 }
 
 variable "connect_instance_alias" {
@@ -47,13 +48,28 @@ variable "connect_instance_alias" {
 variable "environment_variables" {
   type = map(string)
   default = {
-    S3_BUCKET             = "btsgsd-v2v-us-connect-reporting-bucket"
     BUSINESS_TIMEZONE     = "America/Chicago"
-    S3_PREFIX             = "connect/daily-interactions"
     FILE_PREFIX           = "abbvieacd"
     LOG_LEVEL             = "INFO"
     OUTPUT_DELIMITER      = ","
     SHORT_ABANDON_SECONDS = "10"
+  }
+}
+
+variable "s3_bucket_name" {
+  description = "Reporting bucket for this deployment."
+  type        = string
+  default     = "btsgsd-v2v-us-connect-reporting-bucket"
+}
+
+variable "deployment_area" {
+  description = "Area used in the daily ACD S3 key prefix."
+  type        = string
+  default     = "NORAM"
+
+  validation {
+    condition     = contains(["NORAM", "APAC", "EMEA"], var.deployment_area)
+    error_message = "deployment_area must be NORAM, APAC, or EMEA."
   }
 }
 
@@ -69,7 +85,7 @@ variable "log_retention_days" {
 
 variable "scheduler_name" {
   type    = string
-  default = "BTSGSD-V2V-US-ACD-Daily-Export"
+  default = "btsgsd-dev-us-east-1-ACD-Survey-Daily-Export"
 }
 
 variable "schedule_expression" {
@@ -80,7 +96,7 @@ variable "schedule_expression" {
 variable "schedule_timezone" {
   description = "Scheduler timezone, independent of BUSINESS_TIMEZONE."
   type        = string
-  default     = "UTC"
+  default     = "America/Chicago"
 }
 
 variable "common_tags" {

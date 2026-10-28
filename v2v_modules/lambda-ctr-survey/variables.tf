@@ -10,11 +10,11 @@ variable "runtime" {
 
 variable "handler" {
   type    = string
-  default = "lambda_function.lambda_handler"
+  default = "lambda_function_ctr_.lambda_handler"
 }
 
 variable "source_file" {
-  description = "Absolute source path, or null to use the module's src/lambda_function.py."
+  description = "Absolute source path, or null to use the module's CTR Survey source."
   type        = string
   default     = null
 }

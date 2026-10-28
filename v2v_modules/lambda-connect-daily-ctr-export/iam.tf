@@ -5,7 +5,7 @@ resource "aws_iam_role" "execution" {
   }
 
   name = "${var.function_name}-${each.key}-role"
-  tags = var.common_tags
+  tags = local.effective_tags
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -46,7 +46,7 @@ resource "aws_iam_role_policy" "lambda_access" {
         Sid      = "WriteDailyCSVToS3"
         Effect   = "Allow"
         Action   = ["s3:PutObject", "s3:AbortMultipartUpload"]
-        Resource = "arn:aws:s3:::${var.environment_variables["S3_BUCKET"]}/${trim(var.environment_variables["S3_PREFIX"], "/")}/*"
+        Resource = "arn:aws:s3:::${var.s3_bucket_name}/${local.s3_prefix_by_area[var.deployment_area]}/*"
       }
     ]
   })

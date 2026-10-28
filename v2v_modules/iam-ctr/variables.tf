@@ -10,6 +10,5 @@ variable "role_names" {
   default = [
     "BTSGSD-V2V-US-CTR-Survey-lambda-role",
     "BTSGSD-V2V-US-connect-daily-ctr-export-lambda-role",
-    "BTSGSD-V2V-US-CTR-Raw-lambda-role",
   ]
 }

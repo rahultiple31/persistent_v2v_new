@@ -12,7 +12,7 @@ locals {
   deploy_connect     = contains(local.enabled_module_set, "connect")
   deploy_lambda      = contains(local.enabled_module_set, "lambda")
   deploy_proxy       = contains(local.enabled_module_set, "proxy") && local.translation_mode == "proxy"
-  deploy_v2v         = contains(local.enabled_module_set, "v2v")
+  deploy_v2v         = contains(local.enabled_module_set, "v2v") && !var.destroy_v2v_stack
 }
 
 locals {
@@ -481,12 +481,13 @@ module "s3_v2v" {
     aws = aws.us_east_1
   }
 
-  app_name          = var.app_name
-  v2v_root_prefix   = var.v2v_root_prefix
-  deploy_v2v_assets = var.deploy_v2v_assets
-  v2v_dist_path     = var.v2v_dist_path
-  frontend_config   = local.frontend_config
-  common_tags       = local.common_tags
+  app_name              = var.app_name
+  v2v_root_prefix       = var.v2v_root_prefix
+  deploy_v2v_assets     = var.deploy_v2v_assets
+  v2v_dist_path         = var.v2v_dist_path
+  force_destroy_buckets = var.force_destroy_v2v_buckets
+  frontend_config       = local.frontend_config
+  common_tags           = local.common_tags
 }
 
 module "cloudfront_v2v" {

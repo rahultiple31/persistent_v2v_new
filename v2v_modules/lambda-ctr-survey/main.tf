@@ -1,6 +1,6 @@
 data "archive_file" "survey" {
   type        = "zip"
-  source_file = var.source_file == null ? "${path.module}/src/lambda_function.py" : var.source_file
+  source_file = var.source_file == null ? "${path.module}/src/lambda_function_ctr_.py" : var.source_file
   output_path = "${path.root}/metadata/${var.function_name}.zip"
 }
 
@@ -27,7 +27,7 @@ resource "aws_lambda_function" "survey" {
   timeout          = var.timeout
   filename         = data.archive_file.survey.output_path
   source_code_hash = data.archive_file.survey.output_base64sha256
-  tags             = var.common_tags
+  tags             = local.effective_tags
 
   environment {
     variables = merge(var.environment_variables, {

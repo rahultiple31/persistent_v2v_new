@@ -656,7 +656,6 @@ variable "lambda_code_signing_config_arn" {
           "lambda",
           "lambda-ctr-survey",
           "lambda-connect-daily-ctr-export",
-          "lambda-ctr-raw",
           "btsgsd-v2v-us-snow",
           "btsgsd-v2v-us-servicenow_interaction",
           "btsgsd-v2v-us-nextthink_handoff"

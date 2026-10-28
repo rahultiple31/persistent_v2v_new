@@ -54,7 +54,7 @@ parameters:
       - lambda_us_east_1
       - lambda-ctr-survey
       - lambda-connect-daily-ctr-export
-      - lambda-ctr-raw
+      - destroy_ctr_raw
       - BTSGSD-V2V-US-SNOW
       - BTSGSD-V2V-US-ServiceNow_Interaction
       - BTSGSD-V2V-US-Nextthink_Handoff
@@ -420,16 +420,8 @@ stages:
               fi
               refresh_v2v_credentials
 
-              if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TARGET_MODULE" = secrets_manager ]; then
-                source "$BUILD_SOURCESDIRECTORY/v2v_modules/datalake_secret/put_value.sh" --check
-              fi
-
               # Apply executes the saved plan from this run's Plan stage.
               terraform apply -input=false -no-color "$plan_file"
-
-              if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TARGET_MODULE" = secrets_manager ]; then
-                source "$BUILD_SOURCESDIRECTORY/v2v_modules/datalake_secret/put_value.sh"
-              fi
             displayName: Terraform Apply
             workingDirectory: $(workingDirectory)
             env:
@@ -443,8 +435,6 @@ stages:
               AWS_DEV_OIDC_ROLE_ARN: $(AWS_DEV_OIDC_ROLE_ARN)
               SYSTEM_ACCESSTOKEN: $(System.AccessToken)
               SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
-              DATALAKE_AWS_ACCESS_KEY_ID: $(DATALAKE_AWS_ACCESS_KEY_ID)
-              DATALAKE_AWS_SECRET_ACCESS_KEY: $(DATALAKE_AWS_SECRET_ACCESS_KEY)
 
 # After initial gateway creation, run a new Plan/Apply cycle if its audience
 # needs updating. Apply only executes the saved plan from its own Plan stage.

@@ -74,7 +74,7 @@ connect_Integrations|connect|module.connect_Integrations[0]
 lambda_us_east_1|lambda|module.lambda_us_east_1[0]
 lambda-ctr-survey|lambda-ctr-survey|module.lambda-ctr-survey[0]
 lambda-connect-daily-ctr-export|lambda-connect-daily-ctr-export|module.lambda-connect-daily-ctr-export[0]
-lambda-ctr-raw|lambda-ctr-raw|module.lambda-ctr-raw[0]
+destroy_ctr_raw|lambda-ctr-raw|
 BTSGSD-V2V-US-SNOW|btsgsd-v2v-us-snow|module.BTSGSD-V2V-US-SNOW[0]
 BTSGSD-V2V-US-ServiceNow_Interaction|btsgsd-v2v-us-servicenow_interaction|module.BTSGSD-V2V-US-ServiceNow_Interaction[0]
 BTSGSD-V2V-US-Nextthink_Handoff|btsgsd-v2v-us-nextthink_handoff|module.BTSGSD-V2V-US-Nextthink_Handoff[0]
@@ -167,6 +167,11 @@ case "$DEPLOYMENT_TARGET" in
     TERRAFORM_DESTROY_ONLY=true
     TERRAFORM_PLAN_ARGS+=("-destroy")
     ;;
+  destroy_ctr_raw)
+    TERRAFORM_DESTROY_ONLY=true
+    # This state belongs to CTR-Raw alone; the plan validator rejects other deletions.
+    TERRAFORM_PLAN_ARGS+=("-destroy")
+    ;;
 esac
 
 # Include both source and destination addresses of moved Connect flows.
@@ -241,6 +246,7 @@ destroy_prefixes = {
         "module.survey_ai_prompt[0].",
     ),
     "destroy_survey_lex": ("module.lex_aiagent_survey_bot[0].",),
+    "destroy_ctr_raw": ("module.lambda-ctr-raw[0].",),
 }
 if target in destroy_prefixes:
     unexpected = [
@@ -250,7 +256,7 @@ if target in destroy_prefixes:
     ]
     if unexpected:
         raise SystemExit(
-            "Refusing changes other than deletion of the selected retired survey modules: "
+            "Refusing changes other than deletion of the selected retired modules: "
             + ", ".join(unexpected)
         )
 

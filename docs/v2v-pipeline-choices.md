@@ -49,13 +49,11 @@ ARN variables. An individual Lambda choice does not require those unrelated
 VMX3 inputs. `connect-resources` retains its separate backend key and requires
 `connect_resources_dependencies` containing the existing V2V resource UUIDs.
 
-The `secrets_manager` choice also creates `BTSGSD-V2V-US-Datalake/dev` through
-`v2v_modules/datalake_secret`. Before applying, configure the Azure pipeline
-secret variables `DATALAKE_AWS_ACCESS_KEY_ID` and
-`DATALAKE_AWS_SECRET_ACCESS_KEY`. The Apply stage checks that both are set
-before running Terraform, then writes a JSON secret value with keys
-`aws_access_key_id` and `aws_secret_access_key`. The Datalake value is not
-stored in Terraform state or the repository.
+The `secrets_manager` choice also creates the `BTSGSD-V2V-US-Datalake/dev`
+secret through `v2v_modules/datalake_secret`. Terraform manages the secret
+metadata only; the pipeline uses OIDC for AWS access and does not write a
+static access key pair to this secret. A consumer that needs a secret value
+must have its own value provisioning and authentication design.
 
 Each of these flow names is an individual `targetModule` choice in the existing
 Connect state:
@@ -188,7 +186,6 @@ identified and reconciled with its owning Terraform state.
 | BTSGSD-V2V-US-lambda-test | `lambda` or `lambda_us_east_1` |
 | BTSGSD-V2V-US-CTR-Survey | `lambda-ctr-survey` |
 | BTSGSD-V2V-US-connect-daily-ctr-export | `lambda-connect-daily-ctr-export` |
-| BTSGSD-V2V-US-CTR-Raw | `lambda-ctr-raw` |
 | BTSGSD-V2V-US-SNOW | `BTSGSD-V2V-US-SNOW` |
 | BTSGSD-V2V-US-ServiceNow_Interaction | `BTSGSD-V2V-US-ServiceNow_Interaction` |
 | BTSGSD-V2V-US-Nextthink_Handoff | `BTSGSD-V2V-US-Nextthink_Handoff` |
@@ -197,6 +194,12 @@ identified and reconciled with its owning Terraform state.
 | BTSGSD-V2V-US-conversionOfQueueMetrics | `conversion_of_queue_metrics` |
 | BTSGSD-V2V-US-lex-QueueFlow-Callback | `BTSGSD-V2V-US-lex-QueueFlow-Callback` or `lex_queueflow_callback` |
 | BTSGSD-V2V-US-lex-yesNo | `BTSGSD-V2V-US-lex-yesNo` or `lex_yesno` |
+
+The V2V CTR-Raw Lambda is retired. Select `targetModule=destroy_ctr_raw` with
+`targetEnvironment=v2v` and `terraformAction=apply` to delete its Terraform
+resources from the dedicated `lambda-ctr-raw` state. The pipeline accepts only
+deletions under `module.lambda-ctr-raw[0]` in the saved plan. The shared CTR
+policy no longer attaches to the retired Lambda role.
 
 The `BTSGSD-V2V-US-UpdateSessionAttributes` choice also manages the
 `BTSGSD-V2V-US-UpdateSessionAttributes-warmup` EventBridge Scheduler schedule in the existing

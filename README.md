@@ -139,11 +139,9 @@ To activate only the Lambda test module in this state:
 terraform plan -var='enabled_modules=["lambda"]'
 ```
 
-To activate only the V2V application stack in this state:
-
-```bash
-terraform plan -var='enabled_modules=["v2v"]'
-```
+The V2V application stack is retired in `dev` and `dev-nsso`. Use the
+`prepare-destroy-v2v` and `destroy-v2v-stack` pipeline choices below to remove
+its resources from the existing V2V state.
 
 ## SNOW Lambda in Dev
 
@@ -294,13 +292,27 @@ authentication and handoff require deployment and valid Nexthink credentials.
 The pipeline in `azure-pipelines.yml` supports these parameters:
 
 - `targetEnvironment`: `dev` or `dev-nsso`
-- `targetModule`: `connect`, `data_table`, `agentcore_gateway`, `lambda`, `proxy`, `v2v`,
+- `targetModule`: `connect`, `data_table`, `agentcore_gateway`, `lambda`, `proxy`,
+  `prepare-destroy-v2v`, `destroy-v2v-stack`,
   `s3_connect_reporting`, `lambda-ctr-survey`, `lambda-connect-daily-ctr-export`,
   `lambda-ctr-raw`, `iam-ctr`, `lambda-snow-btsgsd-dev`,
   `lambda-servicenow-interaction`, or `lambda-nextthink-handoff`
 - `terraformAction`: `plan` or `apply`
 
 The deployment region is fixed to `us-east-1` for both environments.
+
+To remove the complete V2V stack in `dev` or `dev-nsso`, first run
+`targetModule=prepare-destroy-v2v` with `terraformAction=plan`, review it, then
+run the same choice with `terraformAction=apply`. This records
+`force_destroy=true` for the two versioned V2V S3 buckets. Next run
+`targetModule=destroy-v2v-stack` with `terraformAction=plan`, review the full
+deletion plan, then run it with `terraformAction=apply`. Repeat both steps for
+the other environment. The cleanup plan uses each environment's existing `v2v`
+state and permits deletions only from the
+S3, CloudFront, Cognito, IAM, and SSM V2V modules and the root V2V settings
+marker. `destroy_v2v_stack=true` is the default in both root configurations,
+so later plans keep these modules disabled. The preparation choice temporarily
+sets it to `false` while recording `force_destroy=true` on the S3 buckets.
 
 To deploy the five tables in `environments/dev/data_table.tf`, select
 `targetEnvironment=dev`, `targetModule=data_table`, and `terraformAction=apply`

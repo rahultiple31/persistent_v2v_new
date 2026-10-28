@@ -362,6 +362,18 @@ variable "deploy_v2v_assets" {
   default     = false
 }
 
+variable "force_destroy_v2v_buckets" {
+  description = "Allow deletion of nonempty V2V website and CloudFront log buckets after a separate preparatory apply."
+  type        = bool
+  default     = false
+}
+
+variable "destroy_v2v_stack" {
+  description = "Keep the retired V2V application modules disabled in this environment; the preparation choice temporarily overrides this."
+  type        = bool
+  default     = true
+}
+
 variable "v2v_dist_path" {
   description = "Path to the built Vite V2V app dist directory."
   type        = string
