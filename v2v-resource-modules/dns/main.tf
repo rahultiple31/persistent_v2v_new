@@ -55,8 +55,8 @@ resource "null_resource" "connect_approved_origin" {
 
   # Deregister the origin on destroy
   provisioner "local-exec" {
-    when    = destroy
-    command = <<-EOT
+    when       = destroy
+    command    = <<-EOT
       aws connect disassociate-approved-origin \
         --instance-id "${self.triggers.instance_id}" \
         --origin      "${self.triggers.origin}"

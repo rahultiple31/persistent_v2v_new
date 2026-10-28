@@ -117,14 +117,14 @@ resource "aws_vpc_security_group_ingress_rule" "endpoint_from_extra_cidrs" {
 locals {
   # Map of logical name -> VPC endpoint service name
   interface_endpoints = {
-    bedrock_runtime       = "com.amazonaws.${var.aws_region}.bedrock-runtime"
-    transcribe_streaming  = "com.amazonaws.${var.aws_region}.transcribestreaming"
-    translate             = "com.amazonaws.${var.aws_region}.translate"
-    polly                 = "com.amazonaws.${var.aws_region}.polly"
-    ssm                   = "com.amazonaws.${var.aws_region}.ssm"
-    ecr_api               = "com.amazonaws.${var.aws_region}.ecr.api"
-    ecr_dkr               = "com.amazonaws.${var.aws_region}.ecr.dkr"
-    logs                  = "com.amazonaws.${var.aws_region}.logs"
+    bedrock_runtime      = "com.amazonaws.${var.aws_region}.bedrock-runtime"
+    transcribe_streaming = "com.amazonaws.${var.aws_region}.transcribestreaming"
+    translate            = "com.amazonaws.${var.aws_region}.translate"
+    polly                = "com.amazonaws.${var.aws_region}.polly"
+    ssm                  = "com.amazonaws.${var.aws_region}.ssm"
+    ecr_api              = "com.amazonaws.${var.aws_region}.ecr.api"
+    ecr_dkr              = "com.amazonaws.${var.aws_region}.ecr.dkr"
+    logs                 = "com.amazonaws.${var.aws_region}.logs"
   }
 }
 

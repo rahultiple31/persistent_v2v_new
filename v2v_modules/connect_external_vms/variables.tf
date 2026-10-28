@@ -14,7 +14,7 @@ variable "external_vm_phone_number" {
   nullable    = false
 
   validation {
-    condition = can(regex("^\\+[1-9][0-9]{1,14}$", var.external_vm_phone_number))
+    condition     = can(regex("^\\+[1-9][0-9]{1,14}$", var.external_vm_phone_number))
     error_message = "Use an E.164 destination number, such as +18557117965."
   }
 }

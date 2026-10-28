@@ -5,14 +5,14 @@
 
 # ── CloudWatch log group ──────────────────────────────────────────────────────
 module "cloudwatch" {
- # source     = "./modules/cloudwatch"
-  source        = "../../v2v-resource-modules/cloudwatch"
+  # source     = "./modules/cloudwatch"
+  source     = "../../v2v-resource-modules/cloudwatch"
   stack_name = var.stack_name
 }
 
 # ── SSM parameters ────────────────────────────────────────────────────────────
 module "ssm" {
- # source        = "./modules/ssm"
+  # source        = "./modules/ssm"
   source        = "../../v2v-resource-modules/ssm"
   stack_name    = var.stack_name
   ssm_hierarchy = var.ssm_hierarchy
@@ -29,8 +29,8 @@ module "ecr" {
 
 # ── IAM roles and policies ────────────────────────────────────────────────────
 module "iam" {
- # source     = "./modules/iam"
-  source        = "../../v2v-resource-modules/iam"
+  # source     = "./modules/iam"
+  source     = "../../v2v-resource-modules/iam"
   stack_name = var.stack_name
 
   aws_region = var.aws_region
@@ -48,8 +48,8 @@ module "iam" {
 
 # ── Networking — security groups + VPC interface endpoints ────────────────────
 module "networking" {
- # source     = "./modules/networking"
-  source        = "../../v2v-resource-modules/networking"
+  # source     = "./modules/networking"
+  source     = "../../v2v-resource-modules/networking"
   stack_name = var.stack_name
 
   vpc_id               = var.vpc_id
@@ -62,8 +62,8 @@ module "networking" {
 
 # ── Application Load Balancer ─────────────────────────────────────────────────
 module "alb" {
- # source     = "./modules/alb"
-  source        = "../../v2v-resource-modules/alb"
+  # source     = "./modules/alb"
+  source     = "../../v2v-resource-modules/alb"
   stack_name = var.stack_name
 
   vpc_id                = var.vpc_id
@@ -77,8 +77,8 @@ module "alb" {
 
 # ── WAF WebACL + ALB association ──────────────────────────────────────────────
 module "waf" {
- # source     = "./modules/waf"
-  source        = "../../v2v-resource-modules/waf"
+  # source     = "./modules/waf"
+  source     = "../../v2v-resource-modules/waf"
   stack_name = var.stack_name
 
   alb_arn         = module.alb.alb_arn
@@ -87,8 +87,8 @@ module "waf" {
 
 # ── ECS cluster + task definition + Fargate service ──────────────────────────
 module "ecs" {
- # source     = "./modules/ecs"
-  source        = "../../v2v-resource-modules/ecs"
+  # source     = "./modules/ecs"
+  source     = "../../v2v-resource-modules/ecs"
   stack_name = var.stack_name
 
   aws_region                = var.aws_region
@@ -104,8 +104,8 @@ module "ecs" {
 
 # ── Route 53 record + Connect approved origin ─────────────────────────────────
 module "dns" {
- # source     = "./modules/dns"
-  source        = "../../v2v-resource-modules/dns"
+  # source     = "./modules/dns"
+  source     = "../../v2v-resource-modules/dns"
   stack_name = var.stack_name
 
   hostname             = var.hostname

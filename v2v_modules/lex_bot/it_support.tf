@@ -73,8 +73,8 @@ resource "terraform_data" "it_support_configuration" {
         }
       ))
 
-      AWS_REGION         = "us-east-1"
-      AWS_PAGER          = ""
+      AWS_REGION          = "us-east-1"
+      AWS_PAGER           = ""
       AWS_CLI_AUTO_PROMPT = "off"
     }
   }

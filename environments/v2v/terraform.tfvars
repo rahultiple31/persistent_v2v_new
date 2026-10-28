@@ -1,7 +1,7 @@
-environment                = "dev"
-project_name               = "btsgsd"
-aws_region                 = "us-east-1"
-resource_name_prefix       = "BTSGSD-V2V-US"
+environment          = "dev"
+project_name         = "btsgsd"
+aws_region           = "us-east-1"
+resource_name_prefix = "BTSGSD-V2V-US"
 
 # Existing BTFSD-V2V-US code-signing configuration, shared by all V2V Lambdas.
 lambda_code_signing_config_arn = "arn:aws:lambda:us-east-1:518902362956:code-signing-config:csc-07e3c2263fd84c053"

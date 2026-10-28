@@ -220,7 +220,7 @@ resource "aws_lb_listener" "https" {
   protocol          = "HTTPS"
   certificate_arn   = var.certificate_arn
   # ELBSecurityPolicy-TLS13-1-2-2021-06 is the CDK RECOMMENDED_TLS policy
-  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  ssl_policy = "ELBSecurityPolicy-TLS13-1-2-2021-06"
 
   default_action {
     type             = "forward"
