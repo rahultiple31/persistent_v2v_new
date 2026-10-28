@@ -11,7 +11,8 @@ import textwrap
 import unittest
 
 from scripts.tests.test_v2v_terraform_target import (
-    BASH, ROOT, RESOURCE_MODULE_CHOICES, DESTROY_CHOICES, ALL_FLOW_TARGETS, change, plan,
+    BASH, ROOT, RESOURCE_MODULE_CHOICES, DESTROY_CHOICES, ALL_FLOW_TARGETS,
+    MOVED_CONNECT_TARGETS, change, plan,
 )
 
 
@@ -174,7 +175,9 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
                 ), 2)
                 plan_command = next(line for line in trace.splitlines() if line.startswith("terraform <plan>"))
                 self.assertIn('<-var=enabled_modules=["connect"]>', plan_command)
-                self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), [address])
+                self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), [
+                    address, *MOVED_CONNECT_TARGETS,
+                ])
                 self.assertNotIn("<-destroy>", plan_command)
                 apply_command = next(line for line in trace.splitlines() if line.startswith("terraform <apply>"))
                 self.assertIn("terraform.tfplan>", apply_command)
@@ -195,7 +198,9 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
         ), 2)
         plan_command = next(line for line in trace.splitlines() if line.startswith("terraform <plan>"))
         self.assertIn('<-var=enabled_modules=["connect"]>', plan_command)
-        self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), list(ALL_FLOW_TARGETS))
+        self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), [
+            *ALL_FLOW_TARGETS, *MOVED_CONNECT_TARGETS,
+        ])
         self.assertNotIn("<-destroy>", trace)
         apply_command = next(line for line in trace.splitlines() if line.startswith("terraform <apply>"))
         self.assertIn("terraform.tfplan>", apply_command)

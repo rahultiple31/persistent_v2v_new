@@ -20,6 +20,14 @@ ALL_FLOW_TARGETS = (
     "module.customer_queue_flow[0]",
     "module.abbvie_views[0]",
 )
+MOVED_CONNECT_TARGETS = (
+    "aws_connect_contact_flow.survey",
+    "module.connect_us_east_1[0].aws_connect_contact_flow.imported",
+    "module.agent_to_agent_transfer_flow[0].module.flow.aws_connect_contact_flow.this",
+    "module.aiagent_survey_flow[0].module.flow.aws_connect_contact_flow.this",
+    "module.customer_queue_flow[0].module.flow.aws_connect_contact_flow.this",
+    "module.outbound_whisper_flow[0].module.flow.aws_connect_contact_flow.this",
+)
 DATA_TABLE_CHOICES = {
     "BTSGSD-V2V-US-CustomerNumberDataTable": "customer_number_data_table",
     "BTSGSD-V2V-US-BTSGSD-CustomerNumber": "bts_gsd_customer_number_data_table",
@@ -153,7 +161,9 @@ fi
                     self.assertEqual(targets, [])
                 elif choice == "all-flows":
                     self.assertEqual(group, "connect")
-                    self.assertEqual(targets, [f"-target={address}" for address in ALL_FLOW_TARGETS])
+                    self.assertEqual(targets, [
+                        f"-target={address}" for address in (*ALL_FLOW_TARGETS, *MOVED_CONNECT_TARGETS)
+                    ])
                     for address in ALL_FLOW_TARGETS:
                         self.assertIn(address.split(".", 1)[1].split("[", 1)[0], modules)
                 elif choice in FLOW_CHOICES:
@@ -169,16 +179,24 @@ fi
                             resource = address.split(".aws_connect_contact_flow.", 1)[1].split("[", 1)[0]
                             module_source = (ROOT / "v2v_modules/connect/main.tf").read_text()
                             self.assertIn(f'resource "aws_connect_contact_flow" "{resource}"', module_source)
-                    self.assertEqual(targets, [f"-target={address}"])
+                    self.assertEqual(targets, [
+                        f"-target={item}" for item in (address, *MOVED_CONNECT_TARGETS)
+                    ])
                 elif choice in DATA_TABLE_CHOICES:
                     resource = DATA_TABLE_CHOICES[choice]
                     self.assertEqual(group, "connect")
                     self.assertIn(("aws_cloudformation_stack", resource), resources)
-                    self.assertEqual(targets, [f"-target=aws_cloudformation_stack.{resource}[0]"])
+                    self.assertEqual(targets, [
+                        f"-target={item}" for item in (
+                            f"aws_cloudformation_stack.{resource}[0]", *MOVED_CONNECT_TARGETS
+                        )
+                    ])
                 else:
                     module = aliases.get(choice, choice)
                     self.assertIn(module, modules)
                     expected = [f"-target=module.{module}[0]"]
+                    if group == "connect":
+                        expected.extend(f"-target={address}" for address in MOVED_CONNECT_TARGETS)
                     if choice == "conversion_of_queue_metrics":
                         expected.append("-target=aws_lambda_permission.queue_metrics_connect[0]")
                     self.assertEqual(targets, expected)
@@ -268,6 +286,7 @@ fi
         self.assertEqual(backend, "terraform-state/v2v/us-east-1/connect/terraform.tfstate")
         self.assertEqual([a for a in arguments if a.startswith("-target=")], [
             "-target=module.btsgsd_support_agent_tools_access[0]",
+            *(f"-target={address}" for address in MOVED_CONNECT_TARGETS),
         ])
 
     def test_lambda_renames_retain_state_and_accept_plans_for_new_targets(self):

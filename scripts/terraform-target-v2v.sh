@@ -164,6 +164,21 @@ case "$DEPLOYMENT_TARGET" in
     ;;
 esac
 
+# Include both source and destination addresses of moved Connect flows.
+# The full connect choice already plans all resources without -target.
+if [ "$TERRAFORM_STATE_MODULE" = connect ] &&
+   [ "$DEPLOYMENT_TARGET" != connect ] &&
+   [ "$TERRAFORM_DESTROY_ONLY" != true ]; then
+  TERRAFORM_PLAN_ARGS+=(
+    "-target=aws_connect_contact_flow.survey"
+    "-target=module.connect_us_east_1[0].aws_connect_contact_flow.imported"
+    "-target=module.agent_to_agent_transfer_flow[0].module.flow.aws_connect_contact_flow.this"
+    "-target=module.aiagent_survey_flow[0].module.flow.aws_connect_contact_flow.this"
+    "-target=module.customer_queue_flow[0].module.flow.aws_connect_contact_flow.this"
+    "-target=module.outbound_whisper_flow[0].module.flow.aws_connect_contact_flow.this"
+  )
+fi
+
 # The Connect invocation grant is owned by the root, outside the Lambda module.
 if [ "$DEPLOYMENT_TARGET" = conversion_of_queue_metrics ]; then
   TERRAFORM_PLAN_ARGS+=("-target=aws_lambda_permission.queue_metrics_connect[0]")
