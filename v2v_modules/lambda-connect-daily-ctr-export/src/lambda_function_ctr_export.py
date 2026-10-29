@@ -25,6 +25,7 @@ logger.setLevel(os.getenv("LOG_LEVEL", "INFO").upper())
 
 CONNECT_INSTANCE_ID = os.environ["CONNECT_INSTANCE_ID"]
 S3_BUCKET = os.environ["S3_BUCKET"]
+FILE_PREFIX = os.getenv("FILE_PREFIX", "abbvieacd")
 
 S3_PREFIX = os.getenv(
     "S3_PREFIX",
@@ -1222,7 +1223,7 @@ def lambda_handler(event, context):
     # CREATE S3 KEY
     # --------------------------------------------------------
 
-    file_name = f"abbvieacd_{report_date:%Y-%m-%d}.csv"
+    file_name = f"{FILE_PREFIX}_{report_date:%Y-%m-%d}.csv"
 
     s3_key = f"{S3_PREFIX}/{file_name}"
     

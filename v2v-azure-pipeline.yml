@@ -54,6 +54,7 @@ parameters:
       - lambda_us_east_1
       - lambda-ctr-survey
       - lambda-connect-daily-ctr-export
+      - lambda-connect-daily-ctr-consolidation
       - destroy_ctr_raw
       - BTSGSD-V2V-US-SNOW
       - BTSGSD-V2V-US-ServiceNow_Interaction

@@ -46,6 +46,25 @@ def transfer(source_directory, destination_directory):
         shutil.copyfile(source, destination)
 
 
+def transfer_consolidation_zip(artifact_directory, restoring):
+    repository_root = Path(__file__).resolve().parents[1]
+    module_zip = (
+        repository_root
+        / "v2v_modules/lambda-connect-daily-ctr-consolidation/lambda_function.zip"
+    )
+    artifact_zip = (
+        artifact_directory
+        / "lambda-connect-daily-ctr-consolidation/lambda_function.zip"
+    )
+
+    source, destination = (
+        (artifact_zip, module_zip) if restoring else (module_zip, artifact_zip)
+    )
+    if source.is_file():
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, destination)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -61,8 +80,10 @@ def main():
         build(args.state_module, working_directory)
     elif args.command == "save":
         transfer(working_directory, args.artifact_directory)
+        transfer_consolidation_zip(args.artifact_directory, restoring=False)
     else:
         transfer(args.artifact_directory, working_directory)
+        transfer_consolidation_zip(args.artifact_directory, restoring=True)
 
 
 if __name__ == "__main__":

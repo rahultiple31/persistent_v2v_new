@@ -5,7 +5,7 @@ variable "function_name" {
 
 variable "runtime" {
   type    = string
-  default = "python3.13"
+  default = "python3.14"
 }
 
 variable "handler" {
@@ -21,17 +21,22 @@ variable "source_file" {
 
 variable "architectures" {
   type    = list(string)
-  default = ["x86_64"]
+  default = ["arm64"]
 }
 
 variable "memory_size" {
   type    = number
-  default = 1024
+  default = 2048
 }
 
 variable "timeout" {
   type    = number
-  default = 183
+  default = 900
+}
+
+variable "ephemeral_storage_size" {
+  type    = number
+  default = 4096
 }
 
 variable "connect_instance_alias" {
@@ -45,8 +50,9 @@ variable "environment_variables" {
   default = {
     S3_BUCKET         = "btsgsd-v2v-us-connect-reporting-bucket"
     BUSINESS_TIMEZONE = "America/Chicago"
-    S3_PREFIX         = "connect/daily-interactions"
+    S3_PREFIX         = "daily/survey/NORAM"
     LOG_LEVEL         = "INFO"
+    S3_SECRET_NAME    = "BTSGSD-V2V-US-Datalake/dev"
   }
 }
 
@@ -57,7 +63,7 @@ variable "log_retention_days" {
 
 variable "scheduler_name" {
   type    = string
-  default = "BTSGSD-V2V-US-ACD-Survey-Daily-Export"
+  default = "BTSGSD-V2V-US-east-1-ACD-Daily-Export"
 }
 
 variable "schedule_expression" {
@@ -68,7 +74,7 @@ variable "schedule_expression" {
 variable "schedule_timezone" {
   description = "Scheduler timezone, independent of BUSINESS_TIMEZONE."
   type        = string
-  default     = "UTC"
+  default     = "America/Chicago"
 }
 
 variable "common_tags" {

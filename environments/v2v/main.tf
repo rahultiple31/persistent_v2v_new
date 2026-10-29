@@ -383,6 +383,17 @@ module "lambda-connect-daily-ctr-export" {
   }
 }
 
+module "lambda-connect-daily-ctr-consolidation" {
+  count  = contains(local.enabled_module_set, "lambda-connect-daily-ctr-consolidation") ? 1 : 0
+  source = "../../v2v_modules/lambda-connect-daily-ctr-consolidation"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+}
+
 module "BTSGSD-V2V-US-SNOW" {
   code_signing_config_arn = var.lambda_code_signing_config_arn
 

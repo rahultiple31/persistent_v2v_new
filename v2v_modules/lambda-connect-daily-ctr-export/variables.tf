@@ -52,6 +52,7 @@ variable "environment_variables" {
     FILE_PREFIX           = "abbvieacd"
     LOG_LEVEL             = "INFO"
     OUTPUT_DELIMITER      = ","
+    S3_SECRET_NAME        = "BTSGSD-V2V-US-Datalake/dev"
     SHORT_ABANDON_SECONDS = "10"
   }
 }
@@ -85,7 +86,7 @@ variable "log_retention_days" {
 
 variable "scheduler_name" {
   type    = string
-  default = "btsgsd-dev-us-east-1-ACD-Survey-Daily-Export"
+  default = "BTSGSD-V2V-US-east-1-ACD-Survey-Daily-Export"
 }
 
 variable "schedule_expression" {

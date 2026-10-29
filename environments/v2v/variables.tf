@@ -95,6 +95,7 @@ variable "enabled_modules" {
         "s3_connect_reporting",
         "lambda-ctr-survey",
         "lambda-connect-daily-ctr-export",
+        "lambda-connect-daily-ctr-consolidation",
         "lambda-ctr-raw",
         "btsgsd-v2v-us-snow",
         "btsgsd-v2v-us-servicenow_interaction",
@@ -656,6 +657,7 @@ variable "lambda_code_signing_config_arn" {
           "lambda",
           "lambda-ctr-survey",
           "lambda-connect-daily-ctr-export",
+          "lambda-connect-daily-ctr-consolidation",
           "btsgsd-v2v-us-snow",
           "btsgsd-v2v-us-servicenow_interaction",
           "btsgsd-v2v-us-nextthink_handoff"

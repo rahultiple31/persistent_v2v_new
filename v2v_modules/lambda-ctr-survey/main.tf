@@ -29,9 +29,14 @@ resource "aws_lambda_function" "survey" {
   source_code_hash = data.archive_file.survey.output_base64sha256
   tags             = local.effective_tags
 
+  ephemeral_storage {
+    size = var.ephemeral_storage_size
+  }
+
   environment {
     variables = merge(var.environment_variables, {
       CONNECT_INSTANCE_ID = data.aws_connect_instance.selected.id
+      S3_REGION           = data.aws_region.current.name
     }, module.application_signals.environment_variables)
   }
 

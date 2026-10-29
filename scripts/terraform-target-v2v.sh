@@ -74,6 +74,7 @@ connect_Integrations|connect|module.connect_Integrations[0]
 lambda_us_east_1|lambda|module.lambda_us_east_1[0]
 lambda-ctr-survey|lambda-ctr-survey|module.lambda-ctr-survey[0]
 lambda-connect-daily-ctr-export|lambda-connect-daily-ctr-export|module.lambda-connect-daily-ctr-export[0]
+lambda-connect-daily-ctr-consolidation|lambda-connect-daily-ctr-consolidation|
 destroy_ctr_raw|lambda-ctr-raw|
 BTSGSD-V2V-US-SNOW|btsgsd-v2v-us-snow|module.BTSGSD-V2V-US-SNOW[0]
 BTSGSD-V2V-US-ServiceNow_Interaction|btsgsd-v2v-us-servicenow_interaction|module.BTSGSD-V2V-US-ServiceNow_Interaction[0]
