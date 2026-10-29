@@ -52,7 +52,6 @@ variable "environment_variables" {
     BUSINESS_TIMEZONE = "America/Chicago"
     S3_PREFIX         = "daily/survey/NORAM"
     LOG_LEVEL         = "INFO"
-    S3_SECRET_NAME    = "BTSGSD-V2V-US-Datalake/dev"
   }
 }
 

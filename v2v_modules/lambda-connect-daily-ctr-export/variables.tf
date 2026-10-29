@@ -52,7 +52,6 @@ variable "environment_variables" {
     FILE_PREFIX           = "abbvieacd"
     LOG_LEVEL             = "INFO"
     OUTPUT_DELIMITER      = ","
-    S3_SECRET_NAME        = "BTSGSD-V2V-US-Datalake/dev"
     SHORT_ABANDON_SECONDS = "10"
   }
 }

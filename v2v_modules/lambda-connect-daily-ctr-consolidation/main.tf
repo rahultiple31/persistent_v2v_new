@@ -117,7 +117,6 @@ resource "aws_lambda_function" "consolidation" {
       REPORT_BUCKET           = local.bucket_name
       REPORT_DATE_OFFSET_DAYS = "1"
       S3_REGION               = "us-east-1"
-      S3_SECRET_NAME          = "BTSGSD-V2V-US-Datalake/dev"
       SURVEY_SOURCE_PREFIX    = "daily/survey/"
     }
   }
