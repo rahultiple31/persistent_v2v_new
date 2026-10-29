@@ -47,7 +47,10 @@ LOG_LEVEL = os.getenv(
 # ============================================================
 
 connect = boto3.client("connect")
-s3 = boto3.client("s3")
+s3 = boto3.client(
+    "s3",
+    region_name=os.environ["S3_REGION"]
+)
 
 
 # ============================================================
@@ -1013,7 +1016,7 @@ def build_survey_row(
 
     region = str(
         merged_attributes.get(
-            "Region",
+            "region",
             ""
         )
     ).strip()
@@ -1293,15 +1296,35 @@ def lambda_handler(event, context):
 
     for root_contact_id, segments in interaction_groups.items():
         try:
+            primary_contact = choose_primary_contact(
+                segments
+            )
+
+            # Exclude interactions initiated through API.
+            initiation_method = str(
+                primary_contact.get("InitiationMethod") or ""
+            ).strip().upper()
+
+            if initiation_method == "API":
+                logger.info(
+                    "Skipping root contact %s: InitiationMethod is API",
+                    root_contact_id
+                )
+                continue
+
             csv_row = build_survey_row(
                 segments,
                 resolver,
                 business_timezone
             )
 
-            csv_rows.append(
-                csv_row
-            )
+            # Preserve the existing Survey Start Time filter.
+            if not str(
+                csv_row.get("Survey Start Time") or ""
+            ).strip():
+                continue
+
+            csv_rows.append(csv_row)
 
         except Exception as error:
             logger.exception(

@@ -25,7 +25,6 @@ logger.setLevel(os.getenv("LOG_LEVEL", "INFO").upper())
 
 CONNECT_INSTANCE_ID = os.environ["CONNECT_INSTANCE_ID"]
 S3_BUCKET = os.environ["S3_BUCKET"]
-FILE_PREFIX = os.getenv("FILE_PREFIX", "abbvieacd")
 
 S3_PREFIX = os.getenv(
     "S3_PREFIX",
@@ -49,7 +48,10 @@ OUTPUT_DELIMITER = os.getenv("OUTPUT_DELIMITER", ",")
 # ============================================================
 
 connect = boto3.client("connect")
-s3 = boto3.client("s3")
+s3 = boto3.client(
+    "s3",
+    region_name=os.environ["S3_REGION"]
+)
 
 
 # ============================================================
@@ -57,7 +59,6 @@ s3 = boto3.client("s3")
 # ============================================================
 
 COLUMNS = [
-    "Interaction_ID",
     "Root_Interaction_ID",
     "Service_Group",
     "Service",
@@ -204,6 +205,8 @@ def get_service_group(intent):
     Rules:
     - Intent starts with HR    -> HRDESK
     - Intent starts with Field -> FIELDSALES_HD
+    - Intent starts with Veeva -> VEEVA_HD
+    - Intent starts with Medcom -> MEDCOM_HD
     - All other values         -> SERVICEDESK
 
     Matching is case-insensitive and ignores leading/trailing spaces.
@@ -216,6 +219,12 @@ def get_service_group(intent):
 
     if normalized_intent.startswith("FIELD"):
         return "FIELDSALES_HD"
+
+    if normalized_intent.startswith("VEEVA"):
+        return "VEEVA_HD"
+
+    if normalized_intent.startswith("MEDCOM"):
+        return "MEDCOM_HD"
 
     return "SERVICEDESK"
 
@@ -634,10 +643,30 @@ def contact_sort_timestamp(contact):
         or datetime.max.replace(tzinfo=timezone.utc)
     )
 
+def get_root_interaction_id(contact):
+    """
+    Prefer the shared contact-tree root.
+    Fall back to the initial contact ID, related contact ID,
+    and finally the contact's own ID.
+    """
+
+    for field in (
+        "ContactAssociationId",
+        "InitialContactId",
+        "RelatedContactId",
+        "Id"
+    ):
+        value = contact.get(field)
+
+        if value is not None and str(value).strip():
+            return str(value).strip()
+
+    return ""
 
 def choose_primary_contact(segments):
     """
-    Select the root contact from a group of related contact segments.
+    Select the actual root contact when available.
+    Otherwise use the earliest retrieved segment.
     """
 
     ordered_segments = sorted(
@@ -645,18 +674,19 @@ def choose_primary_contact(segments):
         key=contact_sort_timestamp
     )
 
-    first_segment = ordered_segments[0]
+    if not ordered_segments:
+        raise ValueError("No contact segments supplied.")
 
-    root_contact_id = (
-        first_segment.get("InitialContactId")
-        or first_segment.get("Id")
-    )
+    root_ids = {
+        get_root_interaction_id(segment)
+        for segment in ordered_segments
+    }
 
     for segment in ordered_segments:
-        if segment.get("Id") == root_contact_id:
+        if segment.get("Id") in root_ids:
             return segment
 
-    return first_segment
+    return ordered_segments[0]
 
 
 def unique_agent_segments(segments):
@@ -713,14 +743,22 @@ def build_csv_row(segments, resolver, business_timezone):
         segments
     )
 
-    root_interaction_id = (
-        primary_contact.get("InitialContactId")
-        or primary_contact.get("Id", "")
-    )
-
-    attributes = get_contact_attributes(
+    root_interaction_id = get_root_interaction_id(
         primary_contact
     )
+
+    # Merge attributes from all related segments.
+    # Later non-empty values override earlier values.
+    attributes = {}
+
+    for segment in segments:
+        segment_attributes = get_contact_attributes(
+            segment
+        )
+
+        for key, value in segment_attributes.items():
+            if value is not None and str(value).strip() != "":
+                attributes[key] = value
 
     # --------------------------------------------------------
     # AGENT PROCESSING
@@ -912,13 +950,23 @@ def build_csv_row(segments, resolver, business_timezone):
         talk_time + wrapup_time
     )
 
+    # Sum segment-native consultation durations.
     consulting_time = sum(
-        get_consulting_time(
-            segment,
-            attributes
-        )
+        get_consulting_time(segment, {})
         for segment in agent_segments
     )
+
+    # Use the call-level attribute once if no native duration exists.
+    if consulting_time == 0:
+        consulting_time = safe_int(
+            first_available(
+                attributes,
+                "ConsultingTime",
+                "Consulting_Time",
+                "ConsultDuration",
+                default=0
+            )
+        )
 
     # --------------------------------------------------------
     # CALLBACK METRICS
@@ -929,13 +977,14 @@ def build_csv_row(segments, resolver, business_timezone):
         or ""
     ).upper()
 
-    callback_assist = (
-        1
-        if (
-            initiation_method == "CALLBACK"
-            and handled == 1
+    # Flag the entire interaction if any segment is a callback.
+    callback_assist = int(
+        any(
+            str(
+                segment.get("InitiationMethod") or ""
+            ).strip().upper() == "CALLBACK"
+            for segment in segments
         )
-        else 0
     )
 
     callback_assist_time = (
@@ -945,12 +994,44 @@ def build_csv_row(segments, resolver, business_timezone):
     )
 
     # --------------------------------------------------------
-    # INTERACTION TYPE
+    # INTERACTION TYPE - ROOT CONTACT ONLY
     # --------------------------------------------------------
 
-    interaction_type = (
-        initiation_method
-        or primary_contact.get("Channel", "")
+    root_contact = next(
+        (
+            segment
+            for segment in segments
+            if segment.get("Id") == root_interaction_id
+        ),
+        None
+    )
+
+    # Fetch the root contact if it is not in the retrieved segments.
+    if root_contact is None:
+        root_contact = describe_contact(
+            root_interaction_id
+        )
+
+    interaction_type = str(
+        root_contact.get("InitiationMethod") or ""
+    ).strip().upper()
+
+    logger.info(
+        "ROOT_TYPE_SOURCE %s",
+        json.dumps({
+            "CSVRootInteractionId": root_interaction_id,
+            "FetchedContactId": root_contact.get("Id"),
+            "InitiationMethod": root_contact.get("InitiationMethod"),
+            "InitialContactId": root_contact.get("InitialContactId"),
+            "RelatedContactId": root_contact.get("RelatedContactId"),
+            "ContactAssociationId": root_contact.get(
+                "ContactAssociationId"
+            ),
+            "SegmentIds": [
+                segment.get("Id")
+                for segment in segments
+            ]
+        })
     )
 
     # --------------------------------------------------------
@@ -963,7 +1044,7 @@ def build_csv_row(segments, resolver, business_timezone):
     )
 
     location = attributes.get(
-        "Region",
+        "region",
         ""
     )
 
@@ -982,11 +1063,39 @@ def build_csv_row(segments, resolver, business_timezone):
     )
 
     # --------------------------------------------------------
+    # QUEUED VOICEMAIL - CHECK ALL RELATED SEGMENTS
+    # --------------------------------------------------------
+
+    q_vm = int(
+        any(
+            str(
+                get_contact_attributes(segment).get(
+                    "voiceMailFrom", ""
+                ) or ""
+            ).strip().lower() == "queueflow"
+            for segment in segments
+        )
+    )
+
+    # --------------------------------------------------------
+    # NON-QUEUE VOICEMAIL - CHECK ALL RELATED SEGMENTS
+    # --------------------------------------------------------
+
+    non_q_vm = int(
+        any(
+            str(
+                get_contact_attributes(segment).get(
+                    "voiceMailFrom", ""
+                ) or ""
+            ).strip().lower() == "surveyflow"
+            for segment in segments
+        )
+    )
+    # --------------------------------------------------------
     # FINAL CSV ROW
     # --------------------------------------------------------
 
     return {
-        "Interaction_ID": primary_contact.get("Id", ""),
         "Root_Interaction_ID": root_interaction_id,
         "Service_Group": service_group,
         "Service": service,
@@ -1002,8 +1111,8 @@ def build_csv_row(segments, resolver, business_timezone):
         "Abandoned": abandoned,
         "Callback_Assist": callback_assist,
         "Callback_Assist_Time": callback_assist_time,
-        "Q_VM": is_queued_voicemail(attributes),
-        "NonQ_VM": is_non_queued_voicemail(attributes),
+        "Q_VM": q_vm,
+        "NonQ_VM": non_q_vm,
         "Speed of answer": speed_of_answer,
         "Talktime": talk_time,
         "HoldCount": hold_count,
@@ -1138,13 +1247,28 @@ def lambda_handler(event, context):
     # --------------------------------------------------------
     # GROUP CONTACT SEGMENTS BY ROOT INTERACTION
     # --------------------------------------------------------
+    # Log only identifiers needed to diagnose contact relationships.
+
+    for contact in detailed_contacts:
+        logger.info(
+            "CONTACT_LINKS %s",
+            json.dumps({
+                "Id": contact.get("Id"),
+                "InitiationMethod": contact.get("InitiationMethod"),
+                "InitialContactId": contact.get("InitialContactId"),
+                "PreviousContactId": contact.get("PreviousContactId"),
+                "RelatedContactId": contact.get("RelatedContactId"),
+                "ContactAssociationId": contact.get(
+                    "ContactAssociationId"
+                )
+            })
+        )
 
     interaction_groups = defaultdict(list)
 
     for contact in detailed_contacts:
-        root_interaction_id = (
-            contact.get("InitialContactId")
-            or contact.get("Id")
+        root_interaction_id = get_root_interaction_id(
+            contact
         )
 
         if root_interaction_id:
@@ -1163,22 +1287,65 @@ def lambda_handler(event, context):
 
     resolver = NameResolver()
     rows = []
-
     row_failures = []
 
+    # One CSV row per root interaction.
     for root_interaction_id, segments in interaction_groups.items():
         try:
+            # Deduplicate by Contact.Id to avoid counting a segment twice.
+            unique_segments = {}
+
+            for segment in segments:
+                contact_id = segment.get("Id")
+
+                if not contact_id:
+                    raise ValueError(
+                        "Contact segment is missing its Id."
+                    )
+
+                unique_segments[contact_id] = segment
+
+            grouped_segments = sorted(
+                unique_segments.values(),
+                key=contact_sort_timestamp
+            )
+
+            logger.info(
+                "Root interaction %s: passing %s segments together: %s",
+                root_interaction_id,
+                len(grouped_segments),
+                [
+                    segment.get("Id")
+                    for segment in grouped_segments
+                ]
+            )
+
+            # Pass ALL retrieved segments for this root together.
             row = build_csv_row(
-                segments,
+                grouped_segments,
                 resolver,
                 business_timezone
             )
+
+            # Use the same root ID used for grouping.
+            row["Root_Interaction_ID"] = root_interaction_id
+
+            # Exclude API-root interactions from the report.
+            # Keep API segments grouped under an INBOUND root.
+            if str(
+                row.get("Interaction type") or ""
+            ).strip().upper() == "API":
+                logger.info(
+                    "Excluding API-root interaction %s",
+                    root_interaction_id
+                )
+                continue
 
             rows.append(row)
 
         except Exception as error:
             logger.exception(
-                "Failed to build CSV row for root interaction %s",
+                "Failed to build consolidated row for root %s",
                 root_interaction_id
             )
 
@@ -1187,11 +1354,31 @@ def lambda_handler(event, context):
                 "Error": str(error)
             })
 
+    # Do not upload a partial report.
+    if describe_failures or row_failures:
+        raise RuntimeError(
+            "Export incomplete: "
+            f"{len(describe_failures)} contact retrieval failures; "
+            f"{len(row_failures)} row generation failures."
+        )
+
+    # Validate exactly one output row per retrieved root group.
+    output_root_ids = [
+        row["Root_Interaction_ID"]
+        for row in rows
+    ]
+
+    if len(output_root_ids) != len(set(output_root_ids)):
+        raise RuntimeError(
+            "Validation failed: duplicate root interaction IDs "
+            "found in the CSV output."
+        )
+
     rows.sort(
         key=lambda row: (
             row.get("Start_D", ""),
             row.get("Start_H", ""),
-            row.get("Interaction_ID", "")
+            row.get("Root_Interaction_ID", "")
         )
     )
 
@@ -1223,7 +1410,7 @@ def lambda_handler(event, context):
     # CREATE S3 KEY
     # --------------------------------------------------------
 
-    file_name = f"{FILE_PREFIX}_{report_date:%Y-%m-%d}.csv"
+    file_name = f"abbvieacd_{report_date:%Y-%m-%d}.csv"
 
     s3_key = f"{S3_PREFIX}/{file_name}"
     
