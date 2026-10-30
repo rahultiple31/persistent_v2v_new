@@ -189,6 +189,137 @@ run "support_agent_template" {
   }
 }
 
+run "support_agent_publishes_tool_schemas" {
+  command = plan
+
+  variables {
+    include_complete_tool         = true
+    include_escalate_tool         = true
+    override_retrieve_instruction = true
+  }
+
+  assert {
+    condition = (
+      length(jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations) == 3 &&
+      one([
+        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
+        if tool.ToolName == "Complete"
+      ]).InputSchema == jsondecode(file("${path.module}/assets/complete-input-schema.json")) &&
+      one([
+        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
+        if tool.ToolName == "Escalate"
+      ]).InputSchema == jsondecode(file("${path.module}/assets/escalate-input-schema.json")) &&
+      one([
+        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
+        if tool.ToolName == "Retrieve"
+      ]).Instruction.Instruction == trimspace(local.retrieve_instruction)
+    )
+    error_message = "The generated SupportAgent template must include Retrieve, Complete and Escalate with both Return to Control input schemas."
+  }
+}
+
+run "inherited_complete_keeps_its_tool_id_and_receives_schema" {
+  command = plan
+
+  variables {
+    include_complete_tool = true
+  }
+
+  override_data {
+    target = data.external.source
+    values = {
+      result = {
+        source_agent_id = "00000000-0000-0000-0000-000000000002"
+        configuration   = <<-JSON
+          {
+            "Locale": "en_US",
+            "ToolConfigurations": [
+              {"ToolName": "Retrieve", "ToolType": "MODEL_CONTEXT_PROTOCOL", "ToolId": "copied-tool"},
+              {"ToolName": "Complete", "ToolType": "RETURN_TO_CONTROL", "ToolId": "inherited-complete", "InputSchema": {"type": "object", "properties": {}}}
+            ]
+          }
+        JSON
+        prompt_text = <<-YAML
+          system: |
+            Voice orchestration protocol.
+            {{$.toolConfigurationList}}
+          messages:
+            - '{{$.conversationHistory}}'
+        YAML
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      length([
+        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
+        if tool.ToolName == "Complete"
+      ]) == 1 &&
+      one([
+        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
+        if tool.ToolName == "Complete"
+      ]).ToolId == "inherited-complete" &&
+      one([
+        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
+        if tool.ToolName == "Complete"
+      ]).InputSchema == jsondecode(file("${path.module}/assets/complete-input-schema.json"))
+    )
+    error_message = "The inherited Complete tool must retain its ToolId and receive the requested input schema exactly once."
+  }
+}
+
+run "inherited_escalate_keeps_its_tool_id_and_receives_schema" {
+  command = plan
+
+  variables {
+    include_escalate_tool = true
+  }
+
+  override_data {
+    target = data.external.source
+    values = {
+      result = {
+        source_agent_id = "00000000-0000-0000-0000-000000000002"
+        configuration   = <<-JSON
+          {
+            "Locale": "en_US",
+            "ToolConfigurations": [
+              {"ToolName": "Retrieve", "ToolType": "MODEL_CONTEXT_PROTOCOL", "ToolId": "copied-tool"},
+              {"ToolName": "Escalate", "ToolType": "RETURN_TO_CONTROL", "ToolId": "inherited-escalate", "InputSchema": {"type": "object", "properties": {}}}
+            ]
+          }
+        JSON
+        prompt_text = <<-YAML
+          system: |
+            Voice orchestration protocol.
+            {{$.toolConfigurationList}}
+          messages:
+            - '{{$.conversationHistory}}'
+        YAML
+      }
+    }
+  }
+
+  assert {
+    condition = (
+      length([
+        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
+        if tool.ToolName == "Escalate"
+      ]) == 1 &&
+      one([
+        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
+        if tool.ToolName == "Escalate"
+      ]).ToolId == "inherited-escalate" &&
+      one([
+        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
+        if tool.ToolName == "Escalate"
+      ]).InputSchema == jsondecode(file("${path.module}/assets/escalate-input-schema.json"))
+    )
+    error_message = "The inherited Escalate tool must retain its ToolId and receive the requested input schema exactly once."
+  }
+}
+
 run "missing_prompt_file" {
   command = plan
 

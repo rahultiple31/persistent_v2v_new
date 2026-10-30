@@ -423,6 +423,14 @@ stages:
 
               # Apply executes the saved plan from this run's Plan stage.
               terraform apply -input=false -no-color "$plan_file"
+
+              if [ "$TARGET_ENVIRONMENT" = v2v ] && \
+                 { [ "$TARGET_MODULE" = btsgsd_support_agent ] || [ "$TARGET_MODULE" = connect ]; }; then
+                refresh_v2v_credentials
+                python3 "$BUILD_SOURCESDIRECTORY/scripts/verify_v2v_support_agent_tools.py" \
+                  --region "$DEPLOYMENT_REGION" \
+                  --stack-name BTSGSD-V2V-US-SupportAgent
+              fi
             displayName: Terraform Apply
             workingDirectory: $(workingDirectory)
             env:

@@ -96,14 +96,14 @@ variable "tool_configurations" {
 }
 
 variable "include_complete_tool" {
-  description = "Replace the inherited Complete tool with the V2V SupportAgent closing contract."
+  description = "Update the inherited Complete tool, or add it if absent, with the V2V SupportAgent closing contract."
   type        = bool
   default     = false
   nullable    = false
 }
 
 variable "include_escalate_tool" {
-  description = "Replace the inherited Escalate tool for the V2V SupportAgent."
+  description = "Update the inherited Escalate tool, or add it if absent, with the V2V SupportAgent transfer contract."
   type        = bool
   default     = false
   nullable    = false

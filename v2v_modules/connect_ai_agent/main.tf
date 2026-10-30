@@ -45,6 +45,7 @@ locals {
       Instruction = "Call Complete ONLY in the same response as the spoken closing message that the system prompt defines for the current outcome. The system prompt decides whether to ask \"anything else\" first; never ask it on your own. Never call Complete without spoken text."
     }
   }
+  complete_tool_overrides = { complete = local.complete_tool_configuration }
   escalate_tool_configuration = {
     ToolName    = "Escalate"
     ToolType    = "RETURN_TO_CONTROL"
@@ -54,6 +55,7 @@ locals {
       Instruction = "Call Escalate ONLY when the system prompt defines a transfer for the current outcome, in the same response as that outcome's spoken transfer line (LATAM Veeva/Medcom: no line, the flow plays it). Do not escalate for unclear answers, silence, a wrong UPI, unverified callers or a failed knowledge search; the system prompt defines those paths."
     }
   }
+  escalate_tool_overrides = { escalate = local.escalate_tool_configuration }
   retrieve_instruction = <<-EOT
     Use only for a finalized support need when the orchestration prompt permits retrieval.
     Never retrieve for greetings, silence, yes/no answers, UPI availability, UPI capture,
@@ -61,13 +63,26 @@ locals {
     must continue to UPI capture without retrieval. Retrieval failure never authorizes
     Complete or Escalate; follow the prompt's failure handling.
   EOT
-  source_tools_with_retrieve_instruction = [
+  source_complete_tools = [
+    for tool in try(local.source_configuration.ToolConfigurations, []) : tool
+    if lower(try(tool.ToolName, "")) == "complete"
+  ]
+  source_escalate_tools = [
+    for tool in try(local.source_configuration.ToolConfigurations, []) : tool
+    if lower(try(tool.ToolName, "")) == "escalate"
+  ]
+  source_tools_with_overrides = [
     for tool in try(local.source_configuration.ToolConfigurations, []) :
-    merge(tool, var.override_retrieve_instruction && lower(try(tool.ToolName, "")) == "retrieve" ? {
-      Instruction = merge(try(tool.Instruction, {}), {
-        Instruction = trimspace(local.retrieve_instruction)
-      })
-    } : {})
+    merge(
+      tool,
+      try(local.complete_tool_overrides[var.include_complete_tool ? lower(try(tool.ToolName, "")) : ""], {}),
+      try(local.escalate_tool_overrides[var.include_escalate_tool ? lower(try(tool.ToolName, "")) : ""], {}),
+      var.override_retrieve_instruction && lower(try(tool.ToolName, "")) == "retrieve" ? {
+        Instruction = merge(try(tool.Instruction, {}), {
+          Instruction = trimspace(local.retrieve_instruction)
+        })
+      } : {}
+    )
   ]
   # Version IDs are strings; extracting their suffix keeps CloudFormation outputs string-valued.
   agent_version_id = { "Fn::GetAtt" = ["SupportAgentVersion", "AIAgentVersionId"] }
@@ -151,24 +166,18 @@ locals {
               ConnectInstanceArn      = var.connect_instance_arn
               OrchestrationAIPromptId = local.prompt_version_id
 
-              # Preserve built-in tools, replacing requested terminal tools by name.
+              # Update inherited terminal tools in place; add either if absent.
               ToolConfigurations = concat(
                 [
-                  for tool in local.source_tools_with_retrieve_instruction : tool
+                  for tool in local.source_tools_with_overrides : tool
                   if !contains(
                     [for added in var.tool_configurations : added.ToolId],
                     try(tool.ToolId, "")
-                  ) && !(
-                    var.include_complete_tool &&
-                    lower(try(tool.ToolName, "")) == "complete"
-                  ) && !(
-                    var.include_escalate_tool &&
-                    lower(try(tool.ToolName, "")) == "escalate"
                   )
                 ],
                 var.tool_configurations,
-                var.include_complete_tool ? [local.complete_tool_configuration] : [],
-                var.include_escalate_tool ? [local.escalate_tool_configuration] : []
+                var.include_complete_tool && length(local.source_complete_tools) == 0 ? [local.complete_tool_configuration] : [],
+                var.include_escalate_tool && length(local.source_escalate_tools) == 0 ? [local.escalate_tool_configuration] : []
               )
             })
           }
@@ -227,6 +236,16 @@ resource "aws_s3_object" "template" {
         if lower(try(tool.ToolName, "")) == "retrieve"
       ]) == 1
       error_message = "Expected exactly one Retrieve tool on the source Amazon Connect AI agent."
+    }
+
+    precondition {
+      condition     = !var.include_complete_tool || length(local.source_complete_tools) <= 1
+      error_message = "Expected at most one inherited Complete tool on the source Amazon Connect AI agent."
+    }
+
+    precondition {
+      condition     = !var.include_escalate_tool || length(local.source_escalate_tools) <= 1
+      error_message = "Expected at most one inherited Escalate tool on the source Amazon Connect AI agent."
     }
   }
 }
