@@ -36,6 +36,39 @@ locals {
   custom_prompt        = yamldecode(file(var.prompt_yaml_file))
   source_configuration = jsondecode(data.external.source.result.configuration)
   source_prompt        = yamldecode(data.external.source.result.prompt_text)
+  complete_tool_configuration = {
+    ToolName    = "Complete"
+    ToolType    = "RETURN_TO_CONTROL"
+    Description = "Close conversation when customer has no more questions"
+    InputSchema = jsondecode(file("${path.module}/assets/complete-input-schema.json"))
+    Instruction = {
+      Instruction = "Call Complete ONLY in the same response as the spoken closing message that the system prompt defines for the current outcome. The system prompt decides whether to ask \"anything else\" first; never ask it on your own. Never call Complete without spoken text."
+    }
+  }
+  escalate_tool_configuration = {
+    ToolName    = "Escalate"
+    ToolType    = "RETURN_TO_CONTROL"
+    Description = "Escalate to human agent when customer issue can not solve."
+    InputSchema = jsondecode(file("${path.module}/assets/escalate-input-schema.json"))
+    Instruction = {
+      Instruction = "Call Escalate ONLY when the system prompt defines a transfer for the current outcome, in the same response as that outcome's spoken transfer line (LATAM Veeva/Medcom: no line, the flow plays it). Do not escalate for unclear answers, silence, a wrong UPI, unverified callers or a failed knowledge search; the system prompt defines those paths."
+    }
+  }
+  retrieve_instruction = <<-EOT
+    Use only for a finalized support need when the orchestration prompt permits retrieval.
+    Never retrieve for greetings, silence, yes/no answers, UPI availability, UPI capture,
+    UPI readback confirmation, or first-name verification. A clear Yes to UPI availability
+    must continue to UPI capture without retrieval. Retrieval failure never authorizes
+    Complete or Escalate; follow the prompt's failure handling.
+  EOT
+  source_tools_with_retrieve_instruction = [
+    for tool in try(local.source_configuration.ToolConfigurations, []) :
+    merge(tool, var.override_retrieve_instruction && lower(try(tool.ToolName, "")) == "retrieve" ? {
+      Instruction = merge(try(tool.Instruction, {}), {
+        Instruction = trimspace(local.retrieve_instruction)
+      })
+    } : {})
+  ]
   # Version IDs are strings; extracting their suffix keeps CloudFormation outputs string-valued.
   agent_version_id = { "Fn::GetAtt" = ["SupportAgentVersion", "AIAgentVersionId"] }
   agent_version_number = {
@@ -118,16 +151,24 @@ locals {
               ConnectInstanceArn      = var.connect_instance_arn
               OrchestrationAIPromptId = local.prompt_version_id
 
-              # Preserve built-in tools; replace matching IDs and append additions.
+              # Preserve built-in tools, replacing requested terminal tools by name.
               ToolConfigurations = concat(
                 [
-                  for tool in try(local.source_configuration.ToolConfigurations, []) : tool
+                  for tool in local.source_tools_with_retrieve_instruction : tool
                   if !contains(
                     [for added in var.tool_configurations : added.ToolId],
                     try(tool.ToolId, "")
+                  ) && !(
+                    var.include_complete_tool &&
+                    lower(try(tool.ToolName, "")) == "complete"
+                  ) && !(
+                    var.include_escalate_tool &&
+                    lower(try(tool.ToolName, "")) == "escalate"
                   )
                 ],
-                var.tool_configurations
+                var.tool_configurations,
+                var.include_complete_tool ? [local.complete_tool_configuration] : [],
+                var.include_escalate_tool ? [local.escalate_tool_configuration] : []
               )
             })
           }
@@ -178,6 +219,14 @@ resource "aws_s3_object" "template" {
     precondition {
       condition     = length(local.system_prompt) <= 100000
       error_message = "Generated system prompt has ${length(local.system_prompt)} characters; QConnect allows at most 100000. Shorten ${var.prompt_yaml_file}, or use a complete system: | prompt instead of appending prompt: | instructions to the source."
+    }
+
+    precondition {
+      condition = !var.override_retrieve_instruction || length([
+        for tool in try(local.source_configuration.ToolConfigurations, []) : tool
+        if lower(try(tool.ToolName, "")) == "retrieve"
+      ]) == 1
+      error_message = "Expected exactly one Retrieve tool on the source Amazon Connect AI agent."
     }
   }
 }

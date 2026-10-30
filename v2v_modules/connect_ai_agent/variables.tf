@@ -95,6 +95,27 @@ variable "tool_configurations" {
   default = []
 }
 
+variable "include_complete_tool" {
+  description = "Replace the inherited Complete tool with the V2V SupportAgent closing contract."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "include_escalate_tool" {
+  description = "Replace the inherited Escalate tool for the V2V SupportAgent."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "override_retrieve_instruction" {
+  description = "Set the instruction on the inherited Amazon Connect Retrieve tool."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "admin_mcp_access" {
   description = "Optional MCP application access granted through the existing Admin security profile."
   type = object({

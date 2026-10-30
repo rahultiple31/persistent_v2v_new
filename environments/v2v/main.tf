@@ -290,13 +290,16 @@ module "btsgsd_support_agent" {
   source_prompt_name = "SelfServiceOrchestrationVoice"
   prompt_model_id    = "global.anthropic.claude-sonnet-5"
 
-  assistant_id         = local.dev_ai_assistant_id
-  connect_instance_arn = module.connect_us_east_1[0].instance_arn
-  template_bucket_name = aws_s3_bucket.dev_ai_template[0].id
-  prompt_yaml_file     = abspath("${path.module}/${var.dev_support_ai_prompt_file}")
-  python_executable    = var.dev_support_ai_python_executable
-  tags                 = local.dev_ai_tags
-  tool_configurations  = module.support_agent_tools[0].tool_configurations
+  assistant_id                 = local.dev_ai_assistant_id
+  connect_instance_arn         = module.connect_us_east_1[0].instance_arn
+  template_bucket_name         = aws_s3_bucket.dev_ai_template[0].id
+  prompt_yaml_file             = abspath("${path.module}/${var.dev_support_ai_prompt_file}")
+  python_executable            = var.dev_support_ai_python_executable
+  tags                         = local.dev_ai_tags
+  tool_configurations          = module.support_agent_tools[0].tool_configurations
+  include_complete_tool        = true
+  include_escalate_tool        = true
+  override_retrieve_instruction = true
 
   depends_on = [
     module.connect_Integrations,
