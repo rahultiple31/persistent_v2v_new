@@ -11,7 +11,6 @@ locals {
   enabled_module_set = toset([for module_name in var.enabled_modules : lower(module_name)])
   deploy_connect     = contains(local.enabled_module_set, "connect")
   deploy_lambda      = contains(local.enabled_module_set, "lambda")
-  deploy_proxy       = contains(local.enabled_module_set, "proxy") && local.translation_mode == "proxy"
   deploy_v2v         = contains(local.enabled_module_set, "v2v") && !var.destroy_v2v_stack
 }
 

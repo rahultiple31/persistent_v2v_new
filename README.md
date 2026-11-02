@@ -56,9 +56,10 @@ Both environments default to `proxy_integration_enabled=false`, so V2V can
 deploy without proxy state or ALB values. With proxy translation selected,
 translation stays disabled until integration is explicitly enabled.
 
-The separate proxy target deploys the private ALB, ECS Fargate runtime, and
-supporting network. See [DEPLOY-V2V.md](DEPLOY-V2V.md) for the staged deployment
-of both environments, runtime activation, and verification.
+The Dev and Dev NSSO proxy infrastructure modules and the `proxy` pipeline
+choice have been removed. Existing AWS resources and Terraform state are not
+changed by this code removal. See [DEPLOY-V2V.md](DEPLOY-V2V.md) for the active
+V2V deployment entry points.
 
 ## Backend
 
@@ -292,7 +293,7 @@ authentication and handoff require deployment and valid Nexthink credentials.
 The pipeline in `azure-pipelines.yml` supports these parameters:
 
 - `targetEnvironment`: `dev` or `dev-nsso`
-- `targetModule`: `connect`, `data_table`, `agentcore_gateway`, `lambda`, `proxy`,
+- `targetModule`: `connect`, `data_table`, `agentcore_gateway`, `lambda`,
   `prepare-destroy-v2v`, `destroy-v2v-stack`,
   `s3_connect_reporting`, `lambda-ctr-survey`, `lambda-connect-daily-ctr-export`,
   `lambda-ctr-raw`, `iam-ctr`, `lambda-snow-btsgsd-dev`,
@@ -368,10 +369,6 @@ gateway, target and gateway IAM role. For either setting, select the same Dev
 `agentcore_gateway` choice, review a `plan`, then run `apply`. Leaving the flag
 false also keeps full Connect deployments from recreating the stack. The
 pipeline no longer requests or prints gateway outputs after apply.
-
-The proxy target requires EC2 network bootstrap permissions, including
-`ec2:CreateVpc` and `ec2:AllocateAddress`. Previously documented AWS Organizations
-SCP restrictions must be resolved before deploying it.
 
 When more modules are added later, add the module name to:
 

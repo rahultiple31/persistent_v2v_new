@@ -187,7 +187,7 @@ printf '%s\\n' "$TERRAFORM_STATE_MODULE" "$TERRAFORM_BACKEND_KEY" "${TERRAFORM_P
                         rf'module "{module_name}" \{{\s*count\s*= local\.deploy_v2v \? 1 : 0',
                     )
                 marker = (ROOT / f"environments/{environment}/v2v.tf").read_text(encoding="utf-8")
-                self.assertIn("count = local.deploy_v2v || local.deploy_proxy ? 1 : 0", marker)
+                self.assertIn("count = local.deploy_v2v ? 1 : 0", marker)
 
     def test_normal_v2v_choice_is_rejected(self):
         env = os.environ.copy()
@@ -197,6 +197,19 @@ printf '%s\\n' "$TERRAFORM_STATE_MODULE" "$TERRAFORM_BACKEND_KEY" "${TERRAFORM_P
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("V2V deployment is retired", result.stderr)
+
+    def test_retired_proxy_choice_is_rejected_in_both_environments(self):
+        pipeline = (ROOT / "azure-pipelines.yml").read_text(encoding="utf-8")
+        self.assertNotIn("      - proxy\n", pipeline)
+        for environment in ("dev", "dev-nsso"):
+            with self.subTest(environment=environment):
+                result = subprocess.run(
+                    [BASH, "-c", 'source scripts/terraform-target.sh proxy "$1" us-east-1',
+                     "proxy-test", environment],
+                    cwd=ROOT, text=True, capture_output=True, timeout=30,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Proxy deployment is retired", result.stderr)
 
 
 if __name__ == "__main__":

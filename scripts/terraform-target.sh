@@ -6,6 +6,10 @@ DEPLOYMENT_ENVIRONMENT="${2:?Environment is required}"
 DEPLOYMENT_REGION="${3:-us-east-1}"
 
 case "$DEPLOYMENT_TARGET" in
+  proxy)
+    echo "Proxy deployment is retired in dev and dev-nsso; its infrastructure modules have been removed." >&2
+    return 1
+    ;;
   v2v)
     echo "V2V deployment is retired in dev and dev-nsso. Use prepare-destroy-v2v and destroy-v2v-stack." >&2
     return 1

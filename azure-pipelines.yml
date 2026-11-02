@@ -22,7 +22,6 @@ parameters:
       - data_table
       - agentcore_gateway
       - lambda
-      - proxy
       - prepare-destroy-v2v
       - destroy-v2v-stack
       - s3_connect_reporting
@@ -142,10 +141,6 @@ stages:
                 -backend-config="key=$TERRAFORM_BACKEND_KEY" \
                 -backend-config="region=$(backendRegion)" \
                 -backend-config="encrypt=true"
-
-              if [ '${{ parameters.targetModule }}' = 'proxy' ]; then
-                source "$(Build.SourcesDirectory)/scripts/preserve-proxy-runtime.sh"
-              fi
 
               terraform fmt -check -recursive ../..
               terraform validate
