@@ -1,10 +1,10 @@
 locals {
   endpoint_names = {
-    secretsmanager = "BTSGSD-V2V-US-LAMBDA-endpoint-secretsmanager"
-    transcribe     = "BTSGSD-V2V-US-LAMBDA-endpoint-transcribe"
-    connect        = "BTSGSD-V2V-US-LAMBDA-endpoint-connect"
-    wisdom         = "BTSGSD-V2V-US-LAMBDA-endpoint-wisdom"
-    lambda         = "BTSGSD-V2V-US-LAMBDA-endpoint-lambda"
+    secretsmanager = "BTSGSD-US-LAMBDA-endpoint-secretsmanager"
+    transcribe     = "BTSGSD-US-LAMBDA-endpoint-transcribe"
+    connect        = "BTSGSD-US-LAMBDA-endpoint-connect"
+    wisdom         = "BTSGSD-US-LAMBDA-endpoint-wisdom"
+    lambda         = "BTSGSD-US-LAMBDA-endpoint-lambda"
   }
 }
 
