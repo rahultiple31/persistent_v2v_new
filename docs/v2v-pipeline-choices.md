@@ -44,6 +44,14 @@ they share the same state. Existing feature flags still apply: a disabled
 module can produce an empty plan.
 
 The `connect`, `v2v`, and `code-signing` choices deploy complete groups.
+For staged Lambda networking deployment, select `lambda_security_groups` first
+to create the two security groups and their rules, then select
+`lambda_endpoint_associations` to add `BTSGSD-V2V-US-LAMBDA-endpoint-sg` to the
+five existing interface endpoints. Both choices target only their respective
+module in the existing Connect state and omit the extra moved-flow targets.
+The endpoint associations retain the existing security groups. Run Plan and
+Apply separately for each choice before deploying the Lambda attachments.
+
 `connect` still requires the VMX3 queue, beep-prompt, and timestamper Lambda
 ARN variables. An individual Lambda choice does not require those unrelated
 VMX3 inputs. `connect-resources` retains its separate backend key and requires

@@ -29,6 +29,8 @@ while IFS='|' read -r v2v_choice v2v_group v2v_address; do
   fi
 done <<'V2V_CHOICES'
 connect|connect|
+lambda_security_groups|connect|module.lambda_security_groups[0]
+lambda_endpoint_associations|connect|module.lambda_endpoint_associations[0]
 all-flows|connect|
 lambda|lambda|module.lambda_us_east_1[0]
 v2v|v2v|
@@ -178,11 +180,13 @@ esac
 
 # Include both source and destination addresses of moved Connect flows.
 # The full connect choice already plans all resources without -target.
-# voicemail is excluded: it has no moved flows, and these targets pull in the
-# survey data-table stack and its dependent flows.
+# Voicemail and the Lambda networking choices have no moved flows. Exclude
+# them so these targets do not pull in the survey stack and dependent flows.
 if [ "$TERRAFORM_STATE_MODULE" = connect ] &&
    [ "$DEPLOYMENT_TARGET" != connect ] &&
    [ "$DEPLOYMENT_TARGET" != voicemail ] &&
+   [ "$DEPLOYMENT_TARGET" != lambda_security_groups ] &&
+   [ "$DEPLOYMENT_TARGET" != lambda_endpoint_associations ] &&
    [ "$TERRAFORM_DESTROY_ONLY" != true ]; then
   TERRAFORM_PLAN_ARGS+=(
     "-target=aws_connect_contact_flow.survey"

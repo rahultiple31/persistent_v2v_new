@@ -8,6 +8,8 @@ parameters:
     default: connect
     values:
       - connect
+      - lambda_security_groups
+      - lambda_endpoint_associations
       - lambda
       - v2v
       - dynamodb

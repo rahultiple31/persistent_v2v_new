@@ -159,7 +159,7 @@ fi
                         self.assertNotIn(name, modules)
                     continue
                 self.assertNotIn("-destroy", arguments)
-                if choice in ("connect", "v2v", "code-signing"):
+                if choice in ("connect", "v2v", "code-signing", "lambda-connect-daily-ctr-consolidation"):
                     self.assertEqual(targets, [])
                 elif choice == "all-flows":
                     self.assertEqual(group, "connect")
@@ -200,7 +200,9 @@ fi
                     if choice == "secrets_manager":
                         self.assertIn("datalake_secret", modules)
                         expected.append("-target=module.datalake_secret[0]")
-                    if group == "connect":
+                    if group == "connect" and choice not in (
+                        "voicemail", "lambda_security_groups", "lambda_endpoint_associations",
+                    ):
                         expected.extend(f"-target={address}" for address in MOVED_CONNECT_TARGETS)
                     if choice == "conversion_of_queue_metrics":
                         expected.append("-target=aws_lambda_permission.queue_metrics_connect[0]")

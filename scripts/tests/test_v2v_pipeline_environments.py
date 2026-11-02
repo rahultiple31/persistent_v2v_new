@@ -153,6 +153,31 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
             self.assertIn(f"packages <{command}>", trace)
         self.assertNotIn("<-destroy>", trace)
 
+    def test_lambda_networking_choices_apply_only_the_selected_module_in_connect_state(self):
+        for choice in ("lambda_security_groups", "lambda_endpoint_associations"):
+            with self.subTest(choice=choice):
+                self.prepare("v2v", choice)
+                for stage in (0, 1):
+                    result = self.run_stage(stage)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                trace = self.trace.read_text()
+                self.assertEqual(trace.count(
+                    "<-backend-config=key=terraform-state/v2v/us-east-1/connect/terraform.tfstate>"
+                ), 2)
+                plan_command = next(
+                    line for line in trace.splitlines() if line.startswith("terraform <plan>")
+                )
+                self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), [
+                    f"module.{choice}[0]",
+                ])
+                self.assertIn('<-var=enabled_modules=["connect"]>', plan_command)
+                self.assertNotIn("<-destroy>", plan_command)
+                apply_command = next(
+                    line for line in trace.splitlines() if line.startswith("terraform <apply>")
+                )
+                self.assertNotIn("<-target=", apply_command)
+                self.assertIn("terraform.tfplan>", apply_command)
+
     def test_secrets_manager_choice_applies_without_static_access_keys(self):
         self.prepare("v2v", "secrets_manager")
         self.env.pop("DATALAKE_AWS_ACCESS_KEY_ID", None)

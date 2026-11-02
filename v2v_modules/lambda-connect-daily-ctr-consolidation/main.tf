@@ -93,6 +93,12 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
   policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
+# Deploy the core security group before planning these Lambda settings.
+data "aws_security_group" "lambda_core" {
+  name   = "BTSGSD-V2V-US-LAMBDA-core-sg"
+  vpc_id = "vpc-0f2abb3d6596a0487"
+}
+
 resource "aws_lambda_function" "consolidation" {
   function_name           = local.function_name
   role                    = aws_iam_role.lambda.arn
@@ -120,6 +126,7 @@ resource "aws_lambda_function" "consolidation" {
 
     security_group_ids = [
       "sg-0e77977e08fb0dedb", # BTSGSD-US-IVA-Internal-SG
+      data.aws_security_group.lambda_core.id,
     ]
 
     ipv6_allowed_for_dual_stack = false

@@ -188,6 +188,33 @@ module "vmx3_main_vm_module" {
   tags                   = local.common_tags
 }
 
+# Create the Lambda and interface-endpoint security groups in the Connect state.
+# Attachment to Lambda functions and endpoints is managed separately.
+module "lambda_security_groups" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/lambda_security_groups"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  vpc_id      = "vpc-0f2abb3d6596a0487"
+  common_tags = local.common_tags
+}
+
+# Add the existing endpoint security group to the five interface endpoints.
+module "lambda_endpoint_associations" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/lambda_endpoint_associations"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  vpc_id                       = "vpc-0f2abb3d6596a0487"
+  endpoint_security_group_name = "BTSGSD-V2V-US-LAMBDA-endpoint-sg"
+}
+
 # VMX3 voicemail stack (new BTSGSD-V2V-US-voicemail* resources). Shares the
 # connect state; deploy it alone with the "voicemail" pipeline choice.
 # The console-built voicemail-v2v* resources are untouched (see module README).
