@@ -85,7 +85,7 @@ parameters:
       - cognito_v2v
       - iam_v2v
       - ssm_v2v
-      # environments/v2v-resources uses v2v-resource-modules.
+      # environments/v2v-resources-dev uses v2v-resource-modules.
       - all
       - cloudwatch
       - ssm
@@ -122,13 +122,13 @@ variables:
   backendBucket: 'bts-cloud-terraform-tfstate'
   backendRegion: 'us-east-1'
 
-  # Pipeline choice names map to the existing Terraform roots and state identities.
+  # Use the renamed Terraform folders while preserving existing state identities.
   ${{ if eq(parameters.targetEnvironment, 'v2v-dev') }}:
-    workingDirectory: '$(Build.SourcesDirectory)/environments/v2v'
+    workingDirectory: '$(Build.SourcesDirectory)/environments/v2v-dev'
     deploymentEnvironment: v2v
 
   ${{ if eq(parameters.targetEnvironment, 'v2v-resources-dev') }}:
-    workingDirectory: '$(Build.SourcesDirectory)/environments/v2v-resources'
+    workingDirectory: '$(Build.SourcesDirectory)/environments/v2v-resources-dev'
     deploymentEnvironment: v2v-resources
 
 pool:
