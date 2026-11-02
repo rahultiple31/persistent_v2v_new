@@ -62,6 +62,11 @@ resource "aws_iam_role" "execution" {
   tags = var.common_tags
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
+  role       = aws_iam_role.execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
 resource "aws_iam_role_policy_attachment" "xray" {
   role       = aws_iam_role.execution.name
   policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AWSXRayDaemonWriteAccess"
@@ -113,6 +118,7 @@ resource "time_sleep" "execution_role_ready" {
   depends_on = [
     aws_iam_role_policy.execution,
     aws_iam_role_policy_attachment.xray,
+    aws_iam_role_policy_attachment.lambda_vpc_access,
   ]
 }
 
@@ -141,6 +147,21 @@ resource "aws_lambda_function" "this" {
 
   ephemeral_storage {
     size = 512
+  }
+
+  vpc_config {
+    # VPC: vpc-0f2abb3d6596a0487 (abv-vpc-accas-dev-vpc).
+    # Lambda derives the VPC from these subnet IDs.
+    subnet_ids = [
+      "subnet-0c29b5f2c41c73d89", # us-east-1a: abv-vpc-accas-dev-app-a
+      "subnet-0fe7a72e5cef073ad", # us-east-1b: abv-vpc-accas-dev-app-b
+    ]
+
+    security_group_ids = [
+      "sg-0e77977e08fb0dedb", # BTSGSD-US-IVA-Internal-SG
+    ]
+
+    ipv6_allowed_for_dual_stack = false
   }
 
   tracing_config {

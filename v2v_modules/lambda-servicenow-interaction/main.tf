@@ -88,6 +88,11 @@ resource "aws_iam_role" "execution" {
   })
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
+  role       = aws_iam_role.execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
 resource "aws_iam_role_policy" "logging" {
   name = "BTSGSD-V2V-US-servicenow-interaction-logging"
   role = aws_iam_role.execution.name
@@ -135,6 +140,21 @@ resource "aws_lambda_function" "interaction" {
     size = 512
   }
 
+  vpc_config {
+    # VPC: vpc-0f2abb3d6596a0487 (abv-vpc-accas-dev-vpc).
+    # Lambda derives the VPC from these subnet IDs.
+    subnet_ids = [
+      "subnet-0c29b5f2c41c73d89", # us-east-1a: abv-vpc-accas-dev-app-a
+      "subnet-0fe7a72e5cef073ad", # us-east-1b: abv-vpc-accas-dev-app-b
+    ]
+
+    security_group_ids = [
+      "sg-0e77977e08fb0dedb", # BTSGSD-US-IVA-Internal-SG
+    ]
+
+    ipv6_allowed_for_dual_stack = false
+  }
+
   logging_config {
     log_format = "Text"
     log_group  = aws_cloudwatch_log_group.interaction.name
@@ -167,7 +187,10 @@ resource "aws_lambda_function" "interaction" {
     }
   }
 
-  depends_on = [aws_iam_role_policy.logging]
+  depends_on = [
+    aws_iam_role_policy.logging,
+    aws_iam_role_policy_attachment.lambda_vpc_access,
+  ]
 }
 
 resource "aws_lambda_permission" "interaction_connect" {
