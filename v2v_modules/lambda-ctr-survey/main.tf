@@ -33,6 +33,21 @@ resource "aws_lambda_function" "survey" {
     size = var.ephemeral_storage_size
   }
 
+  vpc_config {
+    # VPC: vpc-0f2abb3d6596a0487 (abv-vpc-accas-dev-vpc).
+    # Lambda derives the VPC from these subnet IDs.
+    subnet_ids = [
+      "subnet-0c29b5f2c41c73d89", # us-east-1a: abv-vpc-accas-dev-app-a
+      "subnet-0fe7a72e5cef073ad", # us-east-1b: abv-vpc-accas-dev-app-b
+    ]
+
+    security_group_ids = [
+      "sg-0e77977e08fb0dedb", # BTSGSD-US-IVA-Internal-SG
+    ]
+
+    ipv6_allowed_for_dual_stack = false
+  }
+
   environment {
     variables = merge(var.environment_variables, {
       CONNECT_INSTANCE_ID = data.aws_connect_instance.selected.id
@@ -42,6 +57,7 @@ resource "aws_lambda_function" "survey" {
 
   depends_on = [
     aws_cloudwatch_log_group.survey,
-    aws_iam_role_policy.lambda_access
+    aws_iam_role_policy.lambda_access,
+    aws_iam_role_policy_attachment.lambda_vpc_access,
   ]
 }

@@ -152,6 +152,7 @@ resource "aws_iam_role_policy_attachment" "lambda" {
     custom      = aws_iam_policy.lambda.arn
     basic       = "arn:${local.partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
     app_signals = "arn:${local.partition}:iam::aws:policy/CloudWatchLambdaApplicationSignalsExecutionRolePolicy"
+    vpc_access  = "arn:${local.partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
   }
 
   role       = aws_iam_role.lambda.name

@@ -4,6 +4,11 @@ data "aws_iam_role" "lambda_role" {
   name = var.iam_role_name
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
+  role       = data.aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   name              = var.log_group_name
   retention_in_days = 14
@@ -57,6 +62,17 @@ resource "aws_lambda_function" "lambda" {
     size = 512
   }
 
+  vpc_config {
+    # VPC: vpc-0f2abb3d6596a0487 (abv-vpc-accas-dev-vpc).
+    # Lambda derives the VPC from these subnet IDs.
+    subnet_ids = [
+      "subnet-0c29b5f2c41c73d89", # us-east-1a: abv-vpc-accas-dev-app-a
+      "subnet-0fe7a72e5cef073ad", # us-east-1b: abv-vpc-accas-dev-app-b
+    ]
+    security_group_ids          = ["sg-0e77977e08fb0dedb"] # BTSGSD-US-IVA-Internal-SG
+    ipv6_allowed_for_dual_stack = false
+  }
+
   layers = [module.application_signals.layer_arn]
 
   environment {
@@ -79,7 +95,10 @@ resource "aws_lambda_function" "lambda" {
 
   tags = var.common_tags
 
-  depends_on = [aws_iam_role_policy.lambda_logs]
+  depends_on = [
+    aws_iam_role_policy.lambda_logs,
+    aws_iam_role_policy_attachment.lambda_vpc_access,
+  ]
 }
 
 # Configure the Lex alias's Lambda code hook separately.
