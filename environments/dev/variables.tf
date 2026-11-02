@@ -539,3 +539,9 @@ variable "lex_yesno_bot_alias_arn" {
   type        = string
   default     = null
 }
+
+variable "existing_cognito_identity_pool_id" {
+  description = "Existing Cognito identity pool ID; required when enabling the legacy Dev IAM module."
+  type        = string
+  default     = ""
+}

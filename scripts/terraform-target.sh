@@ -5,13 +5,18 @@ DEPLOYMENT_TARGET="${1:?Target module is required}"
 DEPLOYMENT_ENVIRONMENT="${2:?Environment is required}"
 DEPLOYMENT_REGION="${3:-us-east-1}"
 
+if [ "$DEPLOYMENT_ENVIRONMENT" != "dev" ]; then
+  echo "Unsupported deployment environment: $DEPLOYMENT_ENVIRONMENT. Only dev is supported." >&2
+  return 1
+fi
+
 case "$DEPLOYMENT_TARGET" in
   proxy)
-    echo "Proxy deployment is retired in dev and dev-nsso; its infrastructure modules have been removed." >&2
+    echo "Proxy deployment is retired in dev; its infrastructure modules have been removed." >&2
     return 1
     ;;
   v2v)
-    echo "V2V deployment is retired in dev and dev-nsso. Use prepare-destroy-v2v and destroy-v2v-stack." >&2
+    echo "V2V deployment is retired in dev. Use prepare-destroy-v2v and destroy-v2v-stack." >&2
     return 1
     ;;
   dynamodb|connect-queue|Connect_integrations|data_table|agentcore_gateway|ai_agent_tools|delete-BTSGSD-SSO-US-AI-Survey-Agent|lambda-servicenow-interaction|lambda-nextthink-handoff|silence_guard-dev|UpdateSessionAttributes-dev|conversionOfQueueMetrics-dev|BTSGSD-lex-yesNo-dev|BTSGSD-lex-QueueFlow-Callback-dev)
@@ -30,9 +35,9 @@ TERRAFORM_PLAN_ARGS=(
 case "$DEPLOYMENT_TARGET" in
   prepare-destroy-v2v|destroy-v2v-stack)
     case "$DEPLOYMENT_ENVIRONMENT" in
-      dev|dev-nsso) ;;
+      dev) ;;
       *)
-        echo "$DEPLOYMENT_TARGET supports only dev and dev-nsso." >&2
+        echo "$DEPLOYMENT_TARGET supports only dev." >&2
         return 1
         ;;
     esac

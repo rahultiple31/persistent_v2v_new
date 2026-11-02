@@ -9,7 +9,6 @@ parameters:
     default: dev
     values:
       - dev
-      - dev-nsso
 
   - name: targetModule
     displayName: Target module
@@ -111,7 +110,7 @@ stages:
               echo "Pipeline source commit: $BUILD_SOURCEVERSION"
 
               case '${{ parameters.targetEnvironment }}' in
-                dev|dev-nsso)
+                dev)
                   AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
                   ;;
               esac
@@ -213,7 +212,7 @@ stages:
                     set -euo pipefail
 
                     case '${{ parameters.targetEnvironment }}' in
-                      dev|dev-nsso)
+                      dev)
                         AWS_ROLE_ARN='$(AWS_DEV_OIDC_ROLE_ARN)'
                         ;;
                     esac

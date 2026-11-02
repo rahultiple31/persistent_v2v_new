@@ -7,7 +7,7 @@ bucket or a CloudFormation stack. Function names, role names, log groups,
 Terraform resource addresses, and Connect associations are preserved.
 
 Dev uses AWS provider `~> 6.21.0`, which supports Python 3.14. Shared modules
-allow provider 5 and 6 so that the existing `dev-nsso` pin can remain on 5.100.
+allow AWS provider versions 5 and 6.
 The existing pipeline choices and shared Connect state remain unchanged.
 
 ## First deployment after the old CloudFormation configuration

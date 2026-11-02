@@ -108,10 +108,10 @@ parameters:
   - name: targetEnvironment
     displayName: Target environment
     type: string
-    default: v2v
+    default: v2v-dev
     values:
-      - v2v
-      - v2v-resources
+      - v2v-dev
+      - v2v-resources-dev
 
 # Set AWS_DEV_OIDC_ROLE_ARN in this pipeline's Edit > Variables settings.
 # Use the same IAM role ARN as dev and select "Keep this value secret".
@@ -119,9 +119,17 @@ parameters:
 variables:
   terraformVersion: '1.10.5'
   deploymentRegion: 'us-east-1'
-  workingDirectory: '$(Build.SourcesDirectory)/environments/${{ parameters.targetEnvironment }}'
   backendBucket: 'bts-cloud-terraform-tfstate'
   backendRegion: 'us-east-1'
+
+  # Pipeline choice names map to the existing Terraform roots and state identities.
+  ${{ if eq(parameters.targetEnvironment, 'v2v-dev') }}:
+    workingDirectory: '$(Build.SourcesDirectory)/environments/v2v'
+    deploymentEnvironment: v2v
+
+  ${{ if eq(parameters.targetEnvironment, 'v2v-resources-dev') }}:
+    workingDirectory: '$(Build.SourcesDirectory)/environments/v2v-resources'
+    deploymentEnvironment: v2v-resources
 
 pool:
   vmImage: ubuntu-latest
@@ -270,7 +278,7 @@ stages:
             displayName: Terraform Init, Validate, and Plan
             workingDirectory: $(workingDirectory)
             env:
-              TARGET_ENVIRONMENT: ${{ parameters.targetEnvironment }}
+              TARGET_ENVIRONMENT: ${{ variables.deploymentEnvironment }}
               TARGET_MODULE: ${{ parameters.targetModule }}
               DEPLOYMENT_REGION: $(deploymentRegion)
               BACKEND_BUCKET: $(backendBucket)
@@ -438,7 +446,7 @@ stages:
             displayName: Terraform Apply
             workingDirectory: $(workingDirectory)
             env:
-              TARGET_ENVIRONMENT: ${{ parameters.targetEnvironment }}
+              TARGET_ENVIRONMENT: ${{ variables.deploymentEnvironment }}
               TARGET_MODULE: ${{ parameters.targetModule }}
               DEPLOYMENT_REGION: $(deploymentRegion)
               BACKEND_BUCKET: $(backendBucket)

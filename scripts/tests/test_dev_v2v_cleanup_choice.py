@@ -82,7 +82,7 @@ class V2VCleanupPlanTests(unittest.TestCase):
             VALIDATOR.validate(plan(changes=updates), "prepare-destroy-v2v", "dev")
 
     def test_destroy_allows_five_modules_and_root_marker(self):
-        for environment in ("dev", "dev-nsso"):
+        for environment in ("dev",):
             with self.subTest(environment=environment):
                 for string_bools in (False, True):
                     self.assertEqual(
@@ -100,6 +100,12 @@ class V2VCleanupPlanTests(unittest.TestCase):
             resource("module.s3[0].aws_s3_object.webapp_assets", ["forget"]),
         ]
         self.assertEqual(VALIDATOR.validate(plan(changes=changes), "destroy-v2v-stack", "dev"), 5)
+
+    def test_cleanup_rejects_removed_environment(self):
+        for choice in ("prepare-destroy-v2v", "destroy-v2v-stack"):
+            with self.subTest(choice=choice):
+                with self.assertRaisesRegex(ValueError, "Unsupported V2V cleanup environment"):
+                    VALIDATOR.validate(plan("dev-nsso", ALL_MODULE_CHANGES), choice, "dev-nsso")
 
     def test_destroy_rejects_unprepared_buckets_or_other_actions(self):
         invalid_changes = (
@@ -130,8 +136,8 @@ class V2VCleanupPlanTests(unittest.TestCase):
 
 @unittest.skipUnless(BASH, "Bash is required to test the pipeline selector")
 class V2VCleanupSelectorTests(unittest.TestCase):
-    def test_both_choices_use_each_environments_v2v_state(self):
-        for environment in ("dev", "dev-nsso"):
+    def test_both_choices_use_dev_v2v_state(self):
+        for environment in ("dev",):
             for choice in ("prepare-destroy-v2v", "destroy-v2v-stack"):
                 with self.subTest(environment=environment, choice=choice):
                     env = os.environ.copy()
@@ -174,14 +180,29 @@ printf '%s\\n' "$TERRAFORM_STATE_MODULE" "$TERRAFORM_BACKEND_KEY" "${TERRAFORM_P
         self.assertNotIn("      - v2v\n", pipeline)
         self.assertNotIn("      - destroy-cloudfront-cognito\n", pipeline)
 
-    def test_v2v_modules_are_disabled_by_default_in_both_roots(self):
-        for environment in ("dev", "dev-nsso"):
+    def test_removed_environment_is_not_deployable(self):
+        pipeline = (ROOT / "azure-pipelines.yml").read_text(encoding="utf-8")
+        environments = pipeline.split("  - name: targetEnvironment\n", 1)[1].split("  - name: targetModule\n", 1)[0]
+        self.assertEqual(re.findall(r"^      - (.+)$", environments, re.MULTILINE), ["dev"])
+        self.assertFalse(any((ROOT / "environments/dev-nsso").rglob("*.tf")))
+        for choice in ("connect", "lambda", "prepare-destroy-v2v", "destroy-v2v-stack"):
+            with self.subTest(choice=choice):
+                result = subprocess.run(
+                    [BASH, "-c", 'source scripts/terraform-target.sh "$1" dev-nsso us-east-1',
+                     "environment-test", choice],
+                    cwd=ROOT, text=True, capture_output=True, timeout=30,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Unsupported deployment environment", result.stderr)
+
+    def test_v2v_modules_are_disabled_by_default_in_dev(self):
+        for environment in ("dev",):
             with self.subTest(environment=environment):
                 variables = (ROOT / f"environments/{environment}/variables.tf").read_text(encoding="utf-8")
                 main = (ROOT / f"environments/{environment}/main.tf").read_text(encoding="utf-8")
                 self.assertRegex(variables, r'variable "destroy_v2v_stack" \{[^}]*default\s+= true')
                 self.assertIn('contains(local.enabled_module_set, "v2v") && !var.destroy_v2v_stack', main)
-                for module_name in ("s3_v2v", "cloudfront_v2v", "cognito_v2v", "iam_v2v", "ssm_v2v"):
+                for module_name in ("s3_v2v", "iam_v2v", "ssm_v2v"):
                     self.assertRegex(
                         main,
                         rf'module "{module_name}" \{{\s*count\s*= local\.deploy_v2v \? 1 : 0',
@@ -198,10 +219,10 @@ printf '%s\\n' "$TERRAFORM_STATE_MODULE" "$TERRAFORM_BACKEND_KEY" "${TERRAFORM_P
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("V2V deployment is retired", result.stderr)
 
-    def test_retired_proxy_choice_is_rejected_in_both_environments(self):
+    def test_retired_proxy_choice_is_rejected_in_dev(self):
         pipeline = (ROOT / "azure-pipelines.yml").read_text(encoding="utf-8")
         self.assertNotIn("      - proxy\n", pipeline)
-        for environment in ("dev", "dev-nsso"):
+        for environment in ("dev",):
             with self.subTest(environment=environment):
                 result = subprocess.run(
                     [BASH, "-c", 'source scripts/terraform-target.sh proxy "$1" us-east-1',

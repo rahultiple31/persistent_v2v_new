@@ -1,4 +1,4 @@
-"""Validate preparatory and full-stack V2V deletion plans for dev/dev-nsso."""
+"""Validate preparatory and full-stack V2V deletion plans for dev."""
 
 import json
 import re
@@ -37,7 +37,7 @@ def plan_bool(value):
 def validate(plan, choice, environment):
     if choice not in {"prepare-destroy-v2v", "destroy-v2v-stack"}:
         reject(f"Unsupported V2V cleanup choice: {choice}")
-    if environment not in {"dev", "dev-nsso"}:
+    if environment != "dev":
         reject(f"Unsupported V2V cleanup environment: {environment}")
 
     variables = plan.get("variables", {})

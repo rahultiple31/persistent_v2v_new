@@ -1,17 +1,21 @@
 # Azure DevOps CI/CD to AWS Amazon Connect Environments
 
-This repository contains Terraform for Amazon Connect in AWS Dev and Dev NSSO
-environments. Azure Repos and Azure Pipelines deploy both environments in
-`us-east-1`.
+This repository contains Terraform for Amazon Connect in AWS Dev and V2V
+environments. Azure Repos and Azure Pipelines deploy these environments in
+`us-east-1`. Use `azure-pipelines.yml` for Dev and `v2v-azure-pipeline.yml` for V2V.
 
 ## Environments
 
 - Dev: `environments/dev`
-- Dev NSSO: `environments/dev-nsso`
+- V2V: `environments/v2v`
+- V2V resources: `environments/v2v-resources`
 
 Each environment has its own Terraform root, variable values, backend state key,
-and Azure DevOps approval environment. Both environments use the shared Connect
-module in `modules/connect`.
+and Azure DevOps approval environment. Dev uses the shared Connect module in
+`modules/connect`; V2V uses `v2v_modules/connect`.
+
+The Dev NSSO environment code and pipeline selection have been removed. This
+source removal does not delete its existing AWS resources or remote Terraform state.
 
 The pipeline also selects one infrastructure module per run. Each selected
 module uses its own Terraform state file in S3 using the environment, region,
@@ -56,7 +60,7 @@ Both environments default to `proxy_integration_enabled=false`, so V2V can
 deploy without proxy state or ALB values. With proxy translation selected,
 translation stays disabled until integration is explicitly enabled.
 
-The Dev and Dev NSSO proxy infrastructure modules and the `proxy` pipeline
+The legacy Dev proxy infrastructure modules and the `proxy` pipeline
 choice have been removed. Existing AWS resources and Terraform state are not
 changed by this code removal. See [DEPLOY-V2V.md](DEPLOY-V2V.md) for the active
 V2V deployment entry points.
@@ -78,7 +82,6 @@ Create the backend bucket before running the pipeline. The Azure pipeline uses:
 ```text
 bucket: bts-cloud-terraform-tfstate
 dev key: terraform-state/dev/us-east-1/connect/terraform.tfstate
-dev-nsso key: terraform-state/dev-nsso/us-east-1/connect/terraform.tfstate
 region: us-east-1
 encrypt: true
 use_lockfile: true
@@ -97,19 +100,16 @@ Examples:
 
 ```text
 terraform-state/dev/us-east-1/connect/terraform.tfstate
-terraform-state/dev-nsso/us-east-1/connect/terraform.tfstate
 terraform-state/dev/us-east-1/lambda/terraform.tfstate
 terraform-state/dev/us-east-1/v2v/terraform.tfstate
 ```
 
 ## Local Terraform
 
-From either environment root:
+From the Dev environment root:
 
 ```bash
 cd environments/dev
-# or
-cd environments/dev-nsso
 
 terraform init -reconfigure \
   -backend-config="bucket=bts-cloud-terraform-tfstate" \
@@ -120,12 +120,6 @@ terraform init -reconfigure \
 terraform fmt -recursive ../..
 terraform validate
 terraform plan
-```
-
-Use the matching backend key for the selected environment. For Dev NSSO, use:
-
-```text
-terraform-state/dev-nsso/us-east-1/connect/terraform.tfstate
 ```
 
 To activate only the Connect module in this state:
@@ -140,9 +134,17 @@ To activate only the Lambda test module in this state:
 terraform plan -var='enabled_modules=["lambda"]'
 ```
 
-The V2V application stack is retired in `dev` and `dev-nsso`. Use the
+The V2V application stack is retired in `dev`. Use the
 `prepare-destroy-v2v` and `destroy-v2v-stack` pipeline choices below to remove
 its resources from the existing V2V state.
+
+The Dev `cognito_v2v` and `cloudfront_v2v` module calls and their source folders
+under `modules` have been removed. Their Dev output fields remain present with
+null values. The active V2V environment uses separate modules in `v2v_modules`.
+If the remaining legacy Dev IAM module is enabled manually, supply
+`existing_cognito_identity_pool_id` for its Cognito trust and role attachment.
+The cleanup validator still permits deletion of both current and legacy Cognito
+and CloudFront addresses from the existing Dev V2V state.
 
 ## SNOW Lambda in Dev
 
@@ -209,7 +211,7 @@ To deploy through Azure Pipelines, select `targetEnvironment=dev`,
 Use `terraformAction=plan` for a plan-only run. This choice uses its own state
 key and overrides the concurrency check executable to `python3` on Ubuntu.
 The apply stage consumes the saved plan and retains the existing Dev approval
-checks. This target is not available for `dev-nsso`.
+checks.
 
 For manual deployment, set
 `enabled_modules = ["lambda-servicenow-interaction"]` in Dev's `terraform.tfvars`
@@ -252,7 +254,7 @@ To deploy through Azure Pipelines, select `targetEnvironment=dev`,
 Use `terraformAction=plan` for a plan-only run. This choice uses its own state
 key and overrides the concurrency check executable to `python3` on Ubuntu.
 The apply stage consumes the saved plan and retains the existing Dev approval
-checks. This target is not available for `dev-nsso`.
+checks.
 
 Dev's `terraform.tfvars` selects `lambda-nextthink-handoff` by default and
 sets its concurrency check executable to `python` for Windows. No separate
@@ -292,7 +294,7 @@ authentication and handoff require deployment and valid Nexthink credentials.
 
 The pipeline in `azure-pipelines.yml` supports these parameters:
 
-- `targetEnvironment`: `dev` or `dev-nsso`
+- `targetEnvironment`: `dev`
 - `targetModule`: `connect`, `data_table`, `agentcore_gateway`, `lambda`,
   `prepare-destroy-v2v`, `destroy-v2v-stack`,
   `s3_connect_reporting`, `lambda-ctr-survey`, `lambda-connect-daily-ctr-export`,
@@ -300,20 +302,20 @@ The pipeline in `azure-pipelines.yml` supports these parameters:
   `lambda-servicenow-interaction`, or `lambda-nextthink-handoff`
 - `terraformAction`: `plan` or `apply`
 
-The deployment region is fixed to `us-east-1` for both environments.
+The deployment region is fixed to `us-east-1`.
 
-To remove the complete V2V stack in `dev` or `dev-nsso`, first run
+To remove the complete V2V stack in `dev`, first run
 `targetModule=prepare-destroy-v2v` with `terraformAction=plan`, review it, then
 run the same choice with `terraformAction=apply`. This records
 `force_destroy=true` for the two versioned V2V S3 buckets. Preparation targets
 only those buckets and their legacy addresses so previously deleted Cognito or
 CloudFront resources are not recreated. Next run
 `targetModule=destroy-v2v-stack` with `terraformAction=plan`, review the full
-deletion plan, then run it with `terraformAction=apply`. Repeat both steps for
-the other environment. The cleanup plan uses each environment's existing `v2v`
+deletion plan, then run it with `terraformAction=apply`.
+The cleanup plan uses Dev's existing `v2v`
 state and permits deletions only from the
 S3, CloudFront, Cognito, IAM, and SSM V2V modules and the root V2V settings
-marker. `destroy_v2v_stack=true` is the default in both root configurations,
+marker. `destroy_v2v_stack=true` is the default in the Dev root configuration,
 so later plans keep these modules disabled. The preparation choice temporarily
 sets it to `false` while recording `force_destroy=true` on the S3 buckets.
 
@@ -325,15 +327,15 @@ five CloudFormation table stacks plus their required Connect instance dependency
 The table names are `CustomerNumberDataTable`, `BTS_GSD-HR_Transfer`,
 `BTSGSD-Survey-DataTable`, `BTS_GSD-Veeva_Transfer`, and `TopLevelBlockerMessage`.
 It uses the existing OIDC credentials, approval environment, and saved-plan
-apply stage. It is not available for `dev-nsso`. Use the `connect` choice when
+apply stage. Use the `connect` choice when
 deploying contact-flow changes, including updated table lookups.
 
 To deploy `modules/agentcore_gateway` through `environments/dev/main.tf`, select
 `targetEnvironment=dev`, `targetModule=agentcore_gateway`, and
 `terraformAction=apply` from `main`. This choice shares the Connect backend and
 targets `module.agentcore_gateway`, including its IAM role,
-`gateway-quick-start-dev` gateway and `SNOW_btsgsd-dev` Lambda target. It is not available for
-`dev-nsso`. The first apply bootstraps JWT authorization with the Connect URL
+`gateway-quick-start-dev` gateway and `SNOW_btsgsd-dev` Lambda target.
+The first apply bootstraps JWT authorization with the Connect URL
 audience. Run the same choice again to add the generated Gateway ID audience:
 the planner reads the `agentcore_gateway` output from Terraform state and passes
 its ID to `agentcore_gateway_id_audience`. Full `connect` plans also preserve
@@ -384,12 +386,12 @@ Code Commit -> Terraform Init -> Plan -> Approval -> Apply
 ```
 
 The apply stage is gated through the Azure DevOps environment selected by
-`targetEnvironment`. Configure the `dev` and `dev-nsso` Azure DevOps environments
+`targetEnvironment`. Configure the `dev` Azure DevOps environment
 with the review and approval checks your team needs.
 
 Required Azure DevOps variables:
 
-- `AWS_DEV_OIDC_ROLE_ARN`: shared AWS IAM role ARN assumed for Dev and Dev NSSO
+- `AWS_DEV_OIDC_ROLE_ARN`: AWS IAM role ARN assumed for Dev
 
 The pipeline uses Azure Pipelines OIDC and Terraform's AWS web identity
 authentication. It does not require static AWS access keys.
@@ -605,8 +607,8 @@ For the custom agent, review the plan for
 then run with `terraformAction=apply` and approve the Dev deployment.
 
 Domain and custom-agent resources are enabled independently and only with the
-Connect target. Other Dev module runs ignore the AI inputs, and Dev NSSO is
-unchanged. Keep the domain flag enabled to retain its managed stack, and leave
+Connect target. Other Dev module runs ignore the AI inputs.
+Keep the domain flag enabled to retain its managed stack, and leave
 the custom-agent flag disabled to prevent recreation. Disabling either flag
 intentionally plans removal of the corresponding managed stack. The template
 bucket and its security settings remain while its name is configured; setting

@@ -61,6 +61,15 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
         if len(scripts) != 2:
             raise AssertionError("Expected one Bash script for Plan and one for Apply")
         cls.stages = [textwrap.dedent(script) for script in scripts]
+        cls.environment_routes = {
+            choice: (folder, environment)
+            for choice, folder, environment in re.findall(
+                r"^  \$\{\{ if eq\(parameters\.targetEnvironment, '([^']+)'\) \}\}:\n"
+                r"    workingDirectory: '\$\(Build.SourcesDirectory\)/environments/([^']+)'\n"
+                r"    deploymentEnvironment: ([^\n]+)$",
+                cls.pipeline, re.MULTILINE,
+            )
+        }
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -68,7 +77,8 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
         self.root = Path(temporary.name)
 
     def prepare(self, environment, choice):
-        self.working_directory = self.root / environment / choice
+        folder, environment = self.environment_routes.get(environment, (environment, environment))
+        self.working_directory = self.root / folder / choice
         self.working_directory.mkdir(parents=True)
         variable_file = "terraform.tfvars" if environment == "v2v" else "terraform.dev.tfvars"
         (self.working_directory / variable_file).write_text("# Test values\n")
@@ -106,15 +116,41 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
         )
 
     def test_environment_choices_route_to_the_corresponding_roots(self):
-        self.assertIn("workingDirectory: '$(Build.SourcesDirectory)/environments/${{ parameters.targetEnvironment }}'", self.pipeline)
-        self.assertEqual(self.pipeline.count("TARGET_ENVIRONMENT: ${{ parameters.targetEnvironment }}"), 2)
+        self.assertEqual(self.environment_routes, {
+            "v2v-dev": ("v2v", "v2v"),
+            "v2v-resources-dev": ("v2v-resources", "v2v-resources"),
+        })
+        self.assertEqual(self.pipeline.count("TARGET_ENVIRONMENT: ${{ variables.deploymentEnvironment }}"), 2)
+        self.assertNotIn("TARGET_ENVIRONMENT: ${{ parameters.targetEnvironment }}", self.pipeline)
         environments = self.pipeline.split("  - name: targetEnvironment\n", 1)[1].split("# Set AWS_DEV_OIDC_ROLE_ARN", 1)[0]
-        self.assertEqual(re.findall(r"^      - (.+)$", environments, re.MULTILINE), ["v2v", "v2v-resources"])
+        self.assertIn("    default: v2v-dev\n", environments)
+        self.assertEqual(re.findall(r"^      - (.+)$", environments, re.MULTILINE), ["v2v-dev", "v2v-resources-dev"])
         source = (ROOT / "environments/v2v-resources/main.tf").read_text()
         modules = dict(re.findall(r'^module "([^"]+)" \{\s*(?:#[^\n]*\n\s*)?source\s*=\s*"([^"]+)"', source, re.MULTILINE))
         self.assertEqual(set(modules), RESOURCE_MODULE_CHOICES - {"all"})
         for name, path in modules.items():
             self.assertEqual(path, f"../../v2v-resource-modules/{name}")
+
+    def test_renamed_choices_keep_existing_environment_values_and_state_keys(self):
+        for choice, module, expected_environment, expected_key in (
+            ("v2v-dev", "conversion_of_queue_metrics", "v2v",
+             "terraform-state/v2v/us-east-1/connect/terraform.tfstate"),
+            ("v2v-resources-dev", "ecr", "v2v-resources",
+             "terraform-state/V2V-poc/terraform.tfstate"),
+        ):
+            with self.subTest(choice=choice):
+                self.prepare(choice, module)
+                self.assertEqual(self.env["TARGET_ENVIRONMENT"], expected_environment)
+                for stage in (0, 1):
+                    result = self.run_stage(stage)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                trace = self.trace.read_text()
+                self.assertEqual(trace.count(f"<-backend-config=key={expected_key}>"), 2)
+                context = (self.working_directory / "artifact/context.txt").read_text().splitlines()
+                self.assertEqual(context[1], expected_environment)
+                if expected_environment == "v2v":
+                    self.assertIn("<-var=environment=v2v>", trace)
+                    self.assertNotIn("<-var=environment=v2v-dev>", trace)
 
     def test_all_resource_choices_keep_the_existing_state_and_apply_saved_plans(self):
         for choice in sorted(RESOURCE_MODULE_CHOICES):

@@ -1,13 +1,18 @@
 # V2V pipeline choices
 
-Run `v2v-azure-pipeline.yml` from `main`. Select `targetEnvironment=v2v` for
+Run `v2v-azure-pipeline.yml` from `main`. Select `targetEnvironment=v2v-dev` for
 the existing V2V choices below. Select the resource's module in
 `targetModule` and use `terraformAction=plan` to review the changes. Select
 the same module with `terraformAction=apply` to run a new Plan stage followed
 by Apply of that run's saved plan. The earlier plan-only artifact is not reused.
 
+The pipeline choices map to the existing Terraform roots: `v2v-dev` uses
+`environments/v2v`, and `v2v-resources-dev` uses `environments/v2v-resources`.
+The internal environment values remain `v2v` and `v2v-resources`, respectively,
+so backend state keys, module sources, and AWS resource names are preserved.
+
 The retired survey resources have two destruction-only `targetModule` choices
-under `targetEnvironment=v2v`:
+under `targetEnvironment=v2v-dev`:
 
 | Choice | Resources | Existing state |
 | --- | --- | --- |
@@ -24,14 +29,14 @@ The retired module definitions stay removed, and `btsgsd_ai_survey_agent` is a
 separate resource that these choices do not delete. Update the survey contact
 flow routing before using it after the referenced AI agent or bot is deleted.
 
-Select `targetEnvironment=v2v-resources` to deploy
+Select `targetEnvironment=v2v-resources-dev` to deploy
 `environments/v2v-resources`, whose module sources are in `v2v-resource-modules`.
 Its `targetModule` choices are `cloudwatch`, `ssm`, `ecr`, `iam`, `networking`,
 `alb`, `waf`, `ecs`, and `dns`. Select `all` for the complete root configuration.
 Individual choices target `module.<name>` and include its Terraform dependencies.
 Use `terraformAction=plan` first, then select `apply` after reviewing the changes.
 
-All `v2v-resources` choices retain the existing shared backend key
+All `v2v-resources-dev` choices retain the existing shared backend key
 `terraform-state/V2V-poc/terraform.tfstate` and explicitly load
 `terraform.dev.tfvars`. They do not use V2V's `enabled_modules` variable or Lambda
 packaging. The environment is recorded with the saved plan and checked before
@@ -104,10 +109,10 @@ preserved. The other flow choices still target individual resources inside
 to include the extracted flows.
 
 To deploy all six dedicated flows together after the initial state migration,
-select `targetModule=all-flows` with `targetEnvironment=v2v`:
+select `targetModule=all-flows` with `targetEnvironment=v2v-dev`:
 
 ```yaml
-targetEnvironment: v2v
+targetEnvironment: v2v-dev
 targetModule: all-flows
 terraformAction: plan
 ```
@@ -117,13 +122,13 @@ customer-queue, and views modules in one plan. It uses the existing Connect
 state and includes required Terraform dependencies. Review the plan, then run
 with `terraformAction=apply` to generate and apply that run's saved plan.
 `connect` continues to select the complete Connect group. The `all` choice
-continues to belong to `v2v-resources`.
+continues to belong to the `v2v-resources-dev` pipeline choice.
 
 To deploy one of these flows after the initial state migration, select its
-full resource name in `targetModule`, with `targetEnvironment=v2v`. For example:
+full resource name in `targetModule`, with `targetEnvironment=v2v-dev`. For example:
 
 ```yaml
-targetEnvironment: v2v
+targetEnvironment: v2v-dev
 targetModule: BTSGSD-V2V-US-AIAgent-SurveyFlow
 terraformAction: plan
 ```
@@ -142,7 +147,7 @@ no additional state move. The deployed name remains `BTSGSD-V2V-US-Main-IB-Flow`
 
 All choices retain the existing Connect backend:
 `terraform-state/v2v/us-east-1/connect/terraform.tfstate`.
-Before the first deployment of this refactor, select `targetEnvironment=v2v`,
+Before the first deployment of this refactor, select `targetEnvironment=v2v-dev`,
 `targetModule=connect`, and `terraformAction=plan`. Root `moved.tf` moves the
 survey and three imported resources into their new addresses. Keep these moves
 until every relevant state has migrated. Confirm that the existing flows have
@@ -212,7 +217,7 @@ or replacement; the console-built `voicemail-v2v*` resources are removed
 manually. See `v2v_modules/voicemail/README.md`.
 
 The V2V CTR-Raw Lambda is retired. Select `targetModule=destroy_ctr_raw` with
-`targetEnvironment=v2v` and `terraformAction=apply` to delete its Terraform
+`targetEnvironment=v2v-dev` and `terraformAction=apply` to delete its Terraform
 resources from the dedicated `lambda-ctr-raw` state. The pipeline accepts only
 deletions under `module.lambda-ctr-raw[0]` in the saved plan. The shared CTR
 policy no longer attaches to the retired Lambda role.
