@@ -626,6 +626,40 @@ variable "vmx3_timestamper_lambda_arn" {
   default     = null
 }
 
+variable "voicemail_presigner_user_name" {
+  description = "Existing IAM user whose access key signs voicemail recording URLs. Read only; not modified."
+  type        = string
+  default     = "VMX3_Presigner_User_btsgsd-dev-us-east-1"
+}
+
+variable "voicemail_create_presigner_access_key" {
+  description = "Create a new access key on the presigner user for the voicemail secret. Set false to supply voicemail_presigner_credentials."
+  type        = bool
+  default     = true
+}
+
+variable "voicemail_presigner_credentials" {
+  description = "Existing presigner access key; only used when voicemail_create_presigner_access_key is false. Supply from a pipeline secret, never tfvars."
+  type = object({
+    access_key_id     = string
+    secret_access_key = string
+  })
+  default   = null
+  sensitive = true
+}
+
+variable "voicemail_connect_recordings_bucket_name" {
+  description = "Bucket holding the V2V instance call recordings, read by the voicemail RecordingProcessor."
+  type        = string
+  default     = null
+}
+
+variable "voicemail_associate_ctr_stream" {
+  description = "Stream contact trace records to the new voicemail Kinesis stream. Remove the console association first."
+  type        = bool
+  default     = false
+}
+
 variable "main_ib_phone_lookup_function_name" {
   description = "Existing phone lookup Lambda used by the inbound flow."
   type        = string

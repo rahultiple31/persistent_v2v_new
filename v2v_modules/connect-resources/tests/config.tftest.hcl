@@ -18,6 +18,55 @@ mock_provider "aws" {
 
 mock_provider "awscc" {}
 
+# awscc validates queue ARN format, so mocked queues need realistic ARNs.
+override_resource {
+  target = aws_connect_queue.latam_main
+  values = {
+    queue_id = "c0000000-0000-0000-0000-000000000001"
+    arn      = "arn:aws:connect:us-east-1:111111111111:instance/11111111-0000-0000-0000-000000000001/queue/c0000000-0000-0000-0000-000000000001"
+  }
+}
+
+override_resource {
+  target = aws_connect_queue.latam_out
+  values = {
+    queue_id = "c0000000-0000-0000-0000-000000000002"
+    arn      = "arn:aws:connect:us-east-1:111111111111:instance/11111111-0000-0000-0000-000000000001/queue/c0000000-0000-0000-0000-000000000002"
+  }
+}
+
+override_resource {
+  target = aws_connect_queue.us_main
+  values = {
+    queue_id = "c0000000-0000-0000-0000-000000000003"
+    arn      = "arn:aws:connect:us-east-1:111111111111:instance/11111111-0000-0000-0000-000000000001/queue/c0000000-0000-0000-0000-000000000003"
+  }
+}
+
+override_resource {
+  target = aws_connect_queue.us_out
+  values = {
+    queue_id = "c0000000-0000-0000-0000-000000000004"
+    arn      = "arn:aws:connect:us-east-1:111111111111:instance/11111111-0000-0000-0000-000000000001/queue/c0000000-0000-0000-0000-000000000004"
+  }
+}
+
+override_resource {
+  target = aws_connect_queue.us_vm
+  values = {
+    queue_id = "c0000000-0000-0000-0000-000000000005"
+    arn      = "arn:aws:connect:us-east-1:111111111111:instance/11111111-0000-0000-0000-000000000001/queue/c0000000-0000-0000-0000-000000000005"
+  }
+}
+
+# awscc only returns the routing profile ARN; users take the ID from it.
+override_resource {
+  target = awscc_connect_routing_profile.us_agent
+  values = {
+    routing_profile_arn = "arn:aws:connect:us-east-1:111111111111:instance/11111111-0000-0000-0000-000000000001/routing-profile/48a9cf8d-1538-4184-a03e-c04912acdc3f"
+  }
+}
+
 # Flows the root module passes in by ID, as the connect module creates them.
 override_data {
   target = data.aws_connect_contact_flow.outbound_whisper
@@ -56,7 +105,7 @@ run "names_use_v2v_prefix" {
       aws_connect_queue.us_main.name == "BTSGSD-V2V-US-MAIN-QUEUE" &&
       aws_connect_queue.us_out.name == "BTSGSD-V2V-US-OUT-QUEUE" &&
       aws_connect_queue.us_vm.name == "BTSGSD-V2V-US-VM-QUEUE" &&
-      aws_connect_routing_profile.us_agent.name == "BTSGSD-V2V-US-AGENT-RP" &&
+      awscc_connect_routing_profile.us_agent.name == "BTSGSD-V2V-US-AGENT-RP" &&
       aws_connect_routing_profile.latam_agent.name == "BTSGSD-V2V-LATAM-AGENT-RP" &&
       aws_connect_routing_profile.us_latam_vm_blended.name == "BTSGSD-V2V-US-LATAM-VM-BLENDED-RP" &&
       aws_connect_hours_of_operation.v2v.name == "BTSGSD-V2V-HoursOfOperation_EN_ES_PT"
@@ -95,6 +144,19 @@ run "queues_use_v2v_hours_and_outbound_whisper_flow" {
   }
 }
 
+run "queue_arns_output_keyed_by_name" {
+  command = apply
+
+  assert {
+    condition = (
+      length(output.queue_arns) == 5 &&
+      output.queue_arns["BTSGSD-V2V-LATAM-MAIN-QUEUE"] == aws_connect_queue.latam_main.arn &&
+      output.queue_arns["BTSGSD-V2V-US-VM-QUEUE"] == aws_connect_queue.us_vm.arn
+    )
+    error_message = "queue_arns must expose all five queue ARNs keyed by queue name."
+  }
+}
+
 run "main_queues_have_quick_connects" {
   command = apply
 
@@ -119,8 +181,11 @@ run "routing_profiles_reference_module_queues" {
 
   assert {
     condition = (
-      aws_connect_routing_profile.us_agent.default_outbound_queue_id == aws_connect_queue.us_out.queue_id &&
-      length(aws_connect_routing_profile.us_agent.media_concurrencies) == 2 &&
+      awscc_connect_routing_profile.us_agent.default_outbound_queue_arn == aws_connect_queue.us_out.arn &&
+      length(awscc_connect_routing_profile.us_agent.media_concurrencies) == 2 &&
+      length(awscc_connect_routing_profile.us_agent.queue_configs) == 0 &&
+      [for q in awscc_connect_routing_profile.us_agent.manual_assignment_queue_configs : [q.queue_reference.queue_arn, q.queue_reference.channel]] == [[aws_connect_queue.us_main.arn, "VOICE"]] &&
+      output.routing_profile_ids["us_agent"] == "48a9cf8d-1538-4184-a03e-c04912acdc3f" &&
       aws_connect_routing_profile.latam_agent.default_outbound_queue_id == aws_connect_queue.latam_out.queue_id &&
       length(aws_connect_routing_profile.latam_agent.media_concurrencies) == 2 &&
       [for qc in aws_connect_routing_profile.latam_agent.queue_configs : [qc.queue_id, qc.channel, qc.priority, qc.delay]] == [[aws_connect_queue.latam_main.queue_id, "VOICE", 1, 0]] &&
@@ -132,6 +197,33 @@ run "routing_profiles_reference_module_queues" {
       ])
     )
     error_message = "Routing profiles must match the source configuration and reference the module and connect-queue queues."
+  }
+}
+
+run "us_agent_user_uses_profile_lookup" {
+  command = apply
+  variables {
+    users = {
+      "test.user@example.com"        = { first_name = "Test", last_name = "User", security_profile = "Agent", routing_profile = "us_agent" }
+      "mahendra.kumar@abbvie.com"    = { first_name = "Mahendra", last_name = "Kumar", security_profile = "Admin", routing_profile = "us_latam_vm_blended" }
+      "smita.kulkarni@abbvie.com"    = { first_name = "Smita", last_name = "Kulkarni", security_profile = "Admin", routing_profile = "us_latam_vm_blended" }
+      "govind.khandelwal@abbvie.com" = { first_name = "Govind", last_name = "Khandelwal", security_profile = "Admin", routing_profile = "us_latam_vm_blended" }
+    }
+  }
+
+  override_data {
+    target = data.aws_connect_routing_profile.us_agent_lookup[0]
+    values = {
+      routing_profile_id = "48a9cf8d-1538-4184-a03e-c04912acdc3f"
+    }
+  }
+
+  assert {
+    condition = (
+      length(data.aws_connect_routing_profile.us_agent_lookup) == 1 &&
+      aws_connect_user.this["test.user@example.com"].routing_profile_id == output.routing_profile_ids["us_agent"]
+    )
+    error_message = "Users on us_agent must get the US-AGENT-RP ID through the by-name lookup."
   }
 }
 

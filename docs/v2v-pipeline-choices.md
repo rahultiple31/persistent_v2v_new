@@ -192,8 +192,16 @@ identified and reconciled with its owning Terraform state.
 | BTSGSD-V2V-US-UpdateSessionAttributes | `BTSGSD-V2V-US-UpdateSessionAttributes` |
 | BTSGSD-V2V-US-silence_guard | `silence_guard-dev` |
 | BTSGSD-V2V-US-conversionOfQueueMetrics | `conversion_of_queue_metrics` |
+| BTSGSD-V2V-US-voicemail-* (VMX3 voicemail stack) | `voicemail` |
 | BTSGSD-V2V-US-lex-QueueFlow-Callback | `BTSGSD-V2V-US-lex-QueueFlow-Callback` or `lex_queueflow_callback` |
 | BTSGSD-V2V-US-lex-yesNo | `BTSGSD-V2V-US-lex-yesNo` or `lex_yesno` |
+
+The `voicemail` choice plans `module.voicemail[0]` in the existing Connect
+state: two KMS keys, both voicemail buckets, the encrypted Kinesis stream, the presigner
+secret, the Lambda role, the VMX3 layer, the six functions, three EventBridge
+rules, the task flow and the flow module. Plan and Apply reject any deletion
+or replacement; the console-built `voicemail-v2v*` resources are removed
+manually. See `v2v_modules/voicemail/README.md`.
 
 The V2V CTR-Raw Lambda is retired. Select `targetModule=destroy_ctr_raw` with
 `targetEnvironment=v2v` and `terraformAction=apply` to delete its Terraform

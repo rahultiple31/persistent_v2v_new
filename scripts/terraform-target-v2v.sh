@@ -82,6 +82,7 @@ BTSGSD-V2V-US-Nextthink_Handoff|btsgsd-v2v-us-nextthink_handoff|module.BTSGSD-V2
 BTSGSD-V2V-US-UpdateSessionAttributes|connect|module.BTSGSD-V2V-US-UpdateSessionAttributes[0]
 silence_guard-dev|connect|module.silence_guard-dev[0]
 conversion_of_queue_metrics|connect|module.conversion_of_queue_metrics[0]
+voicemail|connect|module.voicemail[0]
 lex_queueflow_callback|connect|module.lex_queueflow_callback[0]
 lex_yesno|connect|module.lex_yesno[0]
 BTSGSD-V2V-US-lex-QueueFlow-Callback|connect|module.lex_queueflow_callback[0]
@@ -177,8 +178,11 @@ esac
 
 # Include both source and destination addresses of moved Connect flows.
 # The full connect choice already plans all resources without -target.
+# voicemail is excluded: it has no moved flows, and these targets pull in the
+# survey data-table stack and its dependent flows.
 if [ "$TERRAFORM_STATE_MODULE" = connect ] &&
    [ "$DEPLOYMENT_TARGET" != connect ] &&
+   [ "$DEPLOYMENT_TARGET" != voicemail ] &&
    [ "$TERRAFORM_DESTROY_ONLY" != true ]; then
   TERRAFORM_PLAN_ARGS+=(
     "-target=aws_connect_contact_flow.survey"
@@ -259,6 +263,18 @@ if target in destroy_prefixes:
         raise SystemExit(
             "Refusing changes other than deletion of the selected retired modules: "
             + ", ".join(unexpected)
+        )
+
+# The voicemail choice only creates resources; deletions are done manually.
+if target == "voicemail":
+    deleting = [
+        change["address"] for change in changes
+        if "delete" in change.get("change", {}).get("actions", [])
+    ]
+    if deleting:
+        raise SystemExit(
+            "Refusing voicemail plan that deletes or replaces resources: "
+            + ", ".join(deleting)
         )
 
 signing_prefixes = ("module.signing_profile[0].", "module.code_signing_config[0].")

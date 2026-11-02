@@ -62,6 +62,8 @@ parameters:
       - BTSGSD-V2V-US-UpdateSessionAttributes
       - silence_guard-dev
       - conversion_of_queue_metrics
+      # VMX3 voicemail stack in the connect state; create-only (no deletions).
+      - voicemail
       - lex_queueflow_callback
       - lex_yesno
       - BTSGSD-V2V-US-lex-QueueFlow-Callback

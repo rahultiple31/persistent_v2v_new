@@ -1,0 +1,221 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "Turn on logging",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": -208,
+      "y": 19.2
+    },
+    "ActionMetadata": {
+      "End flow": {
+        "position": {
+          "x": 1173.6,
+          "y": 107.2
+        },
+        "isFriendlyName": true
+      },
+      "Route voicemail": {
+        "position": {
+          "x": 904.8,
+          "y": 16.8
+        },
+        "isFriendlyName": true
+      },
+      "Check for Agent routing": {
+        "position": {
+          "x": 388.8,
+          "y": 22.4
+        },
+        "isFriendlyName": true,
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "2922f921-d677-49ad-adb9-b983f35ca245",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "agent"
+          }
+        ]
+      },
+      "Set preferred agent": {
+        "position": {
+          "x": 627.2,
+          "y": -79.2
+        },
+        "isFriendlyName": true
+      },
+      "Set the target queue": {
+        "position": {
+          "x": 164,
+          "y": 24
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "QueueId": {
+            "useDynamic": true
+          }
+        },
+        "useDynamic": true
+      },
+      "Turn on logging": {
+        "position": {
+          "x": -98.4,
+          "y": 18.4
+        },
+        "isFriendlyName": true
+      },
+      "6a435cc2-c524-4a01-b10a-defa584508c2": {
+        "position": {
+          "x": -14.4,
+          "y": 234.4
+        },
+        "parameters": {
+          "EventHooks": {
+            "CustomerQueue": {
+              "displayName": "Default customer queue"
+            }
+          }
+        },
+        "contactFlow": {
+          "text": "Default customer queue",
+          "id": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/contact-flow/017c14ad-7e10-46c7-85ac-2ef820de24be"
+        },
+        "customerOrAgent": true
+      }
+    },
+    "Annotations": []
+  },
+  "Actions": [
+    {
+      "Parameters": {},
+      "Identifier": "End flow",
+      "Type": "DisconnectParticipant",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {},
+      "Identifier": "Route voicemail",
+      "Type": "TransferContactToQueue",
+      "Transitions": {
+        "NextAction": "End flow",
+        "Errors": [
+          {
+            "NextAction": "End flow",
+            "ErrorType": "QueueAtCapacity"
+          },
+          {
+            "NextAction": "End flow",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ComparisonValue": "$.Attributes.vmx3_target"
+      },
+      "Identifier": "Check for Agent routing",
+      "Type": "Compare",
+      "Transitions": {
+        "NextAction": "Route voicemail",
+        "Conditions": [
+          {
+            "NextAction": "Set preferred agent",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "agent"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "Route voicemail",
+            "ErrorType": "NoMatchingCondition"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "RoutingCriteria": {
+          "Steps": [
+            {
+              "Expression": {
+                "AttributeCondition": {
+                  "ComparisonOperator": "Match",
+                  "MatchCriteria": {
+                    "AgentsCriteria": {
+                      "AgentIds": [
+                        "$.Attributes.vmx3_preferred_agent_id"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "Identifier": "Set preferred agent",
+      "Type": "UpdateContactRoutingCriteria",
+      "Transitions": {
+        "NextAction": "Route voicemail",
+        "Errors": [
+          {
+            "NextAction": "Route voicemail",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "QueueId": "$.Attributes.vmx3_queue_arn"
+      },
+      "Identifier": "Set the target queue",
+      "Type": "UpdateContactTargetQueue",
+      "Transitions": {
+        "NextAction": "Check for Agent routing",
+        "Errors": [
+          {
+            "NextAction": "Check for Agent routing",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "Turn on logging",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "6a435cc2-c524-4a01-b10a-defa584508c2"
+      }
+    },
+    {
+      "Parameters": {
+        "EventHooks": {
+          "CustomerQueue": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/contact-flow/017c14ad-7e10-46c7-85ac-2ef820de24be"
+        }
+      },
+      "Identifier": "6a435cc2-c524-4a01-b10a-defa584508c2",
+      "Type": "UpdateContactEventHooks",
+      "Transitions": {
+        "NextAction": "Set the target queue",
+        "Errors": [
+          {
+            "NextAction": "Set the target queue",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    }
+  ]
+}

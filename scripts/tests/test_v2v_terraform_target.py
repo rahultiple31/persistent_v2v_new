@@ -294,6 +294,34 @@ fi
             *(f"-target={address}" for address in MOVED_CONNECT_TARGETS),
         ])
 
+    def test_voicemail_targets_its_module_in_existing_connect_state(self):
+        result = self.run_selector("voicemail", details=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        group, backend, *arguments = result.stdout.splitlines()
+        self.assertEqual(group, "connect")
+        self.assertEqual(backend, "terraform-state/v2v/us-east-1/connect/terraform.tfstate")
+        # Only the voicemail module; the moved-flow targets would pull in the
+        # survey data-table stack and its dependent flows.
+        self.assertEqual([a for a in arguments if a.startswith("-target=")], [
+            "-target=module.voicemail[0]",
+        ])
+
+    def test_voicemail_accepts_creates_and_updates(self):
+        result = self.run_selector("voicemail", plan(group="connect", changes=[
+            change("module.voicemail[0].aws_s3_bucket.this[\"recordings\"]", ["create"]),
+            change("module.voicemail[0].aws_lambda_function.this[\"Packager\"]", ["update"]),
+        ]))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_voicemail_rejects_deletions_and_replacements(self):
+        for actions in (["delete"], ["delete", "create"], ["create", "delete"]):
+            with self.subTest(actions=actions):
+                result = self.run_selector("voicemail", plan(group="connect", changes=[
+                    change("module.voicemail[0].aws_kinesis_stream.ctr", actions),
+                ]))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing voicemail plan that deletes", result.stderr)
+
     def test_lambda_renames_retain_state_and_accept_plans_for_new_targets(self):
         for target, state in (
             ("BTSGSD-V2V-US-SNOW", "lambda-snow-btsgsd-dev"),

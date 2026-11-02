@@ -321,6 +321,24 @@ output "vmx3_main_vm_module" {
   }, null)
 }
 
+output "voicemail" {
+  description = "New VMX3 voicemail stack (module.voicemail)."
+  value = try({
+    kms_key_arn        = module.voicemail[0].kms_key_arn
+    kinesis_kms_key    = module.voicemail[0].kinesis_kms_key_arn
+    recordings_bucket  = module.voicemail[0].recordings_bucket
+    transcripts_bucket = module.voicemail[0].transcripts_bucket
+    kinesis_stream_arn = module.voicemail[0].kinesis_stream_arn
+    secret_arn         = module.voicemail[0].secret_arn
+    lambda_role_arn    = module.voicemail[0].lambda_role_arn
+    layer_version_arn  = module.voicemail[0].layer_version_arn
+    function_arns      = module.voicemail[0].function_arns
+    event_rule_arns    = module.voicemail[0].event_rule_arns
+    task_flow          = module.voicemail[0].task_flow
+    flow_module        = module.voicemail[0].flow_module
+  }, null)
+}
+
 output "v2v_code_signing_config_arn" {
   value = try(
     module.code_signing_config[0].code_signing_config_arn,

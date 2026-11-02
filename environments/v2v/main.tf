@@ -122,7 +122,7 @@ module "aiagent_survey_flow" {
   settings = merge(local.connect_flow_settings, {
     survey_data_table_id          = local.survey_data_table_id
     session_attributes_lambda_arn = module.BTSGSD-V2V-US-UpdateSessionAttributes[0].lambda_arn
-    timestamper_lambda_arn        = var.vmx3_timestamper_lambda_arn
+    timestamper_lambda_arn        = module.voicemail[0].timestamper_lambda_arn
   })
 
   depends_on = [module.BTSGSD-V2V-US-UpdateSessionAttributes]
@@ -186,6 +186,34 @@ module "vmx3_main_vm_module" {
   survey_data_table_id   = local.survey_data_table_id
   timestamper_lambda_arn = var.vmx3_timestamper_lambda_arn
   tags                   = local.common_tags
+}
+
+# VMX3 voicemail stack (new BTSGSD-V2V-US-voicemail* resources). Shares the
+# connect state; deploy it alone with the "voicemail" pipeline choice.
+# The console-built voicemail-v2v* resources are untouched (see module README).
+module "voicemail" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/voicemail"
+  providers = {
+    aws     = aws.us_east_1
+    archive = archive
+  }
+
+  name_prefix  = local.name_prefix
+  instance_arn = local.connect_target_instance_arn
+
+  # Same queue, prompt and data table the existing VMX3 module uses.
+  voicemail_queue_arn  = var.vmx3_voicemail_queue_arn
+  beep_prompt_arn      = var.vmx3_beep_prompt_arn
+  prompt_data_table_id = local.voicemail_prompt_data_table_id
+
+  presigner_user_name            = var.voicemail_presigner_user_name
+  create_presigner_access_key    = var.voicemail_create_presigner_access_key
+  presigner_credentials          = var.voicemail_presigner_credentials
+  connect_recordings_bucket_name = var.voicemail_connect_recordings_bucket_name
+  associate_ctr_stream           = var.voicemail_associate_ctr_stream
+  code_signing_config_arn        = var.lambda_code_signing_config_arn
+  tags                           = local.common_tags
 }
 
 module "btsgsd-Main-IB-Flow" {
@@ -1753,13 +1781,30 @@ locals {
     reverse(split("/", aws_cloudformation_stack.survey_data_table[0].outputs["DataTableArn"])),
     0
   ), null)
+
+  survey_data_table_stack_name = "BTSGSD-V2V-US-SurveyDataTable"
+
+  # Same table ID, read from the deployed stack instead of the managed
+  # resource, so "-target=module.voicemail[0]" does not pull the stack (and
+  # its dependent flows) into the voicemail plan.
+  voicemail_prompt_data_table_id = try(element(
+    reverse(split("/", data.aws_cloudformation_stack.survey_data_table[0].outputs["DataTableArn"])),
+    0
+  ), null)
+}
+
+data "aws_cloudformation_stack" "survey_data_table" {
+  count    = local.deploy_connect ? 1 : 0
+  provider = aws.us_east_1
+
+  name = local.survey_data_table_stack_name
 }
 
 resource "aws_cloudformation_stack" "survey_data_table" {
   count    = local.deploy_connect ? 1 : 0
   provider = aws.us_east_1
 
-  name          = "BTSGSD-V2V-US-SurveyDataTable"
+  name          = local.survey_data_table_stack_name
   template_body = jsonencode(local.survey_template)
   parameters = {
     InstanceArn = data.aws_connect_instance.target[0].arn
@@ -2254,6 +2299,7 @@ module "connect_resources" {
   moh_30sec_prompt_s3_uri      = var.moh_30sec_prompt_s3_uri
   tags                         = local.common_tags
 }
+
 
 # signing_profile
 

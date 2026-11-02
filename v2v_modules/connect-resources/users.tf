@@ -3,7 +3,7 @@ resource "aws_connect_user" "this" {
 
   instance_id          = local.instance_id
   name                 = each.key
-  routing_profile_id   = local.routing_profile_ids[each.value.routing_profile]
+  routing_profile_id   = local.user_routing_profile_ids[each.value.routing_profile]
   security_profile_ids = [local.security_profile_ids[each.value.security_profile]]
 
   identity_info {

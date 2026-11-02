@@ -51,7 +51,7 @@ connect_resources_dependencies = {
 
 # Resolve exported customer-queue dependencies to their existing Dev names.
 connect_customer_queue_dependency_names = {
-  "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us" = "voicemail-v2v-module"
+  "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us" = "BTSGSD-V2V-US-VMX3_Main_VM_Module"
   "CustomerQueueMOH"                                   = "CustomerQueue.wav"
 }
 
@@ -183,6 +183,14 @@ main_ib_phone_lookup_function_name = "SNOW_Abbvie"
 vmx3_voicemail_queue_arn    = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/queue/257cafaf-87c4-4e32-9f0b-3fbb8b942433"
 vmx3_beep_prompt_arn        = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/prompt/ccf6f51f-b39a-4ccd-aa65-80349b07bf65"
 vmx3_timestamper_lambda_arn = "arn:aws:lambda:us-east-1:518902362956:function:voicemail-v2v-VoicemailTimestamper"
+
+# New VMX3 voicemail stack (module.voicemail, pipeline choice "voicemail").
+# Instance call-recording bucket from the CALL_RECORDINGS storage config.
+voicemail_connect_recordings_bucket_name = "amazon-connect-e9a2e832a017"
+voicemail_presigner_user_name            = "VMX3_Presigner_User_btsgsd-dev-us-east-1"
+voicemail_create_presigner_access_key    = true
+# Keep false until the console CTR association to voiceMail-v2v is removed.
+voicemail_associate_ctr_stream = true
 
 enable_external_vms = true
 

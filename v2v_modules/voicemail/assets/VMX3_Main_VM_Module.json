@@ -1,0 +1,601 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "Turn on flow logging.",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": -436.8,
+      "y": 330.4
+    },
+    "ActionMetadata": {
+      "Wait for caller to record.": {
+        "position": {
+          "x": 2525.6,
+          "y": 188.8
+        },
+        "isFriendlyName": true,
+        "conditionMetadata": []
+      },
+      "Set Timestamp Function": {
+        "position": {
+          "x": 1112,
+          "y": 296.8
+        },
+        "isFriendlyName": true
+      },
+      "Set the vmx3_flag attribute for processing": {
+        "position": {
+          "x": 1583.2,
+          "y": 300.8
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "Attributes": {
+            "vmx3_timestamp": {
+              "useDynamic": true
+            }
+          }
+        },
+        "dynamicParams": [
+          "vmx3_timestamp"
+        ]
+      },
+      "Set recording timestamp": {
+        "position": {
+          "x": 1354.4,
+          "y": 304
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "LambdaFunctionARN": {
+            "useDynamic": true
+          }
+        },
+        "dynamicMetadata": {},
+        "useDynamic": true
+      },
+      "Was the vmx3_flag already set?": {
+        "position": {
+          "x": 1815.2,
+          "y": 563.2
+        },
+        "isFriendlyName": true,
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "a83f69fb-c06f-4f49-a895-3f6e13f24780",
+            "operator": {
+              "name": "Is greater than",
+              "value": "GreaterThan",
+              "shortDisplay": ">"
+            },
+            "value": "0"
+          }
+        ]
+      },
+      "Clear vmx3_flag": {
+        "position": {
+          "x": 2139.2,
+          "y": 564.8
+        },
+        "isFriendlyName": true,
+        "dynamicParams": []
+      },
+      "***Return to source flow***": {
+        "position": {
+          "x": 2692,
+          "y": 585.6
+        },
+        "isFriendlyName": true
+      },
+      "Voicemail Timer Loop": {
+        "position": {
+          "x": 2258.4,
+          "y": 294.4
+        },
+        "isFriendlyName": true
+      },
+      "Set vmx3 tag": {
+        "position": {
+          "x": 1813.6,
+          "y": 296
+        },
+        "isFriendlyName": true
+      },
+      "Play the start recording beep using SSML": {
+        "position": {
+          "x": 2036.8,
+          "y": 296
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "PromptId": {
+            "displayName": "Beep.wav"
+          }
+        },
+        "promptName": "Beep.wav"
+      },
+      "Turn on flow logging.": {
+        "position": {
+          "x": -240,
+          "y": 320
+        },
+        "isFriendlyName": true
+      },
+      "5a0d88a8-c2e7-4781-9081-8c8a9b23fe52": {
+        "position": {
+          "x": 3.2,
+          "y": 310.4
+        },
+        "parameters": {
+          "QueueId": {
+            "displayName": "BTSGSD-DEV-SSO-US-VM-QUEUE"
+          }
+        },
+        "queue": {
+          "text": "BTSGSD-DEV-SSO-US-VM-QUEUE"
+        }
+      },
+      "d5262c6a-7ba0-4b61-8222-13b2d47ae42f": {
+        "position": {
+          "x": 2766.4,
+          "y": 351.2
+        }
+      },
+      "20dcb216-d8bd-4a2b-8bad-9cd7d6be8335": {
+        "position": {
+          "x": 3220,
+          "y": 425.6
+        }
+      },
+      "Voicemail complete messaging.": {
+        "position": {
+          "x": 2996.8,
+          "y": 347.2
+        },
+        "isFriendlyName": true
+      },
+      "Enable Automated Interaction Recording": {
+        "position": {
+          "x": 880.8,
+          "y": 310.4
+        },
+        "isFriendlyName": true
+      },
+      "Error messaging.": {
+        "position": {
+          "x": 2441.6,
+          "y": 847.2
+        },
+        "isFriendlyName": true
+      },
+      "voicemail attributes": {
+        "position": {
+          "x": 231.2,
+          "y": 305.6
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "Attributes": {
+            "vmx3_from": {
+              "useDynamic": true
+            }
+          }
+        },
+        "dynamicParams": [
+          "vmx3_from"
+        ]
+      },
+      "f1a21826-b523-4b94-aa2a-c1e075171b07": {
+        "position": {
+          "x": 528.8,
+          "y": 303.2
+        },
+        "parameters": {
+          "DataTableId": {
+            "displayName": "BTSGSD-Survey-DataTable"
+          }
+        }
+      }
+    },
+    "Annotations": [
+      {
+        "type": "default",
+        "id": "24870304-c296-4b57-b25b-b9d81b8677f6",
+        "content": "This is the core voicemail experience. This flow module handles the initialization of Automated Interaction Recording, configuration of the minimum flags required to process the voicemail, and provides the customer experience. This module can be invoked from any normal contact flow.\n\nThe following attributes MUST have been defined previously:\n\nvmx3_mode\nvmx3_from\nvmx3_lang\nvmx3_queue_arn\nvmx3_target",
+        "actionId": "",
+        "isFolded": false,
+        "position": {
+          "x": 524,
+          "y": 645.6666564941406
+        },
+        "size": {
+          "height": 295,
+          "width": 300
+        }
+      },
+      {
+        "type": "default",
+        "id": "fc6e05de-7d2f-4fb4-827e-7a0ed7f71ba9",
+        "content": "Setting max time for a voicemail may require two changes:\n\n1. Change the timeout for the Get customer input block. Max time is 180 seconds (3 min)\n2. If you need more than 3 minutes, adjust the number of loops in the voicemail timer loop. ",
+        "actionId": "",
+        "isFolded": false,
+        "position": {
+          "x": 2790,
+          "y": 9.666656494140625
+        },
+        "size": {
+          "height": 295,
+          "width": 300
+        }
+      }
+    ]
+  },
+  "Actions": [
+    {
+      "Parameters": {
+        "StoreInput": "False",
+        "InputTimeLimitSeconds": "60",
+        "SSML": "<speak>\n<break time=\"5s\"/>\n</speak>"
+      },
+      "Identifier": "Wait for caller to record.",
+      "Type": "GetParticipantInput",
+      "Transitions": {
+        "NextAction": "d5262c6a-7ba0-4b61-8222-13b2d47ae42f",
+        "Errors": [
+          {
+            "NextAction": "Voicemail Timer Loop",
+            "ErrorType": "InputTimeLimitExceeded"
+          },
+          {
+            "NextAction": "d5262c6a-7ba0-4b61-8222-13b2d47ae42f",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "Error messaging.",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowAttributes": {
+          "vmx3_timestamper_function": {
+            "Value": "arn:aws:lambda:us-east-1:518902362956:function:VMX3-VoicemailTimestamper-abbvie-sd-contactcenter-dev-us"
+          }
+        }
+      },
+      "Identifier": "Set Timestamp Function",
+      "Type": "UpdateFlowAttributes",
+      "Transitions": {
+        "NextAction": "Set recording timestamp",
+        "Errors": [
+          {
+            "NextAction": "Error messaging.",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "vmx3_flag": "1",
+          "vmx3_timestamp": "$.External.vmx3_timestamp"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "Set the vmx3_flag attribute for processing",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "Set vmx3 tag",
+        "Errors": [
+          {
+            "NextAction": "Was the vmx3_flag already set?",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "LambdaFunctionARN": "$.FlowAttributes.vmx3_timestamper_function",
+        "InvocationTimeLimitSeconds": "3",
+        "InvocationType": "SYNCHRONOUS",
+        "ResponseValidation": {
+          "ResponseType": "STRING_MAP"
+        }
+      },
+      "Identifier": "Set recording timestamp",
+      "Type": "InvokeLambdaFunction",
+      "Transitions": {
+        "NextAction": "Set the vmx3_flag attribute for processing",
+        "Errors": [
+          {
+            "NextAction": "Was the vmx3_flag already set?",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ComparisonValue": "$.Attributes.vmx3_flag"
+      },
+      "Identifier": "Was the vmx3_flag already set?",
+      "Type": "Compare",
+      "Transitions": {
+        "NextAction": "Error messaging.",
+        "Conditions": [
+          {
+            "NextAction": "Clear vmx3_flag",
+            "Condition": {
+              "Operator": "NumberGreaterThan",
+              "Operands": [
+                "0"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "Error messaging.",
+            "ErrorType": "NoMatchingCondition"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "vmx3_flag": "0"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "Clear vmx3_flag",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "Error messaging.",
+        "Errors": [
+          {
+            "NextAction": "Error messaging.",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "***Return to source flow***",
+      "Type": "EndFlowModuleExecution",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "LoopCount": "1"
+      },
+      "Identifier": "Voicemail Timer Loop",
+      "Type": "Loop",
+      "Transitions": {
+        "NextAction": "d5262c6a-7ba0-4b61-8222-13b2d47ae42f",
+        "Conditions": [
+          {
+            "NextAction": "Wait for caller to record.",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "ContinueLooping"
+              ]
+            }
+          },
+          {
+            "NextAction": "d5262c6a-7ba0-4b61-8222-13b2d47ae42f",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "DoneLooping"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Tags": {
+          "function": "vmx3"
+        }
+      },
+      "Identifier": "Set vmx3 tag",
+      "Type": "TagContact",
+      "Transitions": {
+        "NextAction": "Play the start recording beep using SSML",
+        "Errors": [
+          {
+            "NextAction": "Play the start recording beep using SSML",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "PromptId": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/prompt/013f3d08-8171-4bb2-a93b-80f895e008db"
+      },
+      "Identifier": "Play the start recording beep using SSML",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "Voicemail Timer Loop",
+        "Errors": [
+          {
+            "NextAction": "Voicemail Timer Loop",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "Turn on flow logging.",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "5a0d88a8-c2e7-4781-9081-8c8a9b23fe52"
+      }
+    },
+    {
+      "Parameters": {
+        "QueueId": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/queue/713f62d2-6348-45ad-988a-bb6f1ef221b1"
+      },
+      "Identifier": "5a0d88a8-c2e7-4781-9081-8c8a9b23fe52",
+      "Type": "UpdateContactTargetQueue",
+      "Transitions": {
+        "NextAction": "voicemail attributes",
+        "Errors": [
+          {
+            "NextAction": "voicemail attributes",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "RecordingBehavior": {
+          "RecordedParticipants": [],
+          "IVRRecordingBehavior": "Disabled"
+        }
+      },
+      "Identifier": "d5262c6a-7ba0-4b61-8222-13b2d47ae42f",
+      "Type": "UpdateContactRecordingBehavior",
+      "Transitions": {
+        "NextAction": "Voicemail complete messaging."
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "20dcb216-d8bd-4a2b-8bad-9cd7d6be8335",
+      "Type": "EndFlowModuleExecution",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak>$.DataTables.LanguageCheck.voiceMailSaved</speak>"
+      },
+      "Identifier": "Voicemail complete messaging.",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "20dcb216-d8bd-4a2b-8bad-9cd7d6be8335",
+        "Errors": [
+          {
+            "NextAction": "20dcb216-d8bd-4a2b-8bad-9cd7d6be8335",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "RecordingBehavior": {
+          "RecordedParticipants": [],
+          "IVRRecordingBehavior": "Enabled"
+        }
+      },
+      "Identifier": "Enable Automated Interaction Recording",
+      "Type": "UpdateContactRecordingBehavior",
+      "Transitions": {
+        "NextAction": "Set Timestamp Function"
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak>$.DataTables.LanguageCheck.voiceMailModuleError</speak>"
+      },
+      "Identifier": "Error messaging.",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "***Return to source flow***",
+        "Errors": [
+          {
+            "NextAction": "***Return to source flow***",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "vmx3_mode": "task",
+          "vmx3_target": "queue",
+          "vmx3_from": "$.CustomerEndpoint.Address",
+          "vmx3_lang": "$.Attributes.Customer_Prefferred_Language",
+          "vmx3_queue_arn": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/queue/713f62d2-6348-45ad-988a-bb6f1ef221b1"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "voicemail attributes",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "f1a21826-b523-4b94-aa2a-c1e075171b07",
+        "Errors": [
+          {
+            "NextAction": "Error messaging.",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "DataTableId": "0c2359aa-9062-43ec-9d0d-abc5861c2197",
+        "Queries": [
+          {
+            "QueryName": "LanguageCheck",
+            "Attributes": [
+              "voiceMailModuleError",
+              "voiceMailSaved"
+            ],
+            "PrimaryValues": [
+              {
+                "AttributeName": "Language",
+                "Value": "$.Attributes.IVR_Prefferred_Language"
+              }
+            ]
+          }
+        ]
+      },
+      "Identifier": "f1a21826-b523-4b94-aa2a-c1e075171b07",
+      "Type": "EvaluateDataTableValues",
+      "Transitions": {
+        "NextAction": "Enable Automated Interaction Recording",
+        "Errors": [
+          {
+            "NextAction": "Error messaging.",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    }
+  ],
+  "Settings": {
+    "InputParameters": [],
+    "OutputParameters": [],
+    "Transitions": [
+      {
+        "DisplayName": "Success",
+        "ReferenceName": "Success",
+        "Description": ""
+      },
+      {
+        "DisplayName": "Error",
+        "ReferenceName": "Error",
+        "Description": ""
+      }
+    ]
+  }
+}
