@@ -12,7 +12,7 @@ import unittest
 
 from scripts.tests.test_v2v_terraform_target import (
     BASH, ROOT, RESOURCE_MODULE_CHOICES, DESTROY_CHOICES, ALL_FLOW_TARGETS,
-    MOVED_CONNECT_TARGETS, change, plan,
+    MOVED_CONNECT_TARGETS, MOVED_DATA_TABLE_TARGETS, change, plan,
     TRANSFER_TABLE_DESTROY_CHOICE, TRANSFER_TABLE_TARGETS, DATA_TABLE_MODULE_CHOICES,
     STATE_MIGRATION_CHOICE,
 )
@@ -200,7 +200,7 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
             self.assertIn(f"packages <{command}>", trace)
         self.assertNotIn("<-destroy>", trace)
 
-    def test_lambda_networking_choices_apply_only_the_selected_module_in_connect_state(self):
+    def test_lambda_networking_choices_include_data_table_moves_in_connect_state(self):
         for choice in ("lambda_security_groups", "lambda_endpoint_associations"):
             with self.subTest(choice=choice):
                 self.prepare("v2v", choice)
@@ -216,6 +216,7 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
                 )
                 self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), [
                     f"module.{choice}[0]",
+                    *MOVED_DATA_TABLE_TARGETS,
                 ])
                 self.assertIn('<-var=enabled_modules=["connect"]>', plan_command)
                 self.assertNotIn("<-destroy>", plan_command)

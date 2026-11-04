@@ -58,7 +58,7 @@ resource "aws_lambda_function" "survey" {
   environment {
     variables = merge(var.environment_variables, {
       CONNECT_INSTANCE_ID = data.aws_connect_instance.selected.id
-      S3_REGION           = data.aws_region.current.name
+      S3_REGION           = data.aws_region.current.region
     }, module.application_signals.environment_variables)
   }
 

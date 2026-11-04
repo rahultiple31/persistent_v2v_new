@@ -76,10 +76,10 @@ resource "aws_iam_role_policy" "lambda" {
         Sid      = "UseS3KmsKey"
         Effect   = "Allow"
         Action   = ["kms:GenerateDataKey", "kms:Decrypt"]
-        Resource = "arn:${data.aws_partition.current.partition}:kms:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:key/*"
+        Resource = "arn:${data.aws_partition.current.partition}:kms:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:key/*"
         Condition = {
           StringEquals = {
-            "kms:ViaService"    = "s3.${data.aws_region.current.name}.amazonaws.com"
+            "kms:ViaService"    = "s3.${data.aws_region.current.region}.amazonaws.com"
             "kms:CallerAccount" = data.aws_caller_identity.current.account_id
           }
         }

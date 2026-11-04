@@ -195,7 +195,7 @@ esac
 # Include both source and destination addresses of moved Connect flows.
 # The full connect choice already plans all resources without -target.
 # Voicemail and the Lambda networking choices have no moved flows. Exclude
-# them so these targets do not pull in the survey stack and dependent flows.
+# them so these targets do not pull in dependent flows.
 if [ "$TERRAFORM_STATE_MODULE" = connect ] &&
    [ "$DEPLOYMENT_TARGET" != connect ] &&
    [ "$DEPLOYMENT_TARGET" != voicemail ] &&
@@ -210,6 +210,22 @@ if [ "$TERRAFORM_STATE_MODULE" = connect ] &&
     "-target=module.aiagent_survey_flow[0].module.flow.aws_connect_contact_flow.this"
     "-target=module.customer_queue_flow[0].module.flow.aws_connect_contact_flow.this"
     "-target=module.outbound_whisper_flow[0].module.flow.aws_connect_contact_flow.this"
+  )
+fi
+
+# Include both ends of data-table moves for targeted Connect deployments.
+# Full-group plans already include them; keep destroy and state-only runs scoped.
+if [ "$TERRAFORM_STATE_MODULE" = connect ] &&
+   [ "$DEPLOYMENT_TARGET" != connect ] &&
+   [ "$TERRAFORM_DESTROY_ONLY" != true ] &&
+   [ "$TERRAFORM_STATE_MIGRATION_ONLY" != true ]; then
+  TERRAFORM_PLAN_ARGS+=(
+    "-target=aws_cloudformation_stack.bts_gsd_customer_number_data_table"
+    "-target=aws_cloudformation_stack.survey_data_table"
+    "-target=aws_s3_object.survey_table_template"
+    "-target=module.bts_gsd_customer_number_data_table[0].aws_cloudformation_stack.this"
+    "-target=module.survey_data_table[0].aws_cloudformation_stack.this"
+    "-target=module.survey_data_table[0].aws_s3_object.template[0]"
   )
 fi
 

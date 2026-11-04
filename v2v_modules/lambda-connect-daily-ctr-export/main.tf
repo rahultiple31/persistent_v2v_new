@@ -63,7 +63,7 @@ resource "aws_lambda_function" "export" {
       CONNECT_INSTANCE_ID = data.aws_connect_instance.selected.id
       S3_BUCKET           = var.s3_bucket_name
       S3_PREFIX           = local.s3_prefix_by_area[var.deployment_area]
-      S3_REGION           = data.aws_region.current.name
+      S3_REGION           = data.aws_region.current.region
     }, module.application_signals.environment_variables)
   }
 
