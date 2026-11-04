@@ -22,48 +22,7 @@
 //   The latency cost lands only on the failure path; the happy path still runs
 //   entirely through Nova Sonic.
 import { LOGGER_PREFIX, POLLY_FALLBACK_VOICE_MAP, POLLY_NEAREST_NEIGHBOUR_MAP } from "../constants";
-import { PROXY_CONFIG } from "../config";
-import { getValidAwsCredentials, hasValidAwsCredentials } from "../utils/authUtility";
 import { requestProxyFallback } from "../utils/proxyTransport";
-
-let _translateClient;
-let _pollyClient;
-let _translateRegion;
-let _pollyRegion;
-let _sdk;
-
-/**
- * Direct mode only. Both clients are rebuilt whenever the Cognito credentials go
- * stale, mirroring getBedrockRuntimeClient() in novaSonicAdapter.js. The SDK
- * modules are imported on first use so the proxy build never loads them.
- */
-async function getClients(translateRegion, pollyRegion) {
-  if (
-    _translateClient &&
-    _pollyClient &&
-    _translateRegion === translateRegion &&
-    _pollyRegion === pollyRegion &&
-    hasValidAwsCredentials()
-  ) {
-    return { translate: _translateClient, polly: _pollyClient, sdk: _sdk };
-  }
-  const [c, translateSdk, pollySdk] = await Promise.all([
-    getValidAwsCredentials(),
-    import("@aws-sdk/client-translate"),
-    import("@aws-sdk/client-polly"),
-  ]);
-  _sdk = { TranslateTextCommand: translateSdk.TranslateTextCommand, SynthesizeSpeechCommand: pollySdk.SynthesizeSpeechCommand };
-  const credentials = {
-    accessKeyId: c.accessKeyId,
-    secretAccessKey: c.secretAccessKey,
-    sessionToken: c.sessionToken,
-  };
-  _translateClient = new translateSdk.TranslateClient({ region: translateRegion, credentials });
-  _pollyClient = new pollySdk.PollyClient({ region: pollyRegion, credentials });
-  _translateRegion = translateRegion;
-  _pollyRegion = pollyRegion;
-  return { translate: _translateClient, polly: _pollyClient, sdk: _sdk };
-}
 
 // fix 4: set after the first failed generative request (the region may not offer generative voices),
 // so later requests go straight to the neural voice instead of failing first every time.
@@ -96,9 +55,9 @@ function neuralRetryFor(voice) {
 }
 
 /**
- * Proxy mode: Translate and Polly run on the proxy with the same failure
- * semantics — null when translation fails, text without audio when only
- * synthesis fails. Logs carry language codes and the voice, never the text.
+ * Translate and Polly run on the proxy: null when translation fails, text
+ * without audio when only synthesis fails. Logs carry language codes and the
+ * voice, never the text.
  */
 async function synthesizeViaProxy({ text, sourceLangCode, targetLangCode, voice, voiceLabel, quiet }) {
   let result;
@@ -132,24 +91,6 @@ async function synthesizeViaProxy({ text, sourceLangCode, targetLangCode, voice,
   return { audio: result.audio, text: translatedText, voiceLabel };
 }
 
-/** Direct mode: SynthesizeSpeech, retried once with the neural voice if the generative one fails. */
-async function pollySpeak(polly, SynthesizeSpeechCommand, text, voice) {
-  voice = usableVoice(voice);
-  const speak = async (v) => {
-    const speech = await polly.send(
-      new SynthesizeSpeechCommand({ Text: text, OutputFormat: "mp3", VoiceId: v.voiceId, Engine: v.engine })
-    );
-    return speech.AudioStream.transformToByteArray();
-  };
-  try {
-    return { audio: await speak(voice), voice };
-  } catch (e) {
-    const retryVoice = neuralRetryFor(voice);
-    if (!retryVoice) throw e;
-    return { audio: await speak(retryVoice), voice: retryVoice };
-  }
-}
-
 /** Native Polly voice for the language, else the nearest neighbour (with a warning), else null. */
 function resolvePollyVoice(targetLangCode) {
   const native = POLLY_FALLBACK_VOICE_MAP[targetLangCode];
@@ -171,39 +112,21 @@ function resolvePollyVoice(targetLangCode) {
  *
  * @returns {Promise<{ audio: Uint8Array, text: string, voiceLabel: string } | null>}
  */
-export async function synthesizeTargetSpeech({ text, targetLangCode, translateRegion, pollyRegion }) {
+export async function synthesizeTargetSpeech({ text, targetLangCode }) {
   const t = (text || "").trim();
   if (!t) return null;
   const { voice } = resolvePollyVoice(targetLangCode);
   if (!voice) return null;
 
-  if (PROXY_CONFIG.enabled) {
-    const result = await synthesizeViaProxy({
-      text: t,
-      sourceLangCode: targetLangCode,
-      targetLangCode,
-      voice,
-      voiceLabel: `${voice.voiceId}/${voice.engine}`,
-      quiet: true,
-    });
-    return result && result.audio ? result : null;
-  }
-
-  try {
-    const { polly, sdk } = await getClients(translateRegion, pollyRegion);
-    const spoken = await pollySpeak(polly, sdk.SynthesizeSpeechCommand, t, voice);
-    return { audio: spoken.audio, text: t, voiceLabel: `${spoken.voice.voiceId}/${spoken.voice.engine}` };
-  } catch (e) {
-    console.error(`${LOGGER_PREFIX} - [FALLBACK] Amazon Polly failed (voice: ${voice.voiceId})`, e);
-    return null;
-  }
-}
-
-export function invalidateFallbackClients() {
-  _translateClient = null;
-  _pollyClient = null;
-  _translateRegion = null;
-  _pollyRegion = null;
+  const result = await synthesizeViaProxy({
+    text: t,
+    sourceLangCode: targetLangCode,
+    targetLangCode,
+    voice,
+    voiceLabel: `${voice.voiceId}/${voice.engine}`,
+    quiet: true,
+  });
+  return result && result.audio ? result : null;
 }
 
 /**
@@ -223,10 +146,11 @@ function isSameLanguage(a, b) {
  * @param {string} opts.sourceText     - What the agent actually said (source language)
  * @param {string} opts.sourceLangCode - Interpreter language code, e.g. "en"
  * @param {string} opts.targetLangCode - Interpreter language code, e.g. "es"
- * @param {string} opts.translateRegion - AWS region for Amazon Translate
- * @param {string} opts.pollyRegion     - AWS region for Amazon Polly
  * @param {boolean} [opts.quiet]        - Skip the success log line (used when prefetching a translation
  *                                        that may never be played)
+ * @param {boolean} [opts.preferNeural] - Use the neural voice where the map names a generative one. It is
+ *                                        quicker to synthesise; the fix 6 backup speaks every sentence, so
+ *                                        speed matters more there than sounding like the Nova Sonic voice.
  * @returns {Promise<{ audio: Uint8Array, text: string } | null>}
  *          MP3 bytes ready for AudioStreamManager.playAudioBuffer(), plus the
  *          translated text for the UI. Returns null when no translation could
@@ -237,9 +161,8 @@ export async function synthesizeFallbackTranslation({
   sourceText,
   sourceLangCode,
   targetLangCode,
-  translateRegion,
-  pollyRegion,
   quiet = false,
+  preferNeural = false,
 }) {
   const text = (sourceText || "").trim();
   if (!text) {
@@ -266,7 +189,9 @@ export async function synthesizeFallbackTranslation({
   //           translated text still reaches the UI transcript and the agent
   //           can read it, rather than returning null (which leaves both the
   //           transcript and the audio empty — worse than partial output).
-  const { voice, usingNearestNeighbour } = resolvePollyVoice(targetLangCode);
+  const resolved = resolvePollyVoice(targetLangCode);
+  const { usingNearestNeighbour } = resolved;
+  const voice = preferNeural && resolved.voice?.engine === "generative" ? neuralVersionOf(resolved.voice) : resolved.voice;
 
   // ── Tier 3 guard ─────────────────────────────────────────────────────────
   // If voice is still null here no native or nearest-neighbour Polly voice
@@ -283,79 +208,12 @@ export async function synthesizeFallbackTranslation({
     );
   }
 
-  if (PROXY_CONFIG.enabled) {
-    return synthesizeViaProxy({
-      text,
-      sourceLangCode,
-      targetLangCode,
-      voice: skipAudio ? null : voice,
-      voiceLabel: voice ? `${voice.voiceId}/${voice.engine}${usingNearestNeighbour ? " [nearest-neighbour]" : ""}` : "none",
-      quiet,
-    });
-  }
-
-  const { translate, polly, sdk } = await getClients(translateRegion, pollyRegion);
-  const { TranslateTextCommand, SynthesizeSpeechCommand } = sdk;
-
-  // ── 1. Translate ──────────────────────────────────────────────────────────
-  let translatedText;
-  try {
-    const result = await translate.send(
-      new TranslateTextCommand({
-        Text: text,
-        SourceLanguageCode: sourceLangCode,
-        TargetLanguageCode: targetLangCode,
-      })
-    );
-    translatedText = (result?.TranslatedText || "").trim();
-  } catch (e) {
-    console.error(`${LOGGER_PREFIX} - [FALLBACK] Amazon Translate failed`, e);
-    return null;
-  }
-
-  if (!translatedText) {
-    console.error(`${LOGGER_PREFIX} - [FALLBACK] Amazon Translate returned empty text`);
-    return null;
-  }
-
-  // ── 2. Synthesise ─────────────────────────────────────────────────────────
-  // Skipped when skipAudio=true (Tier 3 path: no native or nearest-neighbour
-  // Polly voice). We still return the translated text so the UI transcript is
-  // updated. The caller must guard on result.audio before attempting playback.
-  let audio = null;
-  if (!skipAudio) {
-    let spokenVoice = voice;
-    try {
-      const spoken = await pollySpeak(polly, SynthesizeSpeechCommand, translatedText, voice);
-      audio = spoken.audio;
-      spokenVoice = spoken.voice;
-    } catch (e) {
-      console.error(
-        `${LOGGER_PREFIX} - [FALLBACK] Amazon Polly failed` +
-        ` (voice: ${voice.voiceId}, engine: ${voice.engine})`,
-        e
-      );
-      // Polly failed but translation succeeded — return text-only so the
-      // transcript is still updated rather than losing the turn entirely.
-      return { audio: null, text: translatedText };
-    }
-
-    const voiceLabel = usingNearestNeighbour
-      ? `${spokenVoice.voiceId}/${spokenVoice.engine} [nearest-neighbour for "${targetLangCode}"]`
-      : `${spokenVoice.voiceId}/${spokenVoice.engine}`;
-    if (!quiet) {
-      console.info(
-        `${LOGGER_PREFIX} - [FALLBACK] synthesised ${sourceLangCode}→${targetLangCode}` +
-        ` via ${voiceLabel} | "${translatedText.slice(0, 60)}"`
-      );
-    }
-    return { audio, text: translatedText, voiceLabel };
-  } else {
-    console.info(
-      `${LOGGER_PREFIX} - [FALLBACK] translate-only (no Polly voice) ${sourceLangCode}→${targetLangCode}` +
-      ` | "${translatedText.slice(0, 60)}"`
-    );
-  }
-
-  return { audio, text: translatedText };
+  return synthesizeViaProxy({
+    text,
+    sourceLangCode,
+    targetLangCode,
+    voice: skipAudio ? null : voice,
+    voiceLabel: voice ? `${voice.voiceId}/${voice.engine}${usingNearestNeighbour ? " [nearest-neighbour]" : ""}` : "none",
+    quiet,
+  });
 }

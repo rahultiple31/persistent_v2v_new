@@ -23,10 +23,9 @@
  *     MicWorkletStream.create() before this adapter starts).
  *   - Encodes audio with the same filtering downsampler as Nova Sonic
  *     (createPcm16Downsampler) — zero new encoding logic.
- *   - Feeds PCM16 chunks to StartStreamTranscriptionCommand as AudioEvent objects.
- *   - Filters TranscriptResultStream for IsPartial === false (final results only)
- *     to avoid UI flicker.
- *   - Uses the same Cognito credentials already obtained by getValidAwsCredentials().
+ *   - Sends PCM16 chunks to the server-side proxy, which runs the Transcribe stream
+ *     with its own AWS role and returns final results (no UI flicker), plus the
+ *     stable pieces of each sentence for the backup translation (onPiece).
  *
  * USAGE:
  *   const adapter = new TranscribeStreamAdapter({ ... });
@@ -36,8 +35,6 @@
  */
 
 import { LOGGER_PREFIX } from "../constants";
-import { PROXY_CONFIG } from "../config";
-import { getValidAwsCredentials } from "../utils/authUtility";
 import { createPcm16Downsampler } from "../utils/novaSonicAudioUtils";
 import { startTranscribeProxyStream } from "../utils/proxyTransport";
 
@@ -109,29 +106,36 @@ export class TranscribeStreamAdapter {
    * @param {AudioContext} opts.audioContext      - Shared AudioContext (from AudioContextManager)
    * @param {MediaStream}  opts.micMediaStream    - The mic MediaStream from MicWorkletStream.getMediaStream()
    * @param {string}       opts.languageCode      - Agent's source language (Nova Sonic code, e.g. "en")
-   * @param {string}       opts.region            - AWS region for Transcribe Streaming
    * @param {Function}     opts.onTranscript      - Called with final transcript string
+   * @param {Function}     [opts.onPiece]         - Called with each piece of a sentence as soon as the
+   *                                                proxy has it, before the sentence's final transcript.
+   *                                                The pieces of a sentence cover it exactly once.
+   *                                                Second argument: { words, confidence, wholeSentence }
+   *                                                (see noiseReason in utils/backupTranslation.js).
    * @param {Function}     [opts.onError]         - Called on unrecoverable error
+   * @param {Object}       [opts.diagnostics]     - fix 14: a mic check (utils/micCheck.js) that is shown the
+   *                                                audio, what is sent and what comes back. Read only.
    */
-  constructor({ audioContext, micMediaStream, languageCode, region, onTranscript, onError }) {
+  constructor({ audioContext, micMediaStream, languageCode, onTranscript, onPiece, onError, diagnostics }) {
     this._audioContext   = audioContext;
     this._micMediaStream = micMediaStream;
     this._languageCode   = toTranscribeLanguageCode(languageCode);
-    this._region         = region;
     this._onTranscript   = onTranscript;
+    this._onPiece        = onPiece ?? null;
     this._onError        = onError ?? ((e) => console.error(`${LOGGER_PREFIX} - TranscribeStreamAdapter error`, e));
+    this._diagnostics    = diagnostics ?? null;
 
     this._stopped        = false;
     this._sourceNode     = null;
     this._workletNode    = null;
 
-    // Queue for async generator that feeds audio to Transcribe
+    // Queue for the async generator that feeds audio to the proxy
     this._chunkQueue     = [];
     this._chunkResolve   = null;
   }
 
   /**
-   * Start capturing mic audio and streaming it to AWS Transcribe.
+   * Start capturing mic audio and streaming it to AWS Transcribe through the proxy.
    * Resolves once the Transcribe connection is established.
    */
   async start() {
@@ -162,6 +166,7 @@ export class TranscribeStreamAdapter {
     this._workletNode.port.onmessage = (event) => {
       if (this._stopped) return;
       const chunk = event.data.audioChunk; // Float32Array
+      this._diagnostics?.noteAudio(chunk, this._audioContext.sampleRate);
       if (this._chunkResolve) {
         const resolve = this._chunkResolve;
         this._chunkResolve = null;
@@ -172,75 +177,8 @@ export class TranscribeStreamAdapter {
       }
     };
 
-    if (PROXY_CONFIG.enabled) {
-      await this._startViaProxy();
-      return;
-    }
-
-    // --- 3. Build AWS Transcribe client with fresh Cognito credentials ---
-    const [credentials, { TranscribeStreamingClient, StartStreamTranscriptionCommand }] = await Promise.all([
-      getValidAwsCredentials(),
-      import("@aws-sdk/client-transcribe-streaming"),
-    ]);
-    const client = new TranscribeStreamingClient({
-      region: this._region,
-      credentials: {
-        accessKeyId:     credentials.accessKeyId,
-        secretAccessKey: credentials.secretAccessKey,
-        sessionToken:    credentials.sessionToken,
-      },
-    });
-
-    // --- 4. Send StartStreamTranscriptionCommand ---
-    const command = new StartStreamTranscriptionCommand({
-      LanguageCode:                    this._languageCode,
-      MediaSampleRateHertz:            TRANSCRIBE_SAMPLE_RATE,
-      MediaEncoding:                   "pcm",
-      EnablePartialResultsStabilization: true,
-      PartialResultsStability:         "high",
-      AudioStream:                     this._audioGenerator(),
-    });
-
-    // A failure here used to `return` silently. That is far more damaging than
-    // it looks: accumulated.user in main.js is fed exclusively by this adapter,
-    // and it is both the drift/refusal baseline AND the source text the
-    // Translate+Polly fallback needs. If this stream never starts, the guard is
-    // disarmed and the fallback has nothing to translate — untranslated audio
-    // then reaches the customer for the rest of the call with nothing logged.
-    // Retry, and make a final failure loud.
-    let response;
-    for (let attempt = 1; attempt <= MAX_START_ATTEMPTS; attempt++) {
-      try {
-        response = await client.send(command);
-        break;
-      } catch (e) {
-        if (this._stopped) return;
-        if (attempt === MAX_START_ATTEMPTS) {
-          console.error(
-            `${LOGGER_PREFIX} - TranscribeStreamAdapter failed to start after ` +
-            `${MAX_START_ATTEMPTS} attempts — drift baseline unavailable`,
-            e
-          );
-          this._onError(e);
-          return;
-        }
-        const backoffMs = attempt * 1000;
-        console.warn(
-          `${LOGGER_PREFIX} - TranscribeStreamAdapter start attempt ${attempt}/${MAX_START_ATTEMPTS} ` +
-          `failed, retrying in ${backoffMs}ms`,
-          e
-        );
-        await new Promise((r) => setTimeout(r, backoffMs));
-      }
-    }
-    if (!response) return;
-
-    // --- 5. Process response stream (runs until stop() is called) ---
-    this._processResponseStream(response.TranscriptResultStream).catch((e) => {
-      if (!this._stopped) this._onError(e);
-    });
-
-    console.info(`${LOGGER_PREFIX} - TranscribeStreamAdapter started (lang: ${this._languageCode})`);
+    // --- 3. Open the Transcribe stream through the proxy ---
+    await this._startViaProxy();
   }
 
   /**
@@ -252,8 +190,8 @@ export class TranscribeStreamAdapter {
 
     console.info(`${LOGGER_PREFIX} - TranscribeStreamAdapter stopping`);
 
-    // Unblock the async generator so it returns done → AudioStream ends →
-    // Transcribe closes the response stream naturally.
+    // Unblock the async generator so it returns done: the audio ends and the
+    // proxy stream closes naturally.
     if (this._chunkResolve) {
       this._chunkResolve({ value: undefined, done: true });
       this._chunkResolve = null;
@@ -270,7 +208,7 @@ export class TranscribeStreamAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // Proxy transport (PROXY_CONFIG.enabled)
+  // Proxy transport
   //
   // Audio goes to the proxy as binary PCM16 frames and the proxy returns FINAL
   // transcripts only. If the proxy closes the stream underneath us (a task being
@@ -293,8 +231,6 @@ export class TranscribeStreamAdapter {
    * Opens a proxy stream and feeds it audio straight away. Transcribe only
    * accepts a stream once audio arrives, so waiting for "ready" before sending
    * audio never completes: that is what timed out every attempt after 15 s.
-   * The direct path never hit this because the SDK starts reading the audio
-   * generator as soon as the request is sent.
    * Resolves once Transcribe has accepted the stream.
    */
   async _openProxySession() {
@@ -313,7 +249,7 @@ export class TranscribeStreamAdapter {
     return { stream, pump };
   }
 
-  /** Same retry policy as the direct path. Returns null (after reporting) when every attempt fails. */
+  /** Retries a failed start. Returns null (after reporting) when every attempt fails. */
   async _connectProxy() {
     for (let attempt = 1; attempt <= MAX_START_ATTEMPTS; attempt++) {
       try {
@@ -365,9 +301,26 @@ export class TranscribeStreamAdapter {
   /** Feeds audio into one proxy stream until the audio ends or the stream closes. */
   async _pumpProxy(stream) {
     const streamDone = (async () => {
+      let pieceSinceTranscript = false;
       for await (const { control } of stream.messages()) {
-        if (control?.type === "transcript") this._onTranscript(control.text);
-        else if (control?.type === "error") return `error: ${control.code}`;
+        if (control?.type === "piece") {
+          pieceSinceTranscript = true;
+          const about = {
+            words: control.words,
+            confidence: control.confidence,
+            wholeSentence: control.wholeSentence === true,
+          };
+          this._diagnostics?.notePhrase(control.text, about);
+          this._onPiece?.(control.text, about);
+        } else if (control?.type === "transcript") {
+          // A proxy from before pieces sends none: the whole sentence is then its only piece.
+          if (!pieceSinceTranscript) {
+            this._diagnostics?.notePhrase(control.text, { wholeSentence: true });
+            this._onPiece?.(control.text, { wholeSentence: true });
+          }
+          pieceSinceTranscript = false;
+          this._onTranscript(control.text);
+        } else if (control?.type === "error") return `error: ${control.code}`;
       }
       return `closed: ${stream.closeInfo?.code}`;
     })().then((reason) => ({ streamClosed: reason }));
@@ -381,7 +334,8 @@ export class TranscribeStreamAdapter {
         await streamDone;
         return "audioEnded";
       }
-      stream.sendBinary(next.value.AudioEvent.AudioChunk);
+      const sent = stream.sendBinary(next.value);
+      this._diagnostics?.noteSent(next.value?.byteLength ?? 0, sent !== false);
     }
   }
 
@@ -390,9 +344,8 @@ export class TranscribeStreamAdapter {
   // ---------------------------------------------------------------------------
 
   /**
-   * Async generator that yields AudioEvent objects for Transcribe.
-   * Pulls Float32 chunks from the worklet queue, encodes to PCM16 @ 16kHz,
-   * and wraps in the { AudioEvent: { AudioChunk } } envelope.
+   * Async generator that yields the audio for Transcribe: pulls Float32 chunks
+   * from the worklet queue and encodes them to PCM16 @ 16kHz.
    */
   async* _audioGenerator() {
     const inputSampleRate = this._audioContext.sampleRate;
@@ -416,44 +369,7 @@ export class TranscribeStreamAdapter {
       if (!chunk) break;
 
       // Encode: Float32 → low-pass + resample to 16kHz → PCM16 little-endian
-      const pcm16 = downsampler.process(chunk);
-
-      yield {
-        AudioEvent: {
-          AudioChunk: pcm16,
-        },
-      };
-    }
-  }
-
-  /**
-   * Consumes the TranscriptResultStream from Transcribe.
-   * Only fires onTranscript for final (non-partial) results.
-   */
-  async _processResponseStream(transcriptResultStream) {
-    try {
-      for await (const event of transcriptResultStream) {
-        if (this._stopped) break;
-
-        if (event.TranscriptEvent) {
-          const results = event.TranscriptEvent.Transcript?.Results ?? [];
-          for (const result of results) {
-            // Skip partial results — only emit final transcripts
-            if (result.IsPartial) continue;
-
-            const transcript = result.Alternatives?.[0]?.Transcript ?? "";
-            if (transcript.trim()) {
-              console.info(`${LOGGER_PREFIX} - TranscribeStreamAdapter final transcript: "${transcript}"`);
-              this._onTranscript(transcript);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      if (!this._stopped) {
-        console.error(`${LOGGER_PREFIX} - TranscribeStreamAdapter response stream error`, e);
-        this._onError(e);
-      }
+      yield downsampler.process(chunk);
     }
   }
 }

@@ -1,0 +1,33 @@
+# Ignore file for proxy_backend/CICD/Dockerfile. Docker uses it because it sits
+# next to that Dockerfile and is named after it; it takes precedence over any
+# .dockerignore at the repository root. (A .dockerignore inside proxy_backend
+# would NOT be read: the build context is the repository root.)
+#
+# The image only needs proxy_backend (package files + src) and the webapp
+# sources. Everything else stays out of the build, including Terraform
+# variables.
+
+.git
+**/.DS_Store
+**/node_modules
+
+# Repository root files (pipelines, docs)
+*.md
+*.yml
+
+# Terraform and other folders the image does not use
+docs
+environments
+modules
+modules-prod
+scripts
+v2v-resource-modules
+v2v_modules
+
+# Proxy folder: only package.json, package-lock.json and src are copied
+proxy_backend/test
+proxy_backend/CICD
+proxy_backend/*.md
+
+# Webapp: built inside the image, so a local build output is not sent
+webapp/dist

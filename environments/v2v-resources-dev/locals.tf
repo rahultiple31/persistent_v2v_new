@@ -75,7 +75,9 @@ locals {
 
   container_env_base = [
     { name = "NODE_ENV", value = "production" },
-    { name = "PORT", value = "8080" },
+    { name = "PORT", value = "8443" },
+    # HTTPS from the load balancer: the proxy makes its own certificate at start-up
+    { name = "SERVER_TLS", value = "self-signed" },
     { name = "LOG_LEVEL", value = "info" },
     { name = "OIDC_ISSUER", value = var.oidc_issuer },
     { name = "OIDC_AUDIENCE", value = local.oidc_audience },

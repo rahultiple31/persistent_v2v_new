@@ -4,7 +4,7 @@
 #   • S3 bucket for ALB access logs   (encrypted, SSL-enforced, 90-day lifecycle)
 #   • Application Load Balancer       (internal, drop invalid headers, 120 s idle)
 #   • HTTP or HTTPS listener          (TLS 1.2+ when certificate_arn is set)
-#   • Target group                    (IP targets, port 8080, /healthz health check)
+#   • Target group                    (IP targets, HTTPS 8443, HTTPS /healthz health check)
 #
 # Mirrors CDK: PrivatePocStack > Load balancer section
 ################################################################################
@@ -167,10 +167,18 @@ resource "aws_lb" "main" {
 # ── Target Group ──────────────────────────────────────────────────────────────
 # Standalone target group so the ALB listener can be moved from HTTP to HTTPS
 # without recreating the service registration (matches CDK design intent).
+#
+# HTTPS to the tasks too (port 8443): each task serves its own self-signed
+# certificate (SERVER_TLS=self-signed), which the ALB encrypts with but does
+# not check. Port above 1024 because the proxy does not run as root.
+#
+# A port or protocol change replaces the target group. Names must be unique,
+# so the name changed with the move to HTTPS, and create_before_destroy makes
+# the new group exist before the listener and service move off the old one.
 
 resource "aws_lb_target_group" "proxy" {
-  name        = "${var.stack_name}-proxy-tg"
-  port        = 8080
+  name        = "${var.stack_name}-proxy-tls"
+  port        = 8443
   protocol    = "HTTPS"
   target_type = "ip"
   vpc_id      = var.vpc_id
@@ -180,6 +188,8 @@ resource "aws_lb_target_group" "proxy" {
   deregistration_delay = 480
 
   health_check {
+    # Must be set: the health check protocol defaults to HTTP
+    protocol            = "HTTPS"
     path                = "/healthz"
     matcher             = "200"
     interval            = 10
@@ -189,7 +199,11 @@ resource "aws_lb_target_group" "proxy" {
   }
 
   tags = {
-    Name = "${var.stack_name}-proxy-tg"
+    Name = "${var.stack_name}-proxy-tls"
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -199,7 +213,7 @@ resource "aws_lb_listener" "http" {
   count             = var.https ? 0 : 1
   load_balancer_arn = aws_lb.main.arn
   port              = 80
-  protocol          = "HTTPS"
+  protocol          = "HTTP"
 
   default_action {
     type             = "forward"
@@ -207,7 +221,7 @@ resource "aws_lb_listener" "http" {
   }
 
   tags = {
-    Name = "${var.stack_name}-listener-https"
+    Name = "${var.stack_name}-listener-http"
   }
 }
 
@@ -220,7 +234,7 @@ resource "aws_lb_listener" "https" {
   protocol          = "HTTPS"
   certificate_arn   = var.certificate_arn
   # ELBSecurityPolicy-TLS13-1-2-2021-06 is the CDK RECOMMENDED_TLS policy
-  ssl_policy = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
 
   default_action {
     type             = "forward"

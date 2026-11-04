@@ -170,8 +170,8 @@ aws ssm put-parameter \
 ### `networking`
 | Resource | Description |
 |----------|-------------|
-| `aws_security_group.alb` | Ingress from VDI CIDRs → port 80/443; egress to service SG → 8080 |
-| `aws_security_group.service` | Ingress from ALB SG → 8080; egress HTTPS to anywhere |
+| `aws_security_group.alb` | Ingress from VDI CIDRs → port 80/443; egress to service SG → 8443 |
+| `aws_security_group.service` | Ingress from ALB SG → 8443; egress HTTPS to anywhere |
 | `aws_security_group.endpoint` | Ingress HTTPS from service SG + extra CIDRs |
 | `aws_vpc_endpoint.interface[*]` | bedrock-runtime, transcribestreaming, translate, polly, ssm, ecr.api, ecr.dkr, logs |
 
@@ -180,7 +180,7 @@ aws ssm put-parameter \
 |----------|-------------|
 | `aws_s3_bucket.alb_logs` | Encrypted, SSL-enforced, 90-day lifecycle, retained on destroy |
 | `aws_lb.main` | Internal ALB, drop invalid headers, 120 s idle timeout |
-| `aws_lb_target_group.proxy` | IP targets, port 8080, /healthz, 480 s deregistration delay |
+| `aws_lb_target_group.proxy` | IP targets, HTTPS 8443 (task's self-signed cert), HTTPS /healthz, 480 s deregistration delay |
 | `aws_lb_listener.http/https` | HTTP (80) or HTTPS (443) depending on `certificate_arn` |
 
 ### `waf`

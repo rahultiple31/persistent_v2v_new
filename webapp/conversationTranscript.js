@@ -116,6 +116,57 @@ export function addConversationMessage(
 }
 
 /**
+ * Take sentences out of the translation of the latest bubbles of one type (2026-10-15: a chatbot reply
+ * shown before it was recognised, and already saved as a bubble). Looks at the last `maxBubbles` bubbles
+ * of that type, newest first, and removes each sentence from the newest bubble that has it exactly, so
+ * the same words said earlier in the call are left alone.
+ *
+ * @param {string}   type       'toAgent' | 'fromAgent'
+ * @param {string[]} sentences  the texts to remove
+ * @param {number}   [maxBubbles=3]
+ * @returns {HTMLElement|null}  the translation element of the newest bubble changed, or null
+ */
+export function removeFromRecentTranslations(type, sentences, maxBubbles = 3) {
+  if (!_container) return null;
+  const rowClass = type === 'toAgent' ? 'ct-row--customer' : 'ct-row--agent';
+  const rows = [..._container.querySelectorAll(`.ct-row.${rowClass}`)].slice(-maxBubbles).reverse();
+  // Longest first, so a FINAL copy that contains a shorter SPECULATIVE copy is removed whole.
+  let texts = [...new Set(sentences.map((s) => (s || '').trim()).filter(Boolean))].sort((a, b) => b.length - a.length);
+  let newest = null;
+  for (const row of rows) {
+    if (!texts.length) break;
+    const el = row.querySelector('.ct-translated');
+    if (!el) continue;
+    let text = el.textContent || '';
+    const found = [];
+    for (const sentence of texts) {
+      if (!text.includes(sentence)) continue;
+      text = text.split(sentence).join(' ');
+      found.push(sentence);
+    }
+    // A sentence found here, or contained in one found here, is not looked for in older bubbles.
+    texts = texts.filter((sentence) => !found.some((f) => f.includes(sentence)));
+    text = text.replace(/\s+/g, ' ').trim();
+    if (text !== (el.textContent || '').trim()) {
+      el.textContent = text;
+      newest ??= el;
+    }
+  }
+  return newest;
+}
+
+/**
+ * Add text to a bubble's translation, e.g. the backup translation in place of sentences removed with
+ * removeFromRecentTranslations().
+ */
+export function appendToBubbleTranslation(el, text) {
+  const t = (text || '').trim();
+  if (!el || !t) return;
+  const current = (el.textContent || '').trim();
+  el.textContent = current ? `${current} ${t}` : t;
+}
+
+/**
  * Remove every conversation bubble from the panel.
  */
 export function clearConversationTranscript() {

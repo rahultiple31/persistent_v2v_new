@@ -164,7 +164,12 @@ export class TurnAccumulator {
 
     this.original = "";
     this.translated = "";
+    // 2026-10-15: pieces of the sentence being spoken now, shown after the original until the sentence's
+    // final text replaces them (showProvisionalOriginal). Never committed: the sentence's final text is.
+    this.provisional = "";
     this._timer = null;
+    // How many turns have been committed, so rollbackTranslation() knows whether its mark is still current.
+    this._commits = 0;
 
     // The last few translations put on screen, so a repeat OR a recombination
     // of them can be recognised rather than treated as new content.
@@ -199,10 +204,25 @@ export class TurnAccumulator {
    */
   pushOriginal(chunk) {
     if (!chunk || !chunk.trim()) return;
+    // The sentence's own text replaces the pieces shown while it was spoken.
+    this.provisional = "";
     if (this.original && this.translated) this.commit();
     this.original = mergeTextChunk(this.original, chunk);
     this._renderOriginal();
     this._schedule();
+  }
+
+  /**
+   * Show a piece of the sentence being spoken now, before its final text arrives (2026-10-15: the agent's
+   * words used to appear only once Transcribe closed the whole sentence). The piece is display only: the
+   * next pushOriginal() replaces the pieces with the sentence's final text, and they are never committed.
+   * Like pushOriginal(), a piece that begins a new turn first commits the finished previous one.
+   */
+  showProvisionalOriginal(piece) {
+    if (!piece || !piece.trim()) return;
+    if (this.original && this.translated) this.commit();
+    this.provisional = mergeTextChunk(this.provisional, piece);
+    this._renderOriginal();
   }
 
   /**
@@ -246,6 +266,25 @@ export class TurnAccumulator {
     this._schedule();
   }
 
+  /** A mark of the translation as it is now, for rollbackTranslation(). */
+  markTranslation() {
+    return { commits: this._commits, text: this.translated };
+  }
+
+  /**
+   * Put the translation back to how it was at `mark`, dropping everything added since (2026-10-15: the
+   * sentences of a chatbot reply shown before the reply was recognised). Returns false, changing nothing,
+   * when the turn has been committed since the mark: its text is then in the transcript panel.
+   */
+  rollbackTranslation(mark) {
+    if (!mark || mark.commits !== this._commits) return false;
+    this.translated = mark.text;
+    this._renderTranslated();
+    if (this.original || this.translated) this._schedule();
+    else this._cancelTimer();
+    return true;
+  }
+
   /**
    * Drop the original for this turn — the adapter's Layer 5 retraction
    * determined it was a role misfire, not the speaker's words.
@@ -253,7 +292,7 @@ export class TurnAccumulator {
   clearOriginal() {
     this.original = "";
     const el = this._resolveOriginal();
-    if (el) el.textContent = "";
+    if (el) el.textContent = this.provisional;
   }
 
   // ── commit / reset ───────────────────────────────────────────────────────
@@ -271,6 +310,7 @@ export class TurnAccumulator {
 
     this.original = "";
     this.translated = "";
+    this._commits++;
     this._clearOriginalOnNextRender = true;
     this._clearTranslatedOnNextRender = true;
     if (translated) {
@@ -292,6 +332,7 @@ export class TurnAccumulator {
     this._cancelTimer();
     this.original = "";
     this.translated = "";
+    this.provisional = "";
     this._clearOriginalOnNextRender = false;
     this._clearTranslatedOnNextRender = false;
     const origEl = this._resolveOriginal();
@@ -360,7 +401,7 @@ export class TurnAccumulator {
   _renderOriginal() {
     this._clearOriginalOnNextRender = false;
     const el = this._resolveOriginal();
-    if (el) el.textContent = this.original;
+    if (el) el.textContent = this.provisional ? `${this.original} ${this.provisional}`.trim() : this.original;
   }
 
   _renderTranslated() {

@@ -6,8 +6,6 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "amazon-connect-streams";
 
-import MicrophoneStream from "microphone-stream";
-
 import {
   getConnectURLS,
   addUpdateLocalStorageKey,
@@ -21,21 +19,22 @@ import {
   CUSTOMER_TRANSLATION_TO_CUSTOMER_VOLUME,
   LOGGER_PREFIX,
   NOVA_INTERPRETER_LANGUAGES,
+  NOVA_SONIC_LANGUAGES,
   LANGUAGE_VOICE_ID_MAP,
 } from "./constants";
 import {
   completePendingSignOut,
   getLoginUrl,
-  handleRedirect,
   logout,
   registerSessionHooks,
+  restoreSession,
   setRedirectURI,
+  setTestSession,
   startSessionExpiryWatch,
   startTokenRefreshTimer,
 } from "./utils/authUtility";
 import { AudioStreamManager } from "./managers/AudioStreamManager";
 import { SessionTrackManager, TrackType } from "./managers/SessionTrackManager";
-import { createMicrophoneStream } from "./utils/micStreamUtils";
 import { MicWorkletStream } from "./utils/micWorkletStream";
 import { RemoteStreamWorkletStream } from "./utils/remoteStreamWorkletStream";
 import { NOVA_SONIC_VOICE_IDS, runNovaSonicTypedTextInterpretation, startNovaSonicInterpreterSession } from "./adapters/novaSonicAdapter";
@@ -53,13 +52,17 @@ import {
   JudgedSentences,
   matchesHeard,
   mentionsTranslationTask,
+  MutedReplyTexts,
   normalizeForCompare,
   RecentSpeech,
   SourceUtterance,
 } from "./utils/translationGuards";
-import { CONNECT_CONFIG, NOVA_SONIC_CONFIG, TRANSCRIBE_CONFIG, TRANSLATE_CONFIG, POLLY_CONFIG, COGNITO_CONFIG, PROXY_CONFIG, TRANSLATION_CONFIG } from "./config";
-import { fetchTranslationMode, warmProxyConnections } from "./utils/proxyTransport";
+import { CONNECT_CONFIG } from "./config";
+import { askForTestSignIn, isTestSignInOn } from "./utils/testSignIn";
+import { fetchTranslationMode, pingProxy, warmProxyConnections } from "./utils/proxyTransport";
 import { createAppVersionWatch } from "./utils/appVersionWatch";
+import { createHealthMonitor } from "./utils/healthMonitor";
+import { createMicCheck } from "./utils/micCheck";
 import {
   BACKUP_MAX_ATTEMPTS,
   HANDOVER_MIN_RETURNING_MS,
@@ -77,13 +80,17 @@ import {
   createStreamDrain,
   createVoiceWatchdog,
   isLikelyEcho,
+  NOISE_MAX_WORDS,
+  noiseReason,
 } from "./utils/backupTranslation";
 import { AudioContextManager } from "./managers/AudioContextManager";
 import { AudioInputTestManager } from "./managers/InputTestManager";
 import {
   initConversationTranscript,
   addConversationMessage,
+  appendToBubbleTranslation,
   clearConversationTranscript,
+  removeFromRecentTranslations,
 } from "./conversationTranscript.js";
 import { TurnAccumulator } from "./utils/turnAccumulator";
 
@@ -141,6 +148,9 @@ let AmazonTranscribeFromCustomerAudioStream;
 let CustomerNovaSession;
 let AgentNovaSession;
 let AgentTranscribeAdapter = null;
+// fix 14 (temporary diagnostic): [MIC-CHECK] lines about the agent's microphone audio for the first
+// minutes after Start (utils/micCheck.js). Every agent Transcribe adapter of the call reports to it.
+let AgentMicCheck = null;
 
 // Language/voice pinned for the lifetime of a call.
 //
@@ -200,6 +210,8 @@ function isStaleSessionConfig(config) {
  * mid-call language change can only be honoured by restarting.
  */
 function applyLanguageChangeToLiveSessions() {
+  // fix 9: to or from a language Nova Sonic does not support.
+  if (applyLanguageHold()) return;
   if (!AgentNovaSession && !CustomerNovaSession) {
     // fix 6: a side on the backup has no Nova Sonic session, but still follows the new language.
     applyLanguageChangeToBackup();
@@ -293,6 +305,36 @@ function applyLanguageChangeToBackup() {
   }
 }
 
+/**
+ * fix 9: a language change during translation. A language Nova Sonic does not support, on either side,
+ * moves both sides to the backup at once; their Nova Sonic sessions are stopped, not restarted. Once both
+ * languages are Nova Sonic languages again, the sides held there start Nova Sonic in the background, and
+ * it takes over at the next pause. Returns true when the change has been fully handled here.
+ */
+function applyLanguageHold() {
+  if (!TranslationActive) return false;
+  const why = unsupportedLanguageReason(
+    CCP_V2V.UI.agentTranslateFromLanguageSelect.value,
+    CCP_V2V.UI.customerTranslateFromLanguageSelect.value,
+  );
+  if (why) {
+    console.warn(`${LOGGER_PREFIX} - [BACKUP] ${why} — the call is translated by Transcribe + Translate + Polly`);
+    AgentFailover.languageOn(why);
+    CustomerFailover.languageOn(why);
+    // Both sides are on the backup now: the new pair is pinned and both Transcribes start again in it.
+    applyLanguageChangeToBackup();
+    return true;
+  }
+  if (AgentFailover.cause !== "language" && CustomerFailover.cause !== "language") return false;
+  console.info(`${LOGGER_PREFIX} - [BACKUP] both languages are supported by Nova Sonic again`);
+  // The new pair first, so Nova Sonic starts in it.
+  applyLanguageChangeToBackup();
+  const switchReason = ModePoller?.forceBackup ? "switched on (forceBackupTranslation)" : null;
+  AgentFailover.languageOff(switchReason);
+  CustomerFailover.languageOff(switchReason);
+  return true;
+}
+
 // Restart guard flags — prevent double-restart if both proactive timer
 // and onError fire simultaneously (e.g. during a network blip at ~8 min).
 let customerSessionRestarting = false;
@@ -380,8 +422,6 @@ const FallbackPrefetch = createPrefetch((text) =>
     sourceText: text,
     sourceLangCode: AgentSessionConfig.sourceLang,
     targetLangCode: AgentSessionConfig.targetLang,
-    translateRegion: TRANSLATE_CONFIG.region,
-    pollyRegion: POLLY_CONFIG.region,
     quiet: true,
   }),
 );
@@ -391,8 +431,6 @@ const HeardSpeechPrefetch = createPrefetch((text) =>
   synthesizeTargetSpeech({
     text,
     targetLangCode: AgentSessionConfig.targetLang,
-    translateRegion: TRANSLATE_CONFIG.region,
-    pollyRegion: POLLY_CONFIG.region,
   }),
 );
 // The customer's words as the customer session hears them, so the agent session can tell when its
@@ -417,6 +455,9 @@ const backupSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let TranslationActive = false;
 // Per-call counters, printed as [BACKUP-SUMMARY] when translation stops.
 const BackupStats = createBackupStats();
+// fix 12: the health light (see startHealthLight), and the Nova Sonic failures this call, which it shows.
+let HealthLight = null;
+let HealthNovaProblems = 0;
 // What was spoken to the customer by either engine, so the customer's Transcribe can recognise it
 // coming back through the customer's phone.
 const RecentSpokenToCustomer = new RecentSpeech(undefined, 10000);
@@ -442,6 +483,9 @@ const AgentBackup = {
   lastSentenceAt: 0,
   lastNovaEventAt: 0,
   turnAudioSeen: false, // Nova Sonic audio arrived for the sentence it is translating now
+  // While on Nova Sonic: the pieces of the sentence Transcribe is still hearing, spoken by the backup if
+  // the side moves to it before the sentence ends.
+  openPieces: [],
   refreshPending: false, // a WebRTC refresh happened while a background restart was running
   exhausted: false,
   since: 0,
@@ -619,7 +663,8 @@ function noteNovaEvent(isAgent, name, args) {
   const now = Date.now();
   if (isAgent) {
     AgentBackup.lastNovaEventAt = now;
-    AgentSilenceWatch.noteNovaEvent();
+    // What Nova Sonic heard also tells the silence check which sentence it was about.
+    AgentSilenceWatch.noteNovaEvent(name === "onUserText" ? args[0] : undefined);
     if (name === "onAssistantText" && args[2]?.stage !== "FINAL") AgentBackup.turnAudioSeen = false;
     else if (name === "onAssistantAudioWav") AgentBackup.turnAudioSeen = true;
     else if (name === "onTurnComplete") AgentBackup.turnAudioSeen = false;
@@ -653,6 +698,29 @@ async function waitForAudioOutput(getOutput, timeoutMs = 5000) {
   }
 }
 
+/**
+ * fix 11: decodes a backup clip as soon as its translation arrives, while earlier pieces may still be
+ * playing, so it starts the moment the clip before it ends. Decoding used to start only then, which left a
+ * short gap (filled by the background noise) between the pieces of a sentence. Without an output, or if
+ * decoding fails, the clip is decoded when it plays, as before.
+ */
+async function withDecodedAudio(resultPromise, getOutput) {
+  const result = await resultPromise;
+  const output = getOutput();
+  if (!result?.audio?.length || !output) return result;
+  try {
+    result.decoded = await output.decodeAudio(result.audio);
+  } catch (e) {
+    console.warn(`${LOGGER_PREFIX} - [BACKUP] could not decode a clip ahead of playback; decoding it when it plays`, e);
+  }
+  return result;
+}
+
+/** One copy of a backup clip: the clip decoded ahead of time when there is one, else its bytes. */
+function playBackupClip(manager, decoded, bytes, volume = 1.0) {
+  return decoded ? manager.playDecodedAudio(decoded, volume) : manager.playAudioBuffer(bytes, volume);
+}
+
 // ── fix 6: agent side (agent -> customer) ──────────────────────────────────────────────────────────────
 
 function agentBackupSpeaker() {
@@ -663,14 +731,16 @@ function agentBackupSpeaker() {
       translate: (text) => {
         const config = AgentSessionConfig;
         if (!config) return Promise.resolve(null);
-        return synthesizeFallbackTranslation({
-          sourceText: text,
-          sourceLangCode: config.sourceLang,
-          targetLangCode: config.targetLang,
-          translateRegion: TRANSLATE_CONFIG.region,
-          pollyRegion: POLLY_CONFIG.region,
-          quiet: true,
-        });
+        return withDecodedAudio(
+          synthesizeFallbackTranslation({
+            sourceText: text,
+            sourceLangCode: config.sourceLang,
+            targetLangCode: config.targetLang,
+            quiet: true,
+            preferNeural: true,
+          }),
+          () => ToCustomerAudioStreamManager,
+        );
       },
       deliver: agentBackupDeliver,
     });
@@ -678,14 +748,51 @@ function agentBackupSpeaker() {
   return AgentBackup.speaker;
 }
 
-/** A sentence the agent's Transcribe finished while the agent side is not on Nova Sonic. */
-function agentBackupSentence(text) {
+/**
+ * A piece of what the agent is saying (TranscribeStreamAdapter onPiece): the proxy sends each part of a
+ * sentence up to a punctuation mark as soon as Transcribe is sure of it, so the backup speaks it while the
+ * agent is still talking instead of after the sentence. On Nova Sonic the piece is only kept until the
+ * sentence ends (AgentBackup.openPieces).
+ */
+function agentTranscriptPiece(text, about) {
+  if (!AgentFailover.routesToBackup()) {
+    AgentBackup.openPieces.push(text);
+    // 2026-10-15: shown at once instead of after the whole sentence; the sentence's final text replaces
+    // the pieces (buildAgentTranscriptHandler -> AgentTurn.pushOriginal).
+    setBackgroundColour(CCP_V2V.UI.agentTranscriptionTextOutputDiv, "bg-pale-yellow");
+    AgentTurn.showProvisionalOriginal(text);
+    return;
+  }
+  if (isBackgroundNoise("agent", text, about)) return;
+  agentBackupPiece(text);
+}
+
+/**
+ * fix 10: true when a piece is likely background noise, which the backup then neither shows nor
+ * translates (see noiseReason). Each decision on a short sentence is logged with Transcribe's confidence,
+ * so NOISE_MIN_CONFIDENCE can be tuned from a test call.
+ */
+function isBackgroundNoise(side, text, about) {
+  const reason = noiseReason(text, about);
+  const detail = `${about?.words ?? "?"} words, confidence ${about?.confidence ?? "none"}`;
+  if (reason) {
+    BackupStats.inc(side, "noiseDropped");
+    console.warn(`${LOGGER_PREFIX} - [NOISE] ${side} - not translated, ${reason} (${detail}): "${String(text).slice(0, 80)}"`);
+    return true;
+  }
+  if (about?.wholeSentence && about.words <= NOISE_MAX_WORDS) {
+    console.info(`${LOGGER_PREFIX} - [NOISE] ${side} - short sentence kept (${detail}): "${String(text).slice(0, 80)}"`);
+  }
+  return false;
+}
+
+/** A piece of a sentence for the backup, while the agent side is not on Nova Sonic. */
+function agentBackupPiece(text) {
   AgentBackup.lastSentenceAt = Date.now();
   setBackgroundColour(CCP_V2V.UI.agentTranscriptionTextOutputDiv, "bg-pale-yellow");
   AgentTurn.pushOriginal(text);
-  updateLiveSentiment(CCP_V2V.UI.agentSentimentValue, text);
   BackupStats.inc("agent", "sentences");
-  agentBackupSpeaker().say(text);
+  agentBackupSpeaker().speakNow(text);
 }
 
 async function agentBackupDeliver(job, result) {
@@ -702,7 +809,7 @@ async function agentBackupDeliver(job, result) {
     console.error(`${LOGGER_PREFIX} - [BACKUP] agent - translated text only, no audio: "${result.text.slice(0, 80)}"`);
     return;
   }
-  const playback = agentBackupPlay(new Uint8Array(result.audio));
+  const playback = agentBackupPlay(new Uint8Array(result.audio), result.decoded);
   // A restart waits for this before it replaces the customer's audio output (see restartAgentNovaSession).
   AgentFallbackPlayback = playback;
   const played = await playback;
@@ -714,8 +821,11 @@ async function agentBackupDeliver(job, result) {
   }
 }
 
-/** Plays one clip to the customer, and to the agent's monitor when "Stream translation to agent" is on. */
-async function agentBackupPlay(u8) {
+/**
+ * Plays one clip to the customer, and to the agent's monitor when "Stream translation to agent" is on.
+ * `decoded`: the clip decoded ahead of time (withDecodedAudio), shared by both copies.
+ */
+async function agentBackupPlay(u8, decoded = null) {
   try {
     const output = await waitForAudioOutput(() => (agentOutputSwapping ? null : ToCustomerAudioStreamManager));
     if (!output) {
@@ -729,10 +839,12 @@ async function agentBackupPlay(u8) {
     const forAgent = wantsMonitor ? new Uint8Array(u8) : null;
     const warmupRemaining = rtcTrackReplacedAt + RTC_WARMUP_MS - Date.now();
     if (warmupRemaining > 0) await backupSleep(warmupRemaining);
-    await output.playAudioBuffer(forCustomer);
-    if (forAgent && ToAgentAudioStreamManager != null) {
-      await ToAgentAudioStreamManager.playAudioBuffer(forAgent, AGENT_TRANSLATION_TO_AGENT_VOLUME);
-    }
+    // Both copies at once: one after the other, the customer's next sentence also waited for the agent's copy.
+    const monitor =
+      forAgent && ToAgentAudioStreamManager != null
+        ? playBackupClip(ToAgentAudioStreamManager, decoded, forAgent, AGENT_TRANSLATION_TO_AGENT_VOLUME)
+        : null;
+    await Promise.all([playBackupClip(output, decoded, forCustomer), monitor]);
     return true;
   } catch (e) {
     console.error(`${LOGGER_PREFIX} - [BACKUP] agent - could not play a sentence`, e);
@@ -775,6 +887,10 @@ function agentLeaveNova({ speakInProgress }) {
       agentBackupSpeaker().speakNow(text, prefetched);
     }
   }
+  // The sentence Transcribe is still hearing: its pieces so far now, the rest as they come.
+  const open = AgentBackup.openPieces.join(" ").trim();
+  AgentBackup.openPieces = [];
+  if (open) agentBackupPiece(open);
   source?.clear();
   FallbackPrefetch.clear();
   HeardSpeechPrefetch.clear();
@@ -873,6 +989,7 @@ function agentAfterHandover() {
   FallbackPrefetch.clear();
   HeardSpeechPrefetch.clear();
   AgentBackup.turnAudioSeen = false;
+  AgentBackup.openPieces = [];
 }
 
 async function agentStartMeter() {
@@ -916,9 +1033,10 @@ async function agentRebuildCapture(why) {
       audioContext,
       micMediaStream: AmazonTranscribeToCustomerAudioStream.getMediaStream(),
       languageCode: AgentSessionConfig.sourceLang,
-      region: TRANSCRIBE_CONFIG.region,
       onTranscript: buildAgentTranscriptHandler(accumulated),
+      onPiece: agentTranscriptPiece,
       onError: buildAgentTranscribeErrorHandler("backup"),
+      diagnostics: AgentMicCheck,
     });
     AgentTranscribeAdapter.start().catch((e) => buildAgentTranscribeErrorHandler("backup")(e));
     agentDrainMicrophone();
@@ -939,9 +1057,10 @@ async function agentRestartBackupTranscribe() {
     audioContext,
     micMediaStream: mic.getMediaStream(),
     languageCode: AgentSessionConfig.sourceLang,
-    region: TRANSCRIBE_CONFIG.region,
     onTranscript: buildAgentTranscriptHandler(accumulated),
+    onPiece: agentTranscriptPiece,
     onError: buildAgentTranscribeErrorHandler("language change"),
+    diagnostics: AgentMicCheck,
   });
   AgentTranscribeAdapter.start().catch((e) => buildAgentTranscribeErrorHandler("language change")(e));
   old?.stop().catch(() => {});
@@ -994,14 +1113,16 @@ function customerBackupSpeaker() {
       translate: (text) => {
         const config = CustomerSessionConfig;
         if (!config) return Promise.resolve(null);
-        return synthesizeFallbackTranslation({
-          sourceText: text,
-          sourceLangCode: config.sourceLang,
-          targetLangCode: config.targetLang,
-          translateRegion: TRANSLATE_CONFIG.region,
-          pollyRegion: POLLY_CONFIG.region,
-          quiet: true,
-        });
+        return withDecodedAudio(
+          synthesizeFallbackTranslation({
+            sourceText: text,
+            sourceLangCode: config.sourceLang,
+            targetLangCode: config.targetLang,
+            quiet: true,
+            preferNeural: true,
+          }),
+          () => ToAgentAudioStreamManager,
+        );
       },
       deliver: customerBackupDeliver,
     });
@@ -1009,24 +1130,41 @@ function customerBackupSpeaker() {
   return CustomerBackup.speaker;
 }
 
-/** A sentence the customer's Transcribe finished (it only runs while this side is not on Nova Sonic). */
-function customerBackupSentence(text) {
-  if (!TranslationActive) return;
-  if (CustomerFailover.state === "nova" && Date.now() - CustomerBackup.handedOverAt > LATE_BACKUP_SENTENCE_MS) return;
-  if (isLikelyEcho(text, RecentSpokenToCustomer.list().map((item) => item.text))) {
+/** The customer's Transcribe only runs while this side is not on Nova Sonic, and just after it hands back. */
+function customerBackupListening() {
+  if (!TranslationActive) return false;
+  return CustomerFailover.state !== "nova" || Date.now() - CustomerBackup.handedOverAt <= LATE_BACKUP_SENTENCE_MS;
+}
+
+const isEchoOfCustomerTranslation = (text) => isLikelyEcho(text, RecentSpokenToCustomer.list().map((item) => item.text));
+
+/**
+ * A piece of what the customer is saying (TranscribeStreamAdapter onPiece), spoken by the backup while the
+ * customer is still talking instead of after the sentence.
+ */
+function customerBackupPiece(text, about) {
+  if (!customerBackupListening()) return;
+  if (isEchoOfCustomerTranslation(text)) {
     BackupStats.inc("customer", "echoDropped");
     console.warn(
       `${LOGGER_PREFIX} - [ECHO] customer - the translation played to the customer came back through their phone — not translated: "${text.slice(0, 80)}"`,
     );
     return;
   }
+  if (isBackgroundNoise("customer", text, about)) return;
   CustomerBackup.lastSentenceAt = Date.now();
-  // The agent side's echo check (fix 4) needs the customer's words whichever engine hears them.
-  RecentCustomerSpeech.add(text);
   setBackgroundColour(CCP_V2V.UI.customerTranscriptionTextOutputDiv, "bg-pale-yellow");
   CustomerTurn.pushOriginal(text);
   BackupStats.inc("customer", "sentences");
-  customerBackupSpeaker().say(text);
+  customerBackupSpeaker().speakNow(text);
+}
+
+/** A sentence the customer's Transcribe finished; its pieces have already gone to the backup. */
+function customerBackupSentence(text) {
+  if (!customerBackupListening() || isEchoOfCustomerTranslation(text)) return;
+  CustomerBackup.lastSentenceAt = Date.now();
+  // The agent side's echo check (fix 4) needs the customer's words whichever engine hears them.
+  RecentCustomerSpeech.add(text);
 }
 
 async function customerBackupDeliver(job, result) {
@@ -1042,7 +1180,7 @@ async function customerBackupDeliver(job, result) {
     console.error(`${LOGGER_PREFIX} - [BACKUP] customer - translated text only, no audio: "${result.text.slice(0, 80)}"`);
     return;
   }
-  const playback = customerBackupPlay(new Uint8Array(result.audio));
+  const playback = customerBackupPlay(new Uint8Array(result.audio), result.decoded);
   CustomerBackupPlayback = playback;
   const played = await playback;
   BackupStats.inc("customer", played ? "delivered" : "failed");
@@ -1053,8 +1191,11 @@ async function customerBackupDeliver(job, result) {
   }
 }
 
-/** Plays one clip to the agent, and to the customer when "Stream translation to customer" is on. */
-async function customerBackupPlay(u8) {
+/**
+ * Plays one clip to the agent, and to the customer when "Stream translation to customer" is on.
+ * `decoded`: the clip decoded ahead of time (withDecodedAudio), shared by both copies.
+ */
+async function customerBackupPlay(u8, decoded = null) {
   try {
     const output = await waitForAudioOutput(() => (customerOutputSwapping ? null : ToAgentAudioStreamManager));
     if (!output) {
@@ -1065,10 +1206,12 @@ async function customerBackupPlay(u8) {
       CCP_V2V.UI.customerStreamTranslationCheckbox.checked === true && ToCustomerAudioStreamManager != null;
     const forAgent = new Uint8Array(u8);
     const forCustomer = toCustomer ? new Uint8Array(u8) : null;
-    await output.playAudioBuffer(forAgent);
-    if (forCustomer && ToCustomerAudioStreamManager != null) {
-      await ToCustomerAudioStreamManager.playAudioBuffer(forCustomer, CUSTOMER_TRANSLATION_TO_CUSTOMER_VOLUME);
-    }
+    // Both copies at once: one after the other, the agent's next sentence also waited for the customer's copy.
+    const customerCopy =
+      forCustomer && ToCustomerAudioStreamManager != null
+        ? playBackupClip(ToCustomerAudioStreamManager, decoded, forCustomer, CUSTOMER_TRANSLATION_TO_CUSTOMER_VOLUME)
+        : null;
+    await Promise.all([playBackupClip(output, decoded, forAgent), customerCopy]);
     return true;
   } catch (e) {
     console.error(`${LOGGER_PREFIX} - [BACKUP] customer - could not play a sentence`, e);
@@ -1093,8 +1236,8 @@ function customerStartBackupTranscribe() {
       audioContext,
       micMediaStream: remote,
       languageCode: CustomerSessionConfig.sourceLang,
-      region: TRANSCRIBE_CONFIG.region,
       onTranscript: customerBackupSentence,
+      onPiece: customerBackupPiece,
       onError: (err) => {
         console.error(`${LOGGER_PREFIX} - [BACKUP] customer - Transcribe stopped`, err);
         showToast("Backup translation of the customer stopped. Stop and start translation again if this persists.", 8000);
@@ -1245,8 +1388,27 @@ function customerAfterFailedRestart(err) {
 
 // ── fix 6: both sides ─────────────────────────────────────────────────────────────────────────────────
 
-/** How a new call starts: on Nova Sonic (null), or on the backup because of the switch or a recent failure. */
+/**
+ * fix 9: why a call in these languages cannot run on Nova Sonic ("Japanese is not supported by Nova
+ * Sonic"), or null when both are Nova Sonic languages. Either side's language is enough: each Nova Sonic
+ * session hears one of the two languages and speaks the other.
+ */
+function unsupportedLanguageReason(agentLang, customerLang) {
+  const names = [...new Set([agentLang, customerLang])]
+    .filter((code) => code && !NOVA_SONIC_LANGUAGES.includes(code))
+    .map((code) => NOVA_INTERPRETER_LANGUAGES.find((l) => l.code === code)?.name || code);
+  if (names.length === 0) return null;
+  return `${names.join(" and ")} ${names.length > 1 ? "are" : "is"} not supported by Nova Sonic`;
+}
+
+/**
+ * How a new call starts: on Nova Sonic (null), or on the backup because of its languages, the switch or
+ * a recent failure.
+ */
 function backupAtStart() {
+  // fix 9: checked first, so neither the switch going off nor a background restart starts Nova Sonic later.
+  const language = unsupportedLanguageReason(AgentSessionConfig?.sourceLang, AgentSessionConfig?.targetLang);
+  if (language) return { reason: language, cause: "language" };
   if (ModePoller?.forceBackup) return { reason: "switched on (forceBackupTranslation)", cause: "switch" };
   if (Date.now() < novaUnhealthyUntil) return { reason: "Nova Sonic failed on a recent call", cause: "memory" };
   return null;
@@ -1268,12 +1430,20 @@ function onBackupStateChange(side, state, detail) {
     BackupStats.inc(side, "switches");
     console.warn(`${LOGGER_PREFIX} - [BACKUP] ${direction}: now translated by Transcribe + Translate + Polly | ${detail.reason}`);
   } else if (state === "backup" && detail.from === "returning") {
-    console.warn(`${LOGGER_PREFIX} - [BACKUP] ${direction}: Nova Sonic failed again before taking over | ${detail.reason}`);
+    // fix 9: a language change is not a Nova Sonic failure.
+    const what = detail.cause === "language" ? "stays on the backup" : "Nova Sonic failed again before taking over";
+    console.warn(`${LOGGER_PREFIX} - [BACKUP] ${direction}: ${what} | ${detail.reason}`);
   }
+  // fix 9: after a change back to Nova Sonic languages, Nova Sonic gets fresh attempts.
+  if (detail.cause === "resume") B.exhausted = false;
   if (detail.attempting) {
     console.info(`${LOGGER_PREFIX} - [BACKUP] ${direction}: restarting Nova Sonic in the background (${detail.attempting}/${detail.maxAttempts})`);
   }
   if (detail.failedAttempt) BackupStats.inc(side, "failedAttempts");
+  // fix 12: a Nova Sonic failure or a failed restart, for the health light's "problems this call".
+  if ((state === "backup" && detail.cause === "failure" && (detail.from === "nova" || detail.from === "returning")) || detail.failedAttempt) {
+    HealthNovaProblems++;
+  }
   if (detail.exhausted) {
     B.exhausted = true;
     console.warn(
@@ -1302,11 +1472,17 @@ function renderBackupNotice() {
       hideBackupNotice();
       return;
     }
-    const why = sides.some(([, c]) => c.cause === "switch") ? "switched on by your administrator" : "Nova Sonic is not responding";
+    // fix 9: the language first: such a call is on the backup by design, not because anything failed.
+    const held = (c) => c.cause === "switch" || c.cause === "language";
+    const byLanguage = sides.find(([, c]) => c.cause === "language");
+    let why = "Nova Sonic is not responding";
+    if (byLanguage) why = byLanguage[1].reason;
+    else if (sides.some(([, c]) => c.cause === "switch")) why = "switched on by your administrator";
+    else if (sides.every(([, c]) => c.cause === "resume")) why = "the new language is supported by Nova Sonic";
     let next = " Nova Sonic is being restarted in the background.";
     if (sides.some(([, c]) => c.state === "returning")) next = " Nova Sonic is back and takes over at the next pause.";
-    else if (sides.every(([, c]) => c.cause === "switch")) next = "";
-    else if (sides.every(([, c, B]) => c.cause === "switch" || B.exhausted)) next = " Nova Sonic will be tried again on the next call.";
+    else if (sides.every(([, c]) => held(c))) next = "";
+    else if (sides.every(([, c, B]) => held(c) || B.exhausted)) next = " Nova Sonic will be tried again on the next call.";
     showBackupNotice(
       `Backup translation (Transcribe + Translate + Polly) for ${sides.map(([label]) => label).join(" and ")}: ${why}.${next}`,
     );
@@ -1352,12 +1528,46 @@ function hideBackupNotice() {
 /** Reads the forceBackupTranslation switch through the proxy, from sign-in on. */
 function startBackupSwitchWatch() {
   if (ModePoller) return;
-  if (!PROXY_CONFIG.enabled) {
-    console.info(`${LOGGER_PREFIX} - [BACKUP] the forceBackupTranslation switch is read through the proxy; not available without it`);
-    return;
-  }
   ModePoller = createModePoller({ fetchMode: () => fetchTranslationMode(), onChange: onBackupSwitchChanged, log: backupLog });
   ModePoller.start();
+}
+
+// ── fix 12: health light ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Starts the two labels at the top right of the Transcription panel: the call's network and the state of
+ * translation (utils/healthMonitor.js). They only read, every 2 seconds, so a failure in them never
+ * affects a call or a translation.
+ */
+function startHealthLight() {
+  if (HealthLight) return;
+  try {
+    HealthLight = createHealthMonitor({
+      elements: {
+        network: document.getElementById("healthNetwork"),
+        translation: document.getElementById("healthTranslation"),
+      },
+      getSession: () => (CurrentAgentConnectionId ? ConnectSoftPhoneManager?.getSession(CurrentAgentConnectionId) ?? null : null),
+      isOnHold: isCallOnHold,
+      getEngine: () => ({ active: TranslationActive, agent: AgentFailover.state, customer: CustomerFailover.state }),
+      getCallProblems: () => HealthNovaProblems + BackupStats.get("agent", "failed") + BackupStats.get("customer", "failed"),
+      // fix 13: the translation link (this computer <-> the proxy), the same on Nova Sonic and the backup.
+      checkLink: (options) => pingProxy(options),
+      log: backupLog,
+    });
+    HealthLight.start();
+  } catch (e) {
+    console.error(`${LOGGER_PREFIX} - [HEALTH] could not start the health light`, e);
+  }
+}
+
+/** True while a connection of the agent's contact is on hold: the call's audio may pause then. Never throws. */
+function isCallOnHold() {
+  try {
+    return (SessionAgent?.getContacts() ?? []).some((contact) => (contact.getConnections?.() ?? []).some((connection) => connection.isOnHold?.() === true));
+  } catch {
+    return false;
+  }
 }
 
 function onBackupSwitchChanged(on) {
@@ -1380,8 +1590,9 @@ function resetBackupForCall() {
   AgentSilenceWatch.reset();
   CustomerVoiceWatch.reset();
   BackupStats.reset();
+  HealthNovaProblems = 0;
   RecentSpokenToCustomer.clear();
-  Object.assign(AgentBackup, { lastSentenceAt: 0, lastNovaEventAt: 0, turnAudioSeen: false, refreshPending: false, exhausted: false, since: 0 });
+  Object.assign(AgentBackup, { lastSentenceAt: 0, lastNovaEventAt: 0, turnAudioSeen: false, openPieces: [], refreshPending: false, exhausted: false, since: 0 });
   Object.assign(CustomerBackup, { lastSentenceAt: 0, lastNovaEventAt: 0, handedOverAt: 0, exhausted: false, since: 0 });
   hideBackupNotice();
 }
@@ -1448,8 +1659,6 @@ async function customerCheckSynthesize(text) {
     const spoken = await synthesizeTargetSpeech({
       text,
       targetLangCode: config.targetLang,
-      translateRegion: TRANSLATE_CONFIG.region,
-      pollyRegion: POLLY_CONFIG.region,
     }).catch(() => null);
     if (spoken && spoken.audio && spoken.audio.length) return { ...spoken, asHeard: true };
   }
@@ -1457,8 +1666,6 @@ async function customerCheckSynthesize(text) {
     sourceText: text,
     sourceLangCode: config.sourceLang,
     targetLangCode: config.targetLang,
-    translateRegion: TRANSLATE_CONFIG.region,
-    pollyRegion: POLLY_CONFIG.region,
     quiet: true,
   });
 }
@@ -1593,11 +1800,12 @@ async function initializeApp() {
       raiseError(`Sign-in failed: ${reason}\n\nReload the page to try again.`);
       return;
     }
-    // Check if we're returning from Cognito login
-    const isRedirect = await handleRedirect();
+    // Signed in already: the redirect back from the identity provider's sign-in, or (server-side sign-in) a
+    // session the proxy holds for this browser.
+    const isRedirect = await restoreSession();
     if (isRedirect) {
       console.info(
-        `${LOGGER_PREFIX} - initializeApp - Redirected from Cognito login`,
+        `${LOGGER_PREFIX} - initializeApp - Redirected from sign-in`,
       );
       startTokenRefreshTimer();
       showApp();
@@ -1608,6 +1816,14 @@ async function initializeApp() {
       } catch (_) {
         // Storage unavailable: nothing to reset.
       }
+      return;
+    }
+
+    // Temporary test sign-in, while its switch is on: ask for the test password.
+    if (await isTestSignInOn()) {
+      setTestSession(await askForTestSignIn());
+      startTokenRefreshTimer();
+      showApp();
       return;
     }
 
@@ -1648,7 +1864,16 @@ async function redirectToLogin() {
   } catch (_) {
     // Storage unavailable: redirect anyway.
   }
-  window.location.href = await getLoginUrl();
+  let loginUrl;
+  try {
+    loginUrl = await getLoginUrl();
+  } catch (error) {
+    // Not set up yet, plain HTTP, or the identity provider unreachable: say so instead of redirecting.
+    console.error(`${LOGGER_PREFIX} - redirectToLogin - Sign-in could not start:`, error);
+    raiseError(`Sign-in could not start: ${error.message}`);
+    return;
+  }
+  window.location.href = loginUrl;
 }
 
 function showApp() {
@@ -1709,9 +1934,7 @@ function showSessionNotice({ type, expiresAt }) {
   const text = document.createElement("span");
   if (type === "expiring") {
     const time = new Date(expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    text.textContent = TRANSLATION_CONFIG.enabled
-      ? `Your sign-in ends at ${time}. Sign in again between calls to keep translation running.`
-      : `Your sign-in ends at ${time}. Sign in again between calls.`;
+    text.textContent = `Your sign-in ends at ${time}. Sign in again between calls to keep translation running.`;
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = "Sign in again";
@@ -1724,46 +1947,10 @@ function showSessionNotice({ type, expiresAt }) {
     });
     banner.append(text, button);
   } else {
-    text.textContent = TRANSLATION_CONFIG.enabled
-      ? "Your sign-in has ended. This call continues, but translation may stop at its next restart. " +
-        "You will be asked to sign in when the call ends."
-      : "Your sign-in has ended. This call continues. You will be asked to sign in when the call ends.";
+    text.textContent =
+      "Your sign-in has ended. This call continues, but translation may stop at its next restart. " +
+      "You will be asked to sign in when the call ends.";
     banner.append(text);
-  }
-}
-
-// ── Translation switch (SSM parameter translationEnabled) ───────────────────
-
-// Set when a deploy switched translation off after this page loaded (see onAppVersionChange).
-let TranslationSwitchedOff = false;
-
-/**
- * True when a translation may start: this environment has voice translation (translationEnabled), and it has not
- * been switched off since the page loaded. Checked by every way a translation can start.
- */
-function translationAllowed() {
-  return TRANSLATION_CONFIG.enabled && !TranslationSwitchedOff;
-}
-
-/** For the start functions: false, with a note to the agent, when translation may not start. */
-function checkTranslationAllowed(source) {
-  if (translationAllowed()) return true;
-  console.info(`${LOGGER_PREFIX} - ${source} - translation is not enabled here (translationEnabled); not started`);
-  if (TranslationSwitchedOff) showToast("Voice translation has been switched off. Reload this page between calls.", 6000);
-  return false;
-}
-
-/**
- * translationEnabled=false (Wave 1): the app is a plain softphone. The Customer, Agent and Transcription panels
- * stay in place, greyed out (style.css) and inert: nothing in them can be clicked, typed into or reached with the
- * Tab key. Their elements stay in the page because the code looks them up by ID. The CCP, Customer Information
- * and Audio Controls work as usual.
- */
-function disableTranslationUI() {
-  document.body.classList.add("translation-disabled");
-  for (const id of ["divCustomerControls", "divAgentControls", "divTranscription"]) {
-    const panel = document.getElementById(id);
-    if (panel) panel.inert = true;
   }
 }
 
@@ -1773,8 +1960,8 @@ let AppVersionWatch = null;
 
 /**
  * Every 5 minutes, and after each call, compares the deployed app with the one this page runs. When a deploy
- * changed it (new code, or a setting such as translationEnabled), a banner asks the agent to reload between
- * calls. The page never reloads itself: a reload drops the softphone and signs the agent in again.
+ * changed it (new code or new settings), a banner asks the agent to reload between calls. The page never
+ * reloads itself: a reload drops the softphone and signs the agent in again.
  */
 function startAppVersionWatch() {
   if (AppVersionWatch) return;
@@ -1788,18 +1975,11 @@ function startAppVersionWatch() {
 }
 
 function onAppVersionChange(change) {
-  // Switching translation off takes effect at once: no new translation starts on this page, and calls continue
-  // as plain calls. Switching it on needs the new page, which the banner asks for.
-  TranslationSwitchedOff = change?.translationNowDisabled === true;
-  if (TranslationSwitchedOff) console.warn(`${LOGGER_PREFIX} - [VERSION] translation switched off by a deploy; no new translation will start`);
-  // fix 6's forceBackupTranslation switch is read through the proxy, which a switch-off removes.
-  if (TranslationSwitchedOff) ModePoller?.stop();
-  else if (TRANSLATION_CONFIG.enabled) ModePoller?.start();
-  if (change) showUpdateNotice(change);
+  if (change) showUpdateNotice();
   else document.getElementById("updateNotice")?.remove();
 }
 
-function showUpdateNotice({ translationNowEnabled, translationNowDisabled }) {
+function showUpdateNotice() {
   let banner = document.getElementById("updateNotice");
   if (!banner) {
     banner = document.createElement("div");
@@ -1827,11 +2007,7 @@ function showUpdateNotice({ translationNowEnabled, translationNowDisabled }) {
   }
   banner.replaceChildren();
   const text = document.createElement("span");
-  text.textContent = translationNowEnabled
-    ? "Voice translation is now available. Reload this page between calls to start using it."
-    : translationNowDisabled
-      ? "Voice translation has been switched off. Reload this page between calls."
-      : "A new version of this app is available. Reload this page between calls to get it.";
+  text.textContent = "A new version of this app is available. Reload this page between calls to get it.";
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = "Reload";
@@ -1845,62 +2021,21 @@ function showUpdateNotice({ translationNowEnabled, translationNowDisabled }) {
   banner.append(text, button);
 }
 
-/**
- * Open the TCP+TLS connections to the AWS endpoints at page load, so the
- * Start button does not pay for DNS, the TCP handshake and the TLS handshake
- * on top of the service call itself.
- *
- * This deliberately starts NOTHING: no Nova Sonic session, no Transcribe
- * stream, no AWS request of any kind, and so nothing billable. It is a browser
- * resource hint — the socket is opened and left idle. Translation still begins
- * only when the agent presses Start, and a call that never uses translation
- * costs an unused socket and nothing else.
- *
- * `crossorigin` is required: the SDK's requests are CORS requests, and a
- * connection opened without it is not reused for them.
- */
-function preconnectAwsEndpoints() {
-  if (PROXY_CONFIG.enabled) {
-    // Every AWS call goes through the same-origin proxy. Keep authenticated
-    // proxy sockets open instead, so Start skips the connection handshake.
-    warmProxyConnections();
-    console.info(`${LOGGER_PREFIX} - warming translation proxy connections`);
-    return;
-  }
-  const bedrockRegion = NOVA_SONIC_CONFIG.bedrockRegion;
-  const hosts = [
-    `https://bedrock-runtime.${bedrockRegion}.amazonaws.com`,
-    `https://transcribestreaming.${TRANSCRIBE_CONFIG.region}.amazonaws.com`,
-    `https://translate.${TRANSLATE_CONFIG.region}.amazonaws.com`,
-    `https://polly.${POLLY_CONFIG.region}.amazonaws.com`,
-    `https://cognito-identity.${COGNITO_CONFIG.region}.amazonaws.com`,
-  ];
-  for (const href of new Set(hosts)) {
-    const link = document.createElement("link");
-    link.rel = "preconnect";
-    link.href = href;
-    link.crossOrigin = "anonymous";
-    document.head.appendChild(link);
-  }
-  console.info(`${LOGGER_PREFIX} - preconnected to ${new Set(hosts).size} AWS endpoints`);
-}
-
 const onLoad = async () => {
   console.info(`${LOGGER_PREFIX} - index loaded`);
-  console.info(
-    `${LOGGER_PREFIX} - voice translation is ${TRANSLATION_CONFIG.enabled ? "enabled" : "NOT enabled in this environment (translationEnabled=false)"}`,
-  );
-  if (TRANSLATION_CONFIG.enabled) {
-    preconnectAwsEndpoints();
-    // fix 6: the forceBackupTranslation switch, refreshed every 30 seconds.
-    startBackupSwitchWatch();
-  } else {
-    disableTranslationUI();
-  }
+  // Every AWS call goes through the same-origin proxy. Keep authenticated proxy sockets open from page
+  // load, so Start skips the connection handshake. This starts nothing billable: no Nova Sonic session
+  // and no Transcribe stream; translation still begins only when the agent presses Start.
+  warmProxyConnections();
+  console.info(`${LOGGER_PREFIX} - warming translation proxy connections`);
+  // fix 6: the forceBackupTranslation switch, refreshed every 30 seconds.
+  startBackupSwitchWatch();
   startAppVersionWatch();
   bindUIElements();
   // ── Conversation Transcript panel (separate module) ──
   initConversationTranscript("divTranscriptContainer");
+  // fix 12: the network and translation labels in the Transcription panel's header.
+  startHealthLight();
   initEventListeners();
   CCP_V2V.UI.logoutButton.style.display = "block";
   getDevices();
@@ -2241,6 +2376,8 @@ const initCCP = async (onConnectInitialized) => {
     );
     window.connect.core.initCCP(CCP_V2V.UI.ccpContainer, {
       ccpUrl: connectCCPURL,
+      // SAML (SSO) instances: the login pop-up opens the identity provider instead of Connect's login page.
+      ...(CONNECT_CONFIG.connectLoginUrl ? { loginUrl: CONNECT_CONFIG.connectLoginUrl } : {}),
       loginPopup: true,
       loginPopupAutoClose: true,
       loginOptions: {
@@ -2346,13 +2483,6 @@ function onContactConnected(contact) {
   // populateCustomerInfo reads the "Customer_Preferred_Language" attribute
   // and sets the customer language dropdown BEFORE we inspect it below.
   populateCustomerInfo(contact);
-
-  // Translation off (translationEnabled=false, or switched off since the page loaded): a plain call. Customer
-  // Information above is filled as usual; no translation starts and the Start buttons stay disabled.
-  if (!translationAllowed()) {
-    console.info(`${LOGGER_PREFIX} - onContactConnected - translation not enabled; plain call`);
-    return;
-  }
 
   // Customer button is hidden (controlled by agent buttons) but keep it
   // internally enabled so customerStartTranscription() can run freely.
@@ -3031,10 +3161,6 @@ async function restartCustomerNovaSession(accumulated) {
  *   start on the agent side).
  */
 async function customerStartTranscription({ startOnBackup = null } = {}) {
-  // Only agentStartTranscription() calls this, after its own translationAllowed() check. A switch-off that
-  // arrives in between must not leave the agent side running without the customer side, so only the
-  // environment's setting is checked here.
-  if (!TRANSLATION_CONFIG.enabled) return;
   // Immediately hide Start and show the Loading button while the session initialises
   CCP_V2V.UI.customerStartTranscriptionButton.disabled = true;
   CCP_V2V.UI.customerStartTranscriptionButton.style.display = "none";
@@ -3722,11 +3848,14 @@ function buildAgentTranscriptHandler(accumulated) {
   // and the fallback saw only the end of a long sentence) and knows which sentence Nova Sonic is on.
   const source = (accumulated.source ??= new SourceUtterance());
   return (text) => {
-    // fix 6: while the agent side is not on Nova Sonic, the sentence is translated by the backup.
+    // fix 6: while the agent side is not on Nova Sonic, the backup has already spoken this sentence piece
+    // by piece (agentTranscriptPiece).
     if (AgentFailover.routesToBackup()) {
-      agentBackupSentence(text);
+      AgentBackup.lastSentenceAt = Date.now();
+      updateLiveSentiment(CCP_V2V.UI.agentSentimentValue, text);
       return;
     }
+    AgentBackup.openPieces = [];
     source.add(text);
     accumulated.user = source.current();
     accumulated.lastSource = accumulated.user;
@@ -3863,9 +3992,10 @@ async function restartAgentNovaSession(accumulated) {
       audioContext: agentAudioCtx,
       micMediaStream: AmazonTranscribeToCustomerAudioStream.getMediaStream(),
       languageCode:   AgentSessionConfig.sourceLang,
-      region:         TRANSCRIBE_CONFIG.region,
       onTranscript:   buildAgentTranscriptHandler(accumulated),
+      onPiece:        agentTranscriptPiece,
       onError:        buildAgentTranscribeErrorHandler("restart"),
+      diagnostics:    AgentMicCheck,
     });
     // Fire-and-forget: Nova Sonic must start without waiting for Transcribe HTTP
     // handshake. Awaiting start() causes MicWorkletStream to buffer 1-3s of audio
@@ -4329,6 +4459,46 @@ function buildAgentSessionHandlers(accumulated) {
   let sentenceSeq = 0;
   let restartRequestedForSentence = -1;
 
+  // 2026-10-15: a chatbot reply. Nova Sonic sends a reply as several text blocks, and in that day's call
+  // only some blocks of one chatbot reply were caught; the others were played to the customer and shown.
+  // Once a block is a chatbot answer (ASSISTANT_REPLY or REFUSAL), the rest of the reply is neither played
+  // nor shown, and the blocks it had already put on screen are taken off. The customer side already works
+  // this way (fix 7). A reply ends when Nova Sonic hears the agent again or ends its turn.
+  let replyIsChatbot = false;
+  // What the current reply has put on screen: its texts, how many sentences, and the translation box as
+  // it was before the first of them.
+  let replyOnScreen = { texts: [], sentences: 0, mark: null };
+  // Texts of chatbot replies, so their late FINAL copies stay hidden too.
+  const mutedReplyTexts = new MutedReplyTexts();
+  const startNewReply = () => {
+    replyIsChatbot = false;
+    replyOnScreen = { texts: [], sentences: 0, mark: null };
+  };
+
+  /**
+   * Takes what the current reply has shown off the screen: from the translation box, or from the
+   * transcript panel if the box had already saved it as a bubble. Returns that bubble's translation
+   * element, where the backup translation then goes, or null.
+   */
+  const takeReplyOffScreen = () => {
+    const { texts, sentences, mark } = replyOnScreen;
+    replyOnScreen = { texts: [], sentences: 0, mark: null };
+    if (!texts.length) return null;
+    texts.forEach((t) => mutedReplyTexts.add(t));
+    CallStats.inc("chatbotRetracted", sentences);
+    console.warn(
+      `${LOGGER_PREFIX} - [ASSISTANT_REPLY] taking ${sentences} earlier sentence(s) of this chatbot reply off the screen`,
+    );
+    if (AgentTurn.rollbackTranslation(mark)) return null;
+    // Saved already: out of the bubble, and out of the box if more came after.
+    const bubble = removeFromRecentTranslations("fromAgent", texts);
+    const longestFirst = [...texts].sort((a, b) => b.length - a.length);
+    const inBox = AgentTurn.translated || "";
+    const cleaned = longestFirst.reduce((s, t) => s.split(t).join(" "), inBox).replace(/\s+/g, " ").trim();
+    if (cleaned !== inBox.trim()) AgentTurn.setTranslation(cleaned);
+    return bubble;
+  };
+
   // fix 4: what the agent said, sentence by sentence (see SourceUtterance). Shared with the
   // Transcribe handler through `accumulated`, and carried across restarts.
   const source = (accumulated.source ??= new SourceUtterance());
@@ -4436,7 +4606,10 @@ function buildAgentSessionHandlers(accumulated) {
   // agent already in the customer's language, that sentence is spoken as it is: no Translate step and
   // no wait for Transcribe, and usually prepared already. Translating the agent's own words is the
   // backup when it cannot be spoken.
-  function speakFallbackTranslation(reason, hearing) {
+  //
+  // `bubble`: the transcript bubble the bad output had already been saved in (2026-10-15), which then
+  // gets this translation instead of the translation box.
+  function speakFallbackTranslation(reason, hearing, { bubble = null } = {}) {
     const checkedAt = Date.now();
     const sourceText = currentSentenceSource();
     if (hearing && hearing.usable && !hearing.echo) {
@@ -4445,9 +4618,9 @@ function buildAgentSessionHandlers(accumulated) {
       const agentWords = sourceText
         ? Promise.resolve(sourceText)
         : source.waitForSegment(1500).then(() => currentSentenceSource());
-      return startFallback(`heard:${hearing.text}`, { heardText: hearing.text, agentWords }, reason, checkedAt);
+      return startFallback(`heard:${hearing.text}`, { heardText: hearing.text, agentWords, bubble }, reason, checkedAt);
     }
-    if (sourceText) return startFallback(sourceText, { sourceText }, reason, checkedAt);
+    if (sourceText) return startFallback(sourceText, { sourceText, bubble }, reason, checkedAt);
 
     // Transcribe may not have closed the sentence yet. Wait briefly for it rather than speaking an
     // earlier sentence again, which is what falling back to lastSource used to do. Both copies of
@@ -4465,7 +4638,7 @@ function buildAgentSessionHandlers(accumulated) {
           );
           return;
         }
-        return startFallback(late, { sourceText: late }, reason, checkedAt);
+        return startFallback(late, { sourceText: late, bubble }, reason, checkedAt);
       })();
     }
     return sourceWait;
@@ -4501,8 +4674,6 @@ function buildAgentSessionHandlers(accumulated) {
       result = await synthesizeTargetSpeech({
         text,
         targetLangCode: langs.targetLang,
-        translateRegion: TRANSLATE_CONFIG.region,
-        pollyRegion: POLLY_CONFIG.region,
       }).catch(() => null);
     }
     return result && result.audio && result.audio.length ? { result, usedPrefetch } : null;
@@ -4544,8 +4715,6 @@ function buildAgentSessionHandlers(accumulated) {
             sourceText,
             sourceLangCode: langs.sourceLang,
             targetLangCode: langs.targetLang,
-            translateRegion: TRANSLATE_CONFIG.region,
-            pollyRegion: POLLY_CONFIG.region,
           });
         }
       }
@@ -4556,9 +4725,15 @@ function buildAgentSessionHandlers(accumulated) {
 
       accumulated.assistant = result.text;
       accumulated.lastAssistant = result.text;
-      // Replace, not merge: this translation supersedes the drifted or refused
-      // Nova Sonic output for the turn rather than continuing it.
-      AgentTurn.setTranslation(result.text);
+      if (job.bubble) {
+        // 2026-10-15: the bad output had already been saved as a bubble and was taken out of it, so the
+        // translation goes into that bubble, next to the agent's words it belongs to.
+        appendToBubbleTranslation(job.bubble, result.text);
+      } else {
+        // Replace, not merge: this translation supersedes the drifted or refused
+        // Nova Sonic output for the turn rather than continuing it.
+        AgentTurn.setTranslation(result.text);
+      }
 
       // Tier 3: the adapter translated the text but found no Polly voice for
       // the target language, so it returned audio:null by contract. The text
@@ -4650,6 +4825,8 @@ function buildAgentSessionHandlers(accumulated) {
     // text and make every subsequent comparison meaningless.
     onUserText: (text) => {
       if (!text || !text.trim()) return;
+      // 2026-10-15: Nova Sonic heard the agent again, so what it says next is a new reply.
+      startNewReply();
       // fix 4: keep what Nova Sonic heard. Heard already in the customer's language, it is the text
       // the customer gets if Nova Sonic's own output fails, so it is made ready to speak now.
       const heardAs = heardLanguage(text, langs.sourceLang, langs.targetLang, languageScore);
@@ -4726,6 +4903,23 @@ function buildAgentSessionHandlers(accumulated) {
         hearing = heardForFinalCopy(text);
       }
       const continuing = hearing ? null : heard.continuing();
+
+      // ── 2026-10-15: the rest of a chatbot reply, or a late copy of one of its sentences ──
+      // Not played, not shown, and no second fallback: the fallback for the reply is already playing.
+      if (replyIsChatbot || (isFinalCopy && mutedReplyTexts.has(text))) {
+        mutedReplyTexts.add(text);
+        if (!isFinalCopy) {
+          CallStats.inc("chatbotMuted");
+          console.warn(
+            `${LOGGER_PREFIX} - [ASSISTANT_REPLY] rest of a chatbot reply — not played or shown: "${text.slice(0, 80)}"`,
+          );
+        }
+        audioDecision = AUDIO_BLOCK;
+        pendingAudio = [];
+        decisionForBaseline = getBaseline();
+        closeSentence();
+        return;
+      }
 
       // ── fix 4: echo guard ─────────────────────────────────────────────────
       // A new sentence that repeats the last one played, right after Nova Sonic was heard
@@ -4815,6 +5009,11 @@ function buildAgentSessionHandlers(accumulated) {
 
         accumulated.assistant = text;
         accumulated.lastAssistant = text;
+        // 2026-10-15: remembered, so it can be taken off the screen if a later block of this reply turns
+        // out to be a chatbot answer.
+        replyOnScreen.mark ??= AgentTurn.markTranslation();
+        replyOnScreen.texts.push(text);
+        if (!isFinalCopy) replyOnScreen.sentences++;
         AgentTurn.pushTranslation(text);
         closeSentence();
         return;
@@ -4849,9 +5048,18 @@ function buildAgentSessionHandlers(accumulated) {
         return;
       }
 
+      // 2026-10-15: a chatbot answer. The rest of this reply is muted too, and what it already showed is
+      // taken off the screen; if that had been saved as a bubble, the translation below goes there.
+      let bubble = null;
+      if (verdict === "ASSISTANT_REPLY" || verdict === "REFUSAL") {
+        replyIsChatbot = true;
+        mutedReplyTexts.add(text);
+        bubble = takeReplyOffScreen();
+      }
+
       // The customer must not be left in silence — speak the real translation.
       // Started before the sentence is closed, so it reads this sentence's text.
-      const fallbackDone = speakFallbackTranslation(verdict, hearing || continuing);
+      const fallbackDone = speakFallbackTranslation(verdict, hearing || continuing, { bubble });
       closeSentence();
 
       (async () => {
@@ -4966,6 +5174,8 @@ function buildAgentSessionHandlers(accumulated) {
       accumulated.assistant = "";
       // Nova Sonic's answer to the last hearing is complete: nothing later continues it.
       heard.endTurn();
+      // 2026-10-15: the reply is over. Its late FINAL copies are still recognised (mutedReplyTexts).
+      startNewReply();
     },
     // fix 4: counted for the call summary. Not acted on: in an interpreter an interruption means the
     // agent kept talking, and the customer still needs the translation already made.
@@ -5075,7 +5285,6 @@ function buildAgentSessionHandlers(accumulated) {
 }
 
 async function agentStartTranscription() {
-  if (!checkTranslationAllowed("agentStartTranscription")) return;
   // Immediately hide Start and show the Loading button while the session initialises
   CCP_V2V.UI.agentStartTranscriptionButton.disabled = true;
   CCP_V2V.UI.agentStartTranscriptionButton.style.display = "none";
@@ -5152,18 +5361,21 @@ async function agentStartTranscription() {
     // Transcribe always outputs the agent's source language — no context
     // contamination possible. The adapter creates its own AudioWorkletNode
     // on the same MediaStream as Nova Sonic (no second getUserMedia needed).
+    // fix 14: a fresh mic check for this call, from Start.
+    AgentMicCheck?.stop();
+    AgentMicCheck = createMicCheck({ side: "agent", isMuted: () => IsAgentMuted });
     AgentTranscribeAdapter = new TranscribeStreamAdapter({
       audioContext: agentAudioCtx,
       micMediaStream: AmazonTranscribeToCustomerAudioStream.getMediaStream(),
       languageCode:   AgentSessionConfig.sourceLang,
-      region:         TRANSCRIBE_CONFIG.region,
       onTranscript:   buildAgentTranscriptHandler(accumulated),
-      onError:        buildAgentTranscribeErrorHandler("start")
+      onPiece:        agentTranscriptPiece,
+      onError:        buildAgentTranscribeErrorHandler("start"),
+      diagnostics:    AgentMicCheck,
     });
 
     // Open both service streams together. Transcribe and Nova Sonic each cost
-    // a full handshake — credentials, TLS reuse, then the service's own stream
-    // setup — and neither depends on the other; both only need the mic stream
+    // their own stream setup, and neither depends on the other; both only need the mic stream
     // that already exists above. Awaiting them in series made Start wait for
     // the sum; this makes it wait for the slower of the two.
     //
@@ -5249,6 +5461,8 @@ async function agentStartTranscription() {
     // stream and microphone capture open (and a retried Start overwrote the only handles to them).
     TranslationActive = false;
     stopBackupForCall();
+    AgentMicCheck?.stop();
+    AgentMicCheck = null;
     if (AgentNovaSession) {
       const session = AgentNovaSession;
       AgentNovaSession = undefined;
@@ -5294,6 +5508,9 @@ async function agentStopTranscription() {
   FallbackPrefetch.clear();
   HeardSpeechPrefetch.clear();
   RecentCustomerSpeech.clear();
+  // fix 14: the mic check ends with the call (its summary line, if it was still running).
+  AgentMicCheck?.stop();
+  AgentMicCheck = null;
   // fix 6: the backup stops with the call: no more restarts, sentences or silence checks.
   TranslationActive = false;
   stopBackupForCall();
@@ -5472,8 +5689,6 @@ async function speakTypedTextViaBackup(text, fromLanguage, toLanguage) {
         sourceText: text,
         sourceLangCode: fromLanguage,
         targetLangCode: toLanguage,
-        translateRegion: TRANSLATE_CONFIG.region,
-        pollyRegion: POLLY_CONFIG.region,
         quiet: true,
       }),
     )
@@ -5499,7 +5714,6 @@ async function speakTypedTextViaBackup(text, fromLanguage, toLanguage) {
 
 async function handleAgentTranslateText() {
   console.info("Inside handleAgentTranslateText().");
-  if (!checkTranslationAllowed("handleAgentTranslateText")) return;
   const inputText = CCP_V2V.UI.agentTranslateTextInput.value.trim();
   if (isStringUndefinedNullEmpty(inputText)) return;
   // updateLiveSentiment(CCP_V2V.UI.agentSentimentValue, inputText);
@@ -5516,8 +5730,12 @@ async function handleAgentTranslateText() {
   const voiceId = getVoiceId(toLanguage);
 
   // fix 6: while the agent side is not on Nova Sonic (or the switch is on), a typed message is translated
-  // and spoken by the backup too.
-  if ((TranslationActive && AgentFailover.state !== "nova") || ModePoller?.forceBackup) {
+  // and spoken by the backup too. fix 9: and always when either language is not a Nova Sonic language.
+  if (
+    (TranslationActive && AgentFailover.state !== "nova") ||
+    ModePoller?.forceBackup ||
+    unsupportedLanguageReason(fromLanguage, toLanguage)
+  ) {
     await speakTypedTextViaBackup(inputText, fromLanguage, toLanguage);
     CCP_V2V.UI.agentTranslateTextInput.value = "";
     CCP_V2V.UI.agentTranslateTextInput.focus();
@@ -5613,6 +5831,25 @@ function populateCustomerInfo(contact) {
   document.getElementById("ciQueue").textContent = getAttr("Queue");
   document.getElementById("ciDialedNumber").textContent =
     getAttr("Dialed-Number");
+  document.getElementById("ciCallSummary").textContent =
+    getAttr("CallSummary") || "—";
+
+  // Detected Language — resolve Customer_Preferred_Language code to full language name.
+  // The attribute may be a bare language code (e.g. "fr") or include a country/region
+  // suffix (e.g. "fr-FR"). Strip the suffix and match against NOVA_INTERPRETER_LANGUAGES.
+  (function () {
+    const rawLang = attrs["Customer_Preferred_Language"]?.value?.trim() || "";
+    if (!rawLang) {
+      document.getElementById("ciDetectedLanguage").textContent = "-";
+      return;
+    }
+    const baseCode = rawLang.split("-")[0].toLowerCase();
+    const matched = NOVA_INTERPRETER_LANGUAGES.find(
+      (l) => l.code.toLowerCase() === baseCode
+    );
+    document.getElementById("ciDetectedLanguage").textContent =
+      matched ? matched.name : rawLang;
+  })();
 
   // VerificationStatus & VerifiedVia — only applicable for INBOUND calls
   // (no IVR verification happens on outbound calls)
@@ -5660,6 +5897,9 @@ function populateCustomerInfo(contact) {
     );
   }
 
+  // Open ScreenPopURL in a new tab on every connected call that carries a valid URL.
+  openScreenPopURL(attrs);
+
   console.info(
     `${LOGGER_PREFIX} - populateCustomerInfo - populated for ${initiationMethod} call`,
   );
@@ -5676,11 +5916,35 @@ function clearCustomerInfo() {
     "ciIntent",
     "ciQueue",
     "ciDialedNumber",
+    "ciDetectedLanguage",
+    "ciCallSummary",
   ];
   fieldIds.forEach((id) => {
     document.getElementById(id).textContent = "-";
   });
   console.info(`${LOGGER_PREFIX} - clearCustomerInfo - all fields reset`);
+}
+
+/**
+ * Opens the URL from the "ScreenPopURL" contact attribute in a new browser tab.
+ *
+ * Conditions:
+ *  - If the attribute is absent or its value is empty/blank, no tab is opened.
+ *  - Called once per connected call (via populateCustomerInfo), so a new tab
+ *    is opened on every new call that carries a valid URL.
+ */
+function openScreenPopURL(attrs) {
+  const url = attrs["ScreenPopURL"]?.value?.trim() || "";
+  if (!url) {
+    console.info(`${LOGGER_PREFIX} - openScreenPopURL - no URL provided, skipping`);
+    return;
+  }
+  console.info(`${LOGGER_PREFIX} - openScreenPopURL - opening: ${url}`);
+  const newTab = window.open(url, "_blank", "noopener,noreferrer");
+  // Return focus to the current agent tab immediately so the agent is not
+  // pulled away. The agent can manually switch to the new tab when ready.
+  if (newTab) newTab.blur();
+  window.focus();
 }
 
 function cleanUpUI() {
@@ -5905,6 +6169,9 @@ function getVoiceId(languageCode) {
   if (!languageCode) return DEFAULT_VOICE_ID;
 
   const mapped = LANGUAGE_VOICE_ID_MAP[languageCode];
+  // fix 9: a language Nova Sonic does not support is translated by Transcribe + Translate + Polly, with
+  // Polly's voice for it, so this voice is never used.
+  if (!mapped && !NOVA_SONIC_LANGUAGES.includes(languageCode)) return DEFAULT_VOICE_ID;
   if (!mapped) {
     // DEFAULT_VOICE_ID is "matthew", an English-US voice. Handing it to a
     // session whose target is (say) Japanese asks Nova Sonic to speak Japanese

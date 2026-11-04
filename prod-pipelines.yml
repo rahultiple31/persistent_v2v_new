@@ -1,0 +1,210 @@
+# Each run selects one environment folder and its infrastructure module.
+# US uses prod-us; EU uses prod-eu; APAC uses prod-ap.
+# Terraform plans the complete selected regional configuration.
+# Existing regional backend keys are preserved.
+# Migrate any resources from the former shared "all" state before applying.
+name: BTSGSD-Prod-Infrastructure
+trigger: none
+
+pr: none
+
+parameters:
+  - name: targetEnvironment
+    displayName: Target environment
+    type: string
+    default: prod-us
+    values:
+      - prod-us
+      - prod-eu
+      - prod-ap
+
+  - name: targetModule
+    displayName: Target module
+    type: string
+    default: connect
+    values:
+      - connect
+
+  - name: terraformAction
+    displayName: Terraform action
+    type: string
+    default: plan
+    values:
+      - plan
+      - apply
+
+variables:
+  terraformVersion: '1.10.0'
+  workingDirectory: 'environments/${{ parameters.targetEnvironment }}'
+  moduleDirectory: 'modules-prod/${{ parameters.targetModule }}'
+  ${{ if eq(parameters.targetEnvironment, 'prod-us') }}:
+    awsRegion: 'us-east-1'
+    backendKey: 'terraform-state/prod/us-east-1/${{ parameters.targetModule }}/terraform.tfstate'
+  ${{ elseif eq(parameters.targetEnvironment, 'prod-eu') }}:
+    awsRegion: 'eu-central-1'
+    backendKey: 'terraform-state/prod/eu-central-1/${{ parameters.targetModule }}/terraform.tfstate'
+  ${{ elseif eq(parameters.targetEnvironment, 'prod-ap') }}:
+    awsRegion: 'ap-southeast-1'
+    backendKey: 'terraform-state/prod/ap-southeast-1/${{ parameters.targetModule }}/terraform.tfstate'
+  backendBucket: 'terraform-tfstate-production-1-bucket-10232'
+  backendRegion: 'us-east-1'
+  planArtifactName: 'terraform-plan-${{ parameters.targetEnvironment }}-${{ parameters.targetModule }}'
+
+stages:
+  - stage: plan
+    displayName: Plan ${{ parameters.targetEnvironment }} ${{ parameters.targetModule }}
+    condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+    jobs:
+      - job: terraform_plan
+        displayName: Terraform Plan ${{ parameters.targetEnvironment }} ${{ parameters.targetModule }}
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: $(terraformVersion)
+
+          - script: |
+              set -euo pipefail
+
+              AWS_ROLE_ARN='$(AWS_PROD_OIDC_ROLE_ARN)'
+
+              if [ -z "$AWS_ROLE_ARN" ] || [[ "$AWS_ROLE_ARN" == \$\(* ]]; then
+                echo "AWS OIDC role ARN is not configured for ${{ parameters.targetEnvironment }}."
+                exit 1
+              fi
+
+              OIDC_RESPONSE="$(curl --fail-with-body -sS \
+                -X POST \
+                -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+                -H "Content-Length: 0" \
+                "${SYSTEM_OIDCREQUESTURI}?api-version=7.1-preview.1")"
+              OIDC_TOKEN="$(printf '%s' "$OIDC_RESPONSE" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("oidcToken", ""))')"
+              if [ -z "$OIDC_TOKEN" ]; then
+                echo "Azure DevOps did not return an OIDC token."
+                exit 1
+              fi
+
+              AWS_WEB_IDENTITY_TOKEN_FILE="$(Agent.TempDirectory)/aws-oidc-token"
+              printf '%s' "$OIDC_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE"
+
+              export AWS_ROLE_ARN
+              export AWS_WEB_IDENTITY_TOKEN_FILE
+              export AWS_ROLE_SESSION_NAME="azure-pipelines-${{ parameters.targetEnvironment }}-$(Build.BuildId)"
+
+              terraform init -reconfigure \
+                -input=false \
+                -backend-config="bucket=$(backendBucket)" \
+                -backend-config="key=$(backendKey)" \
+                -backend-config="region=$(backendRegion)" \
+                -backend-config="encrypt=true"
+
+              terraform fmt -recursive .
+              terraform fmt -recursive "$(Build.SourcesDirectory)/$(moduleDirectory)"
+              terraform validate
+              python3 -m pip install --upgrade pip
+              python3 -m pip install checkov
+              checkov -d . --framework terraform --soft-fail
+              checkov -d "$(Build.SourcesDirectory)/$(moduleDirectory)" --framework terraform --soft-fail
+
+              terraform plan \
+                -input=false \
+                -out=tfplan
+
+              PLAN_ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)/terraform-plan"
+              mkdir -p "$PLAN_ARTIFACT_DIR"
+              cp tfplan "$PLAN_ARTIFACT_DIR/"
+
+              if [ -f .terraform.lock.hcl ]; then
+                cp .terraform.lock.hcl "$PLAN_ARTIFACT_DIR/"
+              fi
+            displayName: Terraform Init, Validate, and Plan
+            workingDirectory: $(workingDirectory)
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+              AWS_REGION: $(awsRegion)
+              TF_IN_AUTOMATION: 'true'
+
+          - publish: $(Build.ArtifactStagingDirectory)/terraform-plan
+            displayName: Publish Plan
+            artifact: $(planArtifactName)
+
+  - stage: apply
+    displayName: Apply ${{ parameters.targetEnvironment }} ${{ parameters.targetModule }}
+    dependsOn: plan
+    condition: and(succeeded(), eq('${{ parameters.terraformAction }}', 'apply'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: terraform_apply
+        displayName: Terraform Apply ${{ parameters.targetEnvironment }} ${{ parameters.targetModule }}
+        environment: prod
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: TerraformInstaller@1
+                  displayName: Install Terraform
+                  inputs:
+                    terraformVersion: $(terraformVersion)
+
+                - download: current
+                  displayName: Download Plan
+                  artifact: $(planArtifactName)
+
+                - script: |
+                    set -euo pipefail
+
+                    AWS_ROLE_ARN='$(AWS_PROD_OIDC_ROLE_ARN)'
+
+                    if [ -z "$AWS_ROLE_ARN" ] || [[ "$AWS_ROLE_ARN" == \$\(* ]]; then
+                      echo "AWS OIDC role ARN is not configured for ${{ parameters.targetEnvironment }}."
+                      exit 1
+                    fi
+
+                    OIDC_RESPONSE="$(curl --fail-with-body -sS \
+                      -X POST \
+                      -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+                      -H "Content-Length: 0" \
+                      "${SYSTEM_OIDCREQUESTURI}?api-version=7.1-preview.1")"
+                    OIDC_TOKEN="$(printf '%s' "$OIDC_RESPONSE" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("oidcToken", ""))')"
+                    if [ -z "$OIDC_TOKEN" ]; then
+                      echo "Azure DevOps did not return an OIDC token."
+                      exit 1
+                    fi
+
+                    AWS_WEB_IDENTITY_TOKEN_FILE="$(Agent.TempDirectory)/aws-oidc-token"
+                    printf '%s' "$OIDC_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE"
+
+                    export AWS_ROLE_ARN
+                    export AWS_WEB_IDENTITY_TOKEN_FILE
+                    export AWS_ROLE_SESSION_NAME="azure-pipelines-${{ parameters.targetEnvironment }}-$(Build.BuildId)"
+
+                    if [ -f "$(Pipeline.Workspace)/$(planArtifactName)/.terraform.lock.hcl" ]; then
+                      cp "$(Pipeline.Workspace)/$(planArtifactName)/.terraform.lock.hcl" .
+                    fi
+
+                    terraform init -reconfigure \
+                      -input=false \
+                      -backend-config="bucket=$(backendBucket)" \
+                      -backend-config="key=$(backendKey)" \
+                      -backend-config="region=$(backendRegion)" \
+                      -backend-config="encrypt=true"
+
+                    terraform apply \
+                      -input=false \
+                      -auto-approve \
+                      "$(Pipeline.Workspace)/$(planArtifactName)/tfplan"
+                  displayName: Terraform Apply
+                  workingDirectory: $(workingDirectory)
+                  env:
+                    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+                    SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+                    AWS_REGION: $(awsRegion)
+                    TF_IN_AUTOMATION: 'true'

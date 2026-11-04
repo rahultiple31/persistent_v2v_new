@@ -1,0 +1,255 @@
+# ── V2V POC proxy pipeline (environments/v2v-resources-dev) ──────────────────
+# Tests the proxy, builds the image (proxy + web app, Node 24), scans it with
+# Trivy, pushes it to the POC's ECR repository only when the scan is clean,
+# then plans the v2v-resources-dev Terraform with the new image tag. The apply
+# stage runs only when started manually with terraformAction = apply, on main.
+#
+# The infrastructure itself is created first with v2v-azure-pipeline.yml
+# (targetEnvironment = v2v-resources-dev): this pipeline reads the ECR
+# repository from that Terraform state. Both pipelines share the same state.
+
+name: v2v-proxy-$(Date:yyyyMMdd)-$(Rev:r)
+
+parameters:
+  - name: targetEnvironment
+    displayName: Target environment
+    type: string
+    default: v2v-resources-dev
+    values: [v2v-resources-dev]
+  - name: terraformAction
+    displayName: Terraform action
+    type: string
+    default: plan
+    values: [plan, apply]
+
+# Automatic runs (main only) use the defaults above, so they plan but never apply.
+trigger:
+  batch: true
+  branches:
+    include: [main]
+  paths:
+    include:
+      - proxy_backend/**
+      - webapp/**
+      - v2v-resource-modules/**
+      - environments/v2v-resources-dev/**
+      - scripts/aws-oidc.sh
+pr: none
+
+variables:
+  awsRegion: us-east-1
+  terraformVersion: '1.10.5'
+  backendBucket: bts-cloud-terraform-tfstate
+  # The state the POC stack already lives in (environments/v2v-resources-dev/providers.tf),
+  # the same key v2v-azure-pipeline.yml uses for v2v-resources-dev.
+  # Any other key is an empty state: Terraform would try to create the whole stack again.
+  backendKey: terraform-state/V2V-poc/terraform.tfstate
+  # Not loaded automatically (only terraform.tfvars and *.auto.tfvars are).
+  tfVarFile: terraform.dev.tfvars
+  planArtifactName: proxy-plan-${{ parameters.targetEnvironment }}-us-east-1
+  imageTag: $(Build.SourceVersion)-$(Build.BuildId)
+  # Trivy release binary, checked against its published SHA-256 before use.
+  trivyVersion: '0.76.1'
+  trivySha256: c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0
+  # QEMU for the one RUN step in the ARM64 final image stage (the agent is x86).
+  binfmtImage: tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+
+stages:
+  - stage: plan
+    jobs:
+      - job: build_and_plan
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          # Same Node major version as the image (node:24-alpine).
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '24.x'
+
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: $(terraformVersion)
+
+          # npm audit fails the build on HIGH or CRITICAL advisories, so known
+          # vulnerable packages never reach a built image.
+          - script: |
+              set -euo pipefail
+              npm ci --no-fund
+              npm audit --audit-level=high
+              npm test
+            displayName: Install, audit and test Nova proxy
+            workingDirectory: $(Build.SourcesDirectory)/proxy_backend
+
+          - script: |
+              set -euo pipefail
+              source "$(Build.SourcesDirectory)/scripts/aws-oidc.sh"
+              terraform init -input=false -reconfigure \
+                -backend-config="bucket=$(backendBucket)" \
+                -backend-config="key=$(backendKey)" \
+                -backend-config="region=$(awsRegion)" \
+                -backend-config="encrypt=true"
+              terraform validate
+              terraform test
+            displayName: Terraform init, validate and test
+            workingDirectory: $(Build.SourcesDirectory)/environments/${{ parameters.targetEnvironment }}
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+              AWS_OIDC_ROLE_ARN: $(AWS_DEV_OIDC_ROLE_ARN)
+              AWS_REGION: $(awsRegion)
+
+          # The Dockerfile uses node:24-alpine@${NODE_IMAGE_DIGEST}, so the tag is
+          # never trusted on its own. The newest Node 24 digest is resolved here
+          # (latest security patches) and passed in, and Trivy checks the result.
+          - script: |
+              set -euo pipefail
+              echo "Resolving immutable digest for node:24-alpine ..."
+              NODE_IMAGE_DIGEST=$(docker buildx imagetools inspect node:24-alpine \
+                --format '{{json .Manifest}}' | python3 -c \
+                "import json,sys; print(json.load(sys.stdin)['digest'])")
+              if [[ ! "$NODE_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                echo "##vso[task.logissue type=error]Unexpected digest: $NODE_IMAGE_DIGEST" >&2
+                exit 1
+              fi
+              echo "Resolved digest: $NODE_IMAGE_DIGEST"
+              echo "##vso[task.setvariable variable=NODE_IMAGE_DIGEST]$NODE_IMAGE_DIGEST"
+            displayName: Resolve node:24-alpine digest (supply-chain pin)
+
+          # The final image stage is ARM64 and has one RUN step (it removes the
+          # unused npm/yarn/corepack). The x86 agent runs it under QEMU.
+          - script: |
+              set -euo pipefail
+              docker run --privileged --rm "$(binfmtImage)" --install arm64
+            displayName: Set up QEMU for the ARM64 image stage
+
+          # Release binary, not a piped install script, and verified against the
+          # SHA-256 pinned above before it runs.
+          - script: |
+              set -euo pipefail
+              dir="$(Agent.TempDirectory)/trivy"
+              file="trivy_$(trivyVersion)_Linux-64bit.tar.gz"
+              mkdir -p "$dir"
+              cd "$dir"
+              curl -sSfL -o "$file" \
+                "https://github.com/aquasecurity/trivy/releases/download/v$(trivyVersion)/$file"
+              echo "$(trivySha256)  $file" | sha256sum -c -
+              tar -xzf "$file" trivy
+              ./trivy --version
+            displayName: Install Trivy $(trivyVersion) (checksum verified)
+
+          # Build locally (no push) -> scan with Trivy (fails on fixable CRITICAL
+          # or HIGH findings and on secrets) -> push to ECR only if clean -> plan.
+          - script: |
+              set -euo pipefail
+              source "$(Build.SourcesDirectory)/scripts/aws-oidc.sh"
+              repository="$(terraform output -raw ecr_repository_url)"
+              registry="${repository%%/*}"
+              image="$repository:$(imageTag)"
+              build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+              # ── Step A: ECR login ──────────────────────────────────────────
+              aws ecr get-login-password --region "$(awsRegion)" \
+                | docker login --username AWS --password-stdin "$registry"
+
+              # ── Step B: Build locally (arm64), no push yet ─────────────────
+              # Build context = repository root: the image also builds webapp/.
+              # --provenance=false: the image goes to the local engine (--load)
+              # for the scan and is pushed with docker push, which does not carry
+              # build attestations anyway.
+              docker buildx create --name v2v-builder --driver docker-container --use --bootstrap
+              docker buildx build --platform linux/arm64 \
+                --file "$(Build.SourcesDirectory)/proxy_backend/CICD/Dockerfile" \
+                --build-arg NODE_IMAGE_DIGEST="$(NODE_IMAGE_DIGEST)" \
+                --build-arg GIT_COMMIT="$(Build.SourceVersion)" \
+                --build-arg BUILD_DATE="$build_date" \
+                --build-arg IMAGE_TAG="$(imageTag)" \
+                --provenance=false \
+                --tag "$image" \
+                --load \
+                "$(Build.SourcesDirectory)"
+              echo "Image built locally: $image"
+
+              # ── Step C: Vulnerability and secret scan with Trivy ───────────
+              echo "Running Trivy scan ..."
+              "$(Agent.TempDirectory)/trivy/trivy" image \
+                --exit-code 1 \
+                --severity CRITICAL,HIGH \
+                --ignore-unfixed \
+                --format table \
+                --timeout 10m \
+                "$image"
+              echo "Trivy scan passed: no fixable CRITICAL or HIGH findings."
+
+              # ── Step D: Push to ECR only after a clean scan ────────────────
+              docker push "$image"
+              echo "Image pushed: $image"
+
+              # Also point "latest" at this image. terraform.dev.tfvars sets
+              # container_image_tag = "latest", so a later run of
+              # v2v-azure-pipeline.yml (all or ecs) keeps running this image
+              # instead of an old or missing one.
+              docker tag "$image" "$repository:latest"
+              docker push "$repository:latest"
+              echo "Image pushed: $repository:latest"
+
+              # ── Step E: Terraform plan with the new image tag ──────────────
+              terraform plan -input=false \
+                -var-file="$(tfVarFile)" \
+                -var="container_image_tag=$(imageTag)" \
+                -out=tfplan
+              mkdir -p "$(Build.ArtifactStagingDirectory)/proxy-plan"
+              cp tfplan "$(Build.ArtifactStagingDirectory)/proxy-plan/"
+              cp .terraform.lock.hcl "$(Build.ArtifactStagingDirectory)/proxy-plan/"
+
+              # Image reference, for the record
+              echo "$image" > "$(Build.ArtifactStagingDirectory)/proxy-plan/image.txt"
+            displayName: Build (local) → Scan (Trivy) → Push (ECR) → Plan (Terraform)
+            workingDirectory: $(Build.SourcesDirectory)/environments/${{ parameters.targetEnvironment }}
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+              AWS_OIDC_ROLE_ARN: $(AWS_DEV_OIDC_ROLE_ARN)
+              AWS_REGION: $(awsRegion)
+              TRIVY_CACHE_DIR: $(Agent.TempDirectory)/trivy-cache
+
+          - publish: $(Build.ArtifactStagingDirectory)/proxy-plan
+            artifact: $(planArtifactName)
+
+  - stage: apply
+    dependsOn: plan
+    condition: and(succeeded(), eq('${{ parameters.terraformAction }}', 'apply'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: activate_proxy
+        # Azure DevOps environment: add an approval check on it for a manual gate.
+        environment: v2v-resources
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: TerraformInstaller@1
+                  inputs:
+                    terraformVersion: $(terraformVersion)
+                - download: current
+                  artifact: $(planArtifactName)
+                - script: |
+                    set -euo pipefail
+                    source "$(Build.SourcesDirectory)/scripts/aws-oidc.sh"
+                    cp "$(Pipeline.Workspace)/$(planArtifactName)/.terraform.lock.hcl" .
+                    terraform init -input=false -reconfigure \
+                      -backend-config="bucket=$(backendBucket)" \
+                      -backend-config="key=$(backendKey)" \
+                      -backend-config="region=$(awsRegion)" \
+                      -backend-config="encrypt=true"
+                    terraform apply -input=false -auto-approve "$(Pipeline.Workspace)/$(planArtifactName)/tfplan"
+                  displayName: Apply the plan and wait for a healthy ECS service
+                  workingDirectory: $(Build.SourcesDirectory)/environments/${{ parameters.targetEnvironment }}
+                  env:
+                    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+                    SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+                    AWS_OIDC_ROLE_ARN: $(AWS_DEV_OIDC_ROLE_ARN)
+                    AWS_REGION: $(awsRegion)

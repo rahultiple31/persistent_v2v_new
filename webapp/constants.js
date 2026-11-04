@@ -82,7 +82,8 @@ export const PHONE_COUNTRY_CODE_LANGUAGE_MAP = [
  * voice (POLLY_FALLBACK_VOICE_MAP). Six of them — en, fr, de, it, es, pt — also
  * have a native Nova 2 Sonic voice and a target-language interpreter prompt
  * (pt since fix 7); the other three (nl, ja, zh) are not Nova 2 Sonic languages
- * and have no Nova Sonic voice.
+ * and have no Nova Sonic voice, so calls in them are translated by Transcribe +
+ * Translate + Polly (fix 9, NOVA_SONIC_LANGUAGES).
  */
 export const NOVA_INTERPRETER_LANGUAGES = [
   { code: "en", name: "English" },
@@ -95,6 +96,15 @@ export const NOVA_INTERPRETER_LANGUAGES = [
   { code: "ja", name: "Japanese" },
   { code: "zh", name: "Mandarin" },
 ];
+
+/**
+ * fix 9: the languages Nova Sonic translates (Nova 2 Sonic; AWS "Language support and multilingual
+ * capabilities", checked 2026-09-30). A call with any other language on either side, the agent's or the
+ * customer's, is translated by Amazon Transcribe + Amazon Translate + Amazon Polly from the start, and
+ * moves there at once when either language is changed to one during the call. Every entry needs a voice
+ * in LANGUAGE_VOICE_ID_MAP.
+ */
+export const NOVA_SONIC_LANGUAGES = ["en", "fr", "de", "it", "pt", "es"];
 
 // ─── Voice ID mapping ────────────────────────────────────────────────────────
 // Maps NOVA_INTERPRETER_LANGUAGES codes → Nova Sonic voice IDs.

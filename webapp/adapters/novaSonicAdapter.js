@@ -1,8 +1,6 @@
 // Copyright 2025 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 import { LOGGER_PREFIX } from "../constants";
-import { NOVA_SONIC_CONFIG, PROXY_CONFIG } from "../config";
-import { getValidAwsCredentials, hasValidAwsCredentials } from "../utils/authUtility";
 import { openNovaProxyStream } from "../utils/proxyTransport";
 import { createPcm16Downsampler, pcm16MonoToWavArrayBuffer } from "../utils/novaSonicAudioUtils";
 import { buildInterpreterPrompt } from "./interpreterPrompts";
@@ -10,8 +8,6 @@ import { buildInterpreterPrompt } from "./interpreterPrompts";
 const NOVA_INPUT_SAMPLE_RATE = 16000;
 const NOVA_OUTPUT_SAMPLE_RATE = 24000;
 const TEXT_ENCODER = new TextEncoder();
-
-let _bedrockClient;
 
 // fix 7: the Nova 2 Sonic voices, from AWS's "Language support and multilingual capabilities" page
 // (Amazon Nova 2 user guide), checked 2026-09-30. The list before was Nova Sonic v1's: German was "greta"
@@ -36,47 +32,6 @@ export const NOVA_SONIC_VOICE_IDS = [
   { id: "carolina", label: "Carolina (Portuguese Brazil, feminine)" },
   { id: "leo", label: "Leo (Portuguese Brazil, masculine)" },
 ];
-
-async function getBedrockRuntimeClient() {
-  if (_bedrockClient != null && hasValidAwsCredentials()) {
-    return _bedrockClient;
-  }
-  const [credentials, { BedrockRuntimeClient }] = await Promise.all([
-    getValidAwsCredentials(),
-    import("@aws-sdk/client-bedrock-runtime"),
-  ]);
-  _bedrockClient = new BedrockRuntimeClient({
-    region: NOVA_SONIC_CONFIG.bedrockRegion,
-    credentials: {
-      accessKeyId: credentials.accessKeyId,
-      secretAccessKey: credentials.secretAccessKey,
-      sessionToken: credentials.sessionToken,
-    },
-  });
-  return _bedrockClient;
-}
-
-export function invalidateBedrockClient() {
-  _bedrockClient = null;
-}
-
-/**
- * Returns a function that opens one Nova Sonic bidirectional stream over `queue` and resolves to a
- * response whose `body` yields Bedrock output events.
- *
- * With the proxy enabled the stream runs through the server-side proxy and no AWS credentials exist in
- * the browser; the model ID is then set on the proxy. Otherwise the browser calls Bedrock directly.
- * The AWS SDK is imported only in direct mode, so the proxy build never loads it.
- */
-async function prepareNovaStream() {
-  if (PROXY_CONFIG.enabled) return openNovaProxyStream;
-  const [client, { InvokeModelWithBidirectionalStreamCommand }] = await Promise.all([
-    getBedrockRuntimeClient(),
-    import("@aws-sdk/client-bedrock-runtime"),
-  ]);
-  const modelId = NOVA_SONIC_CONFIG.modelId || "amazon.nova-2-sonic-v1:0";
-  return (queue) => client.send(new InvokeModelWithBidirectionalStreamCommand({ modelId, body: queue }));
-}
 
 function delay(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -1011,12 +966,8 @@ export async function startNovaSonicInterpreterSession({
   handlers,
   sessionLabel = "UNKNOWN",
 }) {
-  // Split the two costs inside this call. The [TIMING] marks in main.js showed
-  // session open accounting for ~99% of the Start button, but not whether that
-  // is the Cognito credential exchange or the Bedrock stream handshake.
+  // The [TIMING] marks in main.js showed session open accounting for ~99% of the Start button.
   const tSessionStart = performance.now();
-  const openStream = await prepareNovaStream();
-  const tClientReady = performance.now();
   const promptName = crypto.randomUUID();
   const textContentName = crypto.randomUUID();
   const audioContentName = crypto.randomUUID();
@@ -1045,7 +996,7 @@ export async function startNovaSonicInterpreterSession({
 
   let response;
   try {
-    response = await openStream(queue);
+    response = await openNovaProxyStream(queue);
   } catch (e) {
     queue.close();
     // The session never started, so it must not trigger a "proactive restart" 7.5 minutes from now.
@@ -1053,9 +1004,7 @@ export async function startNovaSonicInterpreterSession({
     throw e;
   }
   console.info(
-    `${LOGGER_PREFIX} [${sessionLabel}] - [TIMING] ${PROXY_CONFIG.enabled ? "proxy" : "bedrock client + credentials"}: ` +
-    `${Math.round(tClientReady - tSessionStart)}ms | stream handshake: ` +
-    `${Math.round(performance.now() - tClientReady)}ms`
+    `${LOGGER_PREFIX} [${sessionLabel}] - [TIMING] stream handshake: ${Math.round(performance.now() - tSessionStart)}ms`
   );
 
   const outputTask = processResponseStream(response.body, handlers, sessionState, sessionLabel);
@@ -1125,7 +1074,6 @@ export async function startNovaSonicInterpreterSession({
  * Typed agent message: translate to target language and speak via Nova Sonic (no separate Translate/Polly).
  */
 export async function runNovaSonicTypedTextInterpretation({ text, sourceLangCode, targetLangCode, voiceId, handlers }) {
-  const openStream = await prepareNovaStream();
   const promptName = crypto.randomUUID();
   const textContentName = crypto.randomUUID();
   const userTextContentName = crypto.randomUUID();
@@ -1146,7 +1094,7 @@ export async function runNovaSonicTypedTextInterpretation({ text, sourceLangCode
   await delay(20);
   queue.close();
 
-  const response = await openStream(queue);
+  const response = await openNovaProxyStream(queue);
 
   await processResponseStream(response.body, handlers, sessionState, "AGENT-TYPED");
 }

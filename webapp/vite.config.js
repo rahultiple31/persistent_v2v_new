@@ -3,8 +3,8 @@ import mkcert from "vite-plugin-mkcert";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { viteStaticCopy } from "vite-plugin-static-copy";
  
-// Local development with the proxy enabled: /ws and /api are forwarded to the proxy, so the app talks to
-// the same origin as it does behind CloudFront. Defaults to a proxy running locally (cd proxy && npm start).
+// Local development: /ws and /api are forwarded to the proxy, so the app talks to the same origin as when
+// the proxy serves it. Defaults to a proxy running locally (cd proxy && npm start).
 const proxyTarget = process.env.V2V_PROXY_TARGET || "http://localhost:8080";
  
 export default defineConfig({

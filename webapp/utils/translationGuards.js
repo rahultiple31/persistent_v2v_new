@@ -65,11 +65,30 @@ const TASK_TALK_GROUPS = [
     name: "thinks aloud",
     re: /\b(let s break (it|this) down|the tone (here )?(seems|sounds)|following all the rules|so my response (should|will|would|must) be|i (will|should|must) say (this|it) exactly|the user s input|the user (isn t|is not) asking)\b/,
   },
+  {
+    // 2026-10-15: a new session that heard only "hello" commented on the call instead of translating it:
+    // "Hola. (Puedo escuchar que la persona al otro lado de la línea dijo 'hello'." and "Si necesitas que
+    // repita o aclare algo, indícame." Talk about the person on the other end, and offers to repeat or
+    // clarify, in each of the app's languages.
+    name: "comments on the call",
+    re: /\b(the (person|speaker|caller|customer|user|other person) (on|at) the other (end|side|line)|i (can )?hear (that )?the (person|speaker|caller|customer|agent|user)|the (speaker|caller|user|other person|other party) (just )?(said|says|is saying|has said)|if you (need|want|would like) me to (repeat|clarify|translate)|(puedo escuchar|puedo oir|escucho|oigo) que (la persona|el hablante|el usuario|el cliente|el agente|alguien)|la persona (al|del|en el) otro (lado|extremo)|(el|la) (hablante|interlocutor|interlocutora|usuario|usuaria|persona que habla) (dijo|dice|ha dicho|acaba de decir)|si (necesitas|necesita|quieres|quiere|deseas|desea) que (te |le )?(repita|aclare|traduzca)|la personne (a|de) l autre (bout|cote)|(j entends|je peux entendre) que (la personne|l interlocuteur|le client)|si (tu as|vous avez) besoin que je (repete|clarifie|traduise)|die person am anderen ende|(ich hore|ich kann horen) dass (die person|der sprecher|der kunde)|la persona (dall|all) altro (lato|capo)|se (hai|ha) bisogno che (io )?(ripeta|chiarisca|traduca)|a pessoa do outro lado|se (voce )?precisar que eu (repita|esclareca|traduza))\b/,
+  },
 ];
+
+// A remark in brackets. Speech has no brackets, so one in Nova Sonic's output is a note to the listener
+// (2026-10-15: "Hola. (Puedo escuchar que la persona al otro lado de la línea dijo 'hello'."). Four words
+// or more, so a short aside such as "(A de árbol)" is not taken for one.
+const BRACKETED_REMARK_MIN_WORDS = 4;
+
+function hasBracketedRemark(text) {
+  const match = /[([]([^)\]]*)/.exec(String(text || ""));
+  return !!match && words(match[1]).length >= BRACKETED_REMARK_MIN_WORDS;
+}
 
 function matchTaskTalk(output, baseline, groups) {
   const out = normalizeForCompare(output);
   if (!out) return null;
+  if (hasBracketedRemark(output) && !hasBracketedRemark(baseline)) return "remark in brackets";
   const src = normalizeForCompare(baseline);
   for (const group of groups) {
     if (group.re.test(out) && !group.re.test(src)) return group.name;
@@ -96,6 +115,7 @@ const CUSTOMER_TASK_TALK_GROUPS = [
   },
   TASK_TALK_GROUPS[2],
   TASK_TALK_GROUPS[3],
+  TASK_TALK_GROUPS[4],
 ];
 
 /** mentionsTranslationTask for the customer -> agent output (fix 7): see CUSTOMER_TASK_TALK_GROUPS. */
@@ -465,6 +485,9 @@ const STAT_LABELS = [
   ["restarts", "context restarts"],
   ["agentInterruptions", "agent interruptions"],
   ["customerInterruptions", "customer interruptions"],
+  // 2026-10-15: the rest of a chatbot reply, and what it had already shown before it was recognised.
+  ["chatbotMuted", "further sentences of a chatbot reply muted"],
+  ["chatbotRetracted", "chatbot sentences taken off the screen"],
 ];
 
 // fix 7: the customer -> agent checks, printed as their own [CUSTOMER-CHECK-SUMMARY] line so the
@@ -535,6 +558,49 @@ export class JudgedSentences {
       if (isSameUtterance(this.items[i].key, key)) return this.items[i];
     }
     return null;
+  }
+
+  clear() {
+    this.items = [];
+  }
+}
+
+// ─── 2026-10-15: texts of a chatbot reply ───────────────────────────────────
+//
+// Once part of an agent-side reply is a chatbot answer, the whole reply is kept from the customer and off
+// the screen. Nova Sonic sends each sentence a second time (its FINAL copy), sometimes after the reply has
+// ended and sometimes with several sentences run together, so the texts are remembered for a while and a
+// later copy that repeats or contains one of them stays hidden too. Short texts must match exactly, so a
+// muted "Hola." never hides a later "Hola, ¿cómo estás?".
+
+const MUTED_REPLY_CONTAINS_MIN_CHARS = 15;
+
+export class MutedReplyTexts {
+  constructor({ max = 16, ttlMs = 30000, now = Date.now } = {}) {
+    this.max = max;
+    this.ttlMs = ttlMs;
+    this.now = now;
+    this.items = [];
+  }
+
+  add(text) {
+    const key = normalizeForCompare(text);
+    if (!key) return;
+    this.items.push({ key, at: this.now() });
+    if (this.items.length > this.max) this.items.shift();
+  }
+
+  /** True when `text` repeats or contains a remembered text, or is contained in one. */
+  has(text) {
+    const key = normalizeForCompare(text);
+    if (!key) return false;
+    const cutoff = this.now() - this.ttlMs;
+    return this.items.some(({ key: muted, at }) => {
+      if (at < cutoff) return false;
+      if (muted === key || isSameUtterance(muted, key)) return true;
+      if (muted.length < MUTED_REPLY_CONTAINS_MIN_CHARS || key.length < MUTED_REPLY_CONTAINS_MIN_CHARS) return false;
+      return key.includes(muted) || muted.includes(key);
+    });
   }
 
   clear() {

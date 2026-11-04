@@ -1,17 +1,19 @@
 // Copyright 2025 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 //
-// Browser side of the server-side proxy (protocol: proxy/src/server.js). With the proxy enabled the
-// browser never obtains AWS credentials: Nova Sonic and Transcribe stream over a same-origin WebSocket
+// Browser side of the server-side proxy (protocol: proxy/src/server.js). The browser never obtains AWS
+// credentials: Nova Sonic and Transcribe stream over a same-origin WebSocket
 // (/ws), and the Translate + Polly fallback is a same-origin POST (/api/fallback). Both authenticate
-// with the agent's Cognito access token, which is sent in the first WebSocket frame, never in a URL.
+// with the agent's access token, which is sent in the first WebSocket frame, never in a URL; or, with the
+// server-side sign-in, with the session cookie the browser sends by itself (authUtility.getProxyAuth).
 //
-// Latency: the proxy runs next to Bedrock and is reached through CloudFront, so it replaces the
-// browser -> AWS hop rather than adding one. The pool below keeps sockets connected and authenticated
-// ahead of time, so Start does not wait for a TCP + TLS + WebSocket handshake either.
+// Latency: the proxy runs in the same Region as the AI services and reaches them through VPC endpoints.
+// The pool below keeps sockets connected and authenticated ahead of time, so Start does not wait for a
+// TCP + TLS + WebSocket handshake.
 import { LOGGER_PREFIX } from "../constants";
-import { decodeToken, getValidTokens } from "./authUtility";
+import { getProxyAuth } from "./authUtility";
 import { base64ToArrayBuffer } from "./commonUtility";
+import { recordHealthEvent, recordSendBacklog } from "./healthMonitor";
 
 const WS_PATH = "/ws";
 const FALLBACK_PATH = "/api/fallback";
@@ -40,16 +42,21 @@ const NOVA_STREAM_EXCEPTIONS = new Set([
   "serviceUnavailableException",
 ]);
 
+// fix 12: times reported to the health light (utils/healthMonitor.js). Reporting never throws and never
+// changes what a request returns or throws.
+const clock = () => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
+
+// fix 13: close code 1006 = the connection was cut without a closing handshake (network, not the proxy:
+// the proxy's own closes, such as 1012 on a deployment, carry their code).
+const CUT_CLOSE_CODE = 1006;
+function reportIfCut(event) {
+  if (event?.code === CUT_CLOSE_CODE) recordHealthEvent({ type: "linkDrop", code: event.code });
+}
+
 function proxyWebSocketUrl() {
   const url = new URL(WS_PATH, window.location.origin);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.href;
-}
-
-async function getAccessToken() {
-  const tokens = await getValidTokens();
-  if (!tokens?.accessToken) throw new Error("Not signed in: no access token for the translation proxy");
-  return tokens.accessToken;
 }
 
 function proxyError({ code, message }) {
@@ -101,22 +108,33 @@ class ProxySocket {
   }
 
   static async open() {
-    const token = await getAccessToken();
+    const auth = await getProxyAuth();
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(proxyWebSocketUrl());
       ws.binaryType = "arraybuffer";
+      // fix 12: whether the connection opened, reported once.
+      let reported = false;
+      const report = (ok) => {
+        if (reported) return;
+        reported = true;
+        recordHealthEvent({ type: "proxyConnect", ok });
+      };
       const timer = setTimeout(() => {
+        report(false);
         ws.close();
         reject(new Error("Timed out connecting to the translation proxy"));
       }, CONNECT_TIMEOUT_MS);
       ws.onopen = () => {
         clearTimeout(timer);
+        report(true);
         // Sent without waiting for an acknowledgement: the proxy verifies it while the next frames arrive.
-        ws.send(JSON.stringify({ type: "auth", token }));
-        resolve(new ProxySocket(ws, (decodeToken(token)?.exp ?? 0) * 1000));
+        // With the server-side sign-in the proxy reads the session cookie of the upgrade, so no token is sent.
+        ws.send(JSON.stringify({ type: "auth", ...(auth.token ? { token: auth.token } : {}) }));
+        resolve(new ProxySocket(ws, auth.expiresAt));
       };
       ws.onclose = (event) => {
         clearTimeout(timer);
+        report(false);
         reject(new Error(`Could not connect to the translation proxy (close code ${event.code})`));
       };
     });
@@ -189,7 +207,8 @@ class ProxySocketPool {
       while (this.#idle.length < POOL_SIZE) {
         const socket = await ProxySocket.open();
         // The proxy closes idle sockets on deployments (1012) and after its idle timeout: drop and refill.
-        socket.ws.onclose = () => {
+        socket.ws.onclose = (event) => {
+          reportIfCut(event);
           this.#idle = this.#idle.filter((s) => s !== socket);
           if (Date.now() - socket.createdAt >= POOL_HEALTHY_SOCKET_MS) this.#retryDelay = POOL_RETRY_INITIAL_MS;
           this.#scheduleFill();
@@ -242,6 +261,7 @@ class ProxyStream {
 
     this.closed = new Promise((resolve) => {
       this.#ws.onclose = (event) => {
+        reportIfCut(event);
         this.closeInfo = { code: event.code, reason: event.reason };
         settleReady(closedError(this.closeInfo));
         this.#inbox.close();
@@ -277,6 +297,9 @@ class ProxyStream {
   /** Returns false once the socket is no longer open. */
   sendBinary(bytes) {
     if (this.#ws.readyState !== WebSocket.OPEN) return false;
+    // fix 13: audio from earlier frames still waiting to be sent: grows when the network cannot keep up.
+    // Read before this frame is added, so a large frame on a good network does not count.
+    recordSendBacklog(this.#ws.bufferedAmount);
     this.#ws.send(bytes);
     return true;
   }
@@ -331,15 +354,15 @@ export function warmProxyConnections() {
 }
 
 /**
- * Drop-in replacement for BedrockRuntimeClient.send(InvokeModelWithBidirectionalStreamCommand).
- * `outbound` is the adapter's async iterable of { chunk: { bytes } } input events. Resolves once the
+ * Opens a Nova Sonic stream through the proxy, shaped like the Bedrock SDK's
+ * InvokeModelWithBidirectionalStreamCommand response. `outbound` is the adapter's async iterable of { chunk: { bytes } } input events. Resolves once the
  * proxy has the Bedrock stream open, with { body } yielding Bedrock-shaped output events.
  */
 export async function openNovaProxyStream(outbound) {
   const stream = await startStream({ type: "start", service: "nova" });
 
   // Input is sent straight away rather than after "ready": the proxy queues it while Bedrock accepts
-  // the stream, which is what the SDK does with the same queue when calling Bedrock directly.
+  // the stream.
   (async () => {
     for await (const item of outbound) {
       if (!stream.sendBinary(item.chunk.bytes)) break;
@@ -366,20 +389,66 @@ export async function startTranscribeProxyStream({ languageCode, sampleRate }) {
  * @returns {Promise<{ forceBackup: boolean }>}
  */
 export async function fetchTranslationMode({ timeoutMs = 5000 } = {}) {
-  const token = await getAccessToken();
+  const auth = await getProxyAuth();
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
+  // fix 12: this check runs every 30 s from sign-in; its time and outcome feed the health light.
+  const startedAt = clock();
+  let status = null;
   try {
     const response = await fetch(new URL(TRANSLATION_MODE_PATH, window.location.origin), {
       method: "GET",
-      headers: { Authorization: `Bearer ${token}` },
-      credentials: "omit",
+      headers: auth.headers,
+      credentials: auth.credentials,
       cache: "no-store",
       signal: abort.signal,
     });
+    status = response.status;
     if (!response.ok) throw new Error(`Translation mode request failed: HTTP ${response.status}`);
     const result = await response.json();
+    recordHealthEvent({ type: "proxyCheck", ok: true, ms: clock() - startedAt, status });
     return { forceBackup: result?.forceBackup === true };
+  } catch (e) {
+    recordHealthEvent({ type: "proxyCheck", ok: false, ms: clock() - startedAt, status });
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * fix 13: one timed request to the translation proxy for the health light: the same small request as the
+ * translation-mode check (the proxy answers it from memory, without calling AWS), so its time is the
+ * network's round trip. Nova Sonic and the backup send their audio over the same path.
+ * Never throws and never reports to the translation label.
+ * @returns {Promise<{ reached: boolean, ms: number, status: number|null }|null>} reached: an HTTP answer came
+ *   back (any status); null when nothing was measured (not signed in).
+ */
+export async function pingProxy({ timeoutMs = 3000 } = {}) {
+  let auth;
+  try {
+    auth = await getProxyAuth();
+  } catch {
+    return null;
+  }
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
+  // Timed after the credentials, so a token or session renewal is not counted as network time.
+  const startedAt = clock();
+  try {
+    const response = await fetch(new URL(TRANSLATION_MODE_PATH, window.location.origin), {
+      method: "GET",
+      headers: auth.headers,
+      credentials: auth.credentials,
+      cache: "no-store",
+      signal: abort.signal,
+    });
+    const ms = clock() - startedAt;
+    // Read the small body to the end, so the browser keeps reusing the connection.
+    await response.text().catch(() => "");
+    return { reached: true, ms, status: response.status };
+  } catch {
+    return { reached: false, ms: clock() - startedAt, status: null };
   } finally {
     clearTimeout(timer);
   }
@@ -390,24 +459,33 @@ export async function fetchTranslationMode({ timeoutMs = 5000 } = {}) {
  * @returns {Promise<{ translatedText: string, audio: Uint8Array|null, audioError: boolean }>}
  */
 export async function requestProxyFallback({ text, sourceLanguageCode, targetLanguageCode, voice }) {
-  const token = await getAccessToken();
-  const response = await fetch(new URL(FALLBACK_PATH, window.location.origin), {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({
-      text,
-      sourceLanguageCode,
-      targetLanguageCode,
-      ...(voice ? { voiceId: voice.voiceId, engine: voice.engine } : {}),
-    }),
-    credentials: "omit",
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    const detail = await response.json().catch(() => ({}));
-    throw new Error(`Translation proxy fallback failed: HTTP ${response.status}${detail.error ? ` (${detail.error})` : ""}`);
+  const auth = await getProxyAuth();
+  // fix 12: how long Translate + Polly took through the proxy, and whether it worked, for the health light.
+  const startedAt = clock();
+  let result;
+  try {
+    const response = await fetch(new URL(FALLBACK_PATH, window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...auth.headers },
+      body: JSON.stringify({
+        text,
+        sourceLanguageCode,
+        targetLanguageCode,
+        ...(voice ? { voiceId: voice.voiceId, engine: voice.engine } : {}),
+      }),
+      credentials: auth.credentials,
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(`Translation proxy fallback failed: HTTP ${response.status}${detail.error ? ` (${detail.error})` : ""}`);
+    }
+    result = await response.json();
+  } catch (e) {
+    recordHealthEvent({ type: "backupRequest", ok: false, ms: clock() - startedAt });
+    throw e;
   }
-  const result = await response.json();
+  recordHealthEvent({ type: "backupRequest", ok: !!result && result.audioError !== true, ms: clock() - startedAt });
   return {
     translatedText: result.translatedText,
     audio: result.audio ? base64ToArrayBuffer(result.audio) : null,

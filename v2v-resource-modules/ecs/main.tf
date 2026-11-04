@@ -12,7 +12,8 @@
 
 locals {
   container_name = "proxy"
-  container_port = 8080
+  # HTTPS (SERVER_TLS=self-signed); above 1024 as the proxy does not run as root
+  container_port = 8443
 }
 
 # ── ECS Cluster ───────────────────────────────────────────────────────────────
@@ -94,10 +95,11 @@ resource "aws_ecs_task_definition" "proxy" {
 
       # Container health check — matches CDK healthCheck block
       healthCheck = {
-        # Uses the Node.js built-in fetch() available in Node 18+
+        # HTTPS call to the task itself, so its own self-signed certificate is
+        # not checked (rejectUnauthorized: false)
         command = [
           "CMD", "node", "-e",
-          "fetch('http://127.0.0.1:${local.container_port}/healthz').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))"
+          "require('https').get({ host: '127.0.0.1', port: ${local.container_port}, path: '/healthz', rejectUnauthorized: false, timeout: 4000 }, (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1)).on('timeout', () => process.exit(1))"
         ]
         interval    = 15
         timeout     = 5

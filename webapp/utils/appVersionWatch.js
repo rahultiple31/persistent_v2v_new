@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT-0
 
 // Notices when the deployed app differs from the one this page is running: new code (index.html points to
-// a different main script) or new settings (frontend-config.js differs, for example translationEnabled switched
-// on). Agents keep the page open all day, so without this a deploy would only reach them at their next sign-in.
+// a different main script) or new settings (frontend-config.js differs). Agents keep the page open all day, so
+// without this a deploy would only reach them at their next sign-in.
 // It only reads two small files from the app's own origin; it never reloads the page itself.
 
 export const VERSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -41,8 +41,6 @@ export function sameConfig(a, b) {
   return normalise(a) === normalise(b);
 }
 
-const translationOn = (config) => String(config?.translationEnabled) === "true";
-
 async function fetchFresh(url) {
   const response = await fetch(url, { cache: "no-store", credentials: "same-origin" });
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
@@ -51,9 +49,9 @@ async function fetchFresh(url) {
 
 /**
  * Compares the deployed app with the loaded one every intervalMs, and whenever check() is called. onChange gets
- * { codeChanged, configChanged, translationNowEnabled, translationNowDisabled } when a different version is
- * deployed (once per version), and null when the deployed version matches the loaded one again. A file that
- * cannot be fetched or read is ignored: no notice is better than a false one.
+ * { codeChanged, configChanged } when a different version is deployed (once per version), and null when the
+ * deployed version matches the loaded one again. A file that cannot be fetched or read is ignored: no notice is
+ * better than a false one.
  */
 export function createAppVersionWatch({
   loadedMainScript,
@@ -93,17 +91,10 @@ export function createAppVersionWatch({
       const version = `${deployedScript}\n${JSON.stringify(deployedConfig)}`;
       if (version === reported) return;
       reported = version;
-      const change = {
-        codeChanged,
-        configChanged,
-        translationNowEnabled: !translationOn(loadedConfig) && translationOn(deployedConfig),
-        translationNowDisabled: translationOn(loadedConfig) && !translationOn(deployedConfig),
-      };
       log(
-        `a new version is deployed (${[codeChanged && "code", configChanged && "settings"].filter(Boolean).join(" and ")} changed` +
-          `${change.translationNowEnabled ? ", translation switched on" : ""}${change.translationNowDisabled ? ", translation switched off" : ""})`,
+        `a new version is deployed (${[codeChanged && "code", configChanged && "settings"].filter(Boolean).join(" and ")} changed)`,
       );
-      onChange(change);
+      onChange({ codeChanged, configChanged });
     } catch (error) {
       log(`version check failed (${error?.message ?? error}); checking again later`);
     } finally {

@@ -281,6 +281,28 @@ export class AudioStreamManager {
     });
   }
 
+  /**
+   * fix 11: decodes MP3 bytes ahead of playback, so a clip can be ready while the one before it is still
+   * playing (see playDecodedAudio). Works on a copy: decoding takes over the buffer it is given.
+   */
+  decodeAudio(bytes) {
+    return this.audioContext.decodeAudioData(new Uint8Array(bytes).slice().buffer);
+  }
+
+  /**
+   * fix 11: like playAudioBuffer, for a clip already decoded by decodeAudio, so it starts the moment the
+   * clip before it ends. One decoded clip can be played by several managers. Resolves when it has played.
+   */
+  playDecodedAudio(audioBuffer, volume = 1.0) {
+    if (this.isDisposed) return Promise.resolve();
+    return new Promise((resolve) => {
+      this.audioQueue.push({ buffer: audioBuffer, volume: volume, resolve: resolve });
+      if (!this.isPlaying) {
+        this.processQueue();
+      }
+    });
+  }
+
   async processQueue() {
     if (this.isDisposed) {
       this.audioQueue = [];

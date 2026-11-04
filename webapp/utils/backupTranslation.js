@@ -9,6 +9,9 @@
 // sentence at a time. Nova Sonic is restarted in the background (at most 3 attempts per failure); once a
 // restart works, Nova Sonic takes over again at the next quiet moment.
 //
+// fix 9: a call with a language Nova Sonic does not support is on the backup too, on both sides, for as
+// long as that language is selected. Nova Sonic is not started for it.
+//
 // Everything here is independent of the page: timers, clocks, audio and services are passed in, so the
 // behaviour can be tested in Node. main.js wires it to the call.
 import { wordsContainedIn } from "./translationGuards";
@@ -16,8 +19,6 @@ import { wordsContainedIn } from "./translationGuards";
 export const BACKUP_MAX_ATTEMPTS = 3;
 // Same spacing as the existing Nova Sonic reconnects: 1.5 s, 3 s, 4.5 s.
 export const BACKUP_BACKOFF_MS = (attempt) => attempt * 1500;
-// Transcribe sometimes closes one sentence as two results within a few hundred milliseconds.
-export const BACKUP_JOIN_MS = 250;
 // Nova Sonic is judged silent when a sentence Transcribe heard got no Nova Sonic event of any kind (not
 // even its own transcript of what it heard) from GRACE_BEFORE before the sentence ended to WAIT after it.
 export const SILENCE_WAIT_MS = 6000;
@@ -31,6 +32,13 @@ export const SILENCE_SESSION_SETTLE_MS = 4000;
 // At most this many silence switches per side per call, so a line that confuses the check cannot make
 // the call flip back and forth.
 export const SILENCE_MAX_TRIGGERS = 2;
+// 2026-10-15: Transcribe can close a sentence well after Nova Sonic has heard and translated it (slow
+// network), which the time window above alone took for silence. What Nova Sonic heard is kept this long,
+// and a hearing counts for a sentence when at least SILENCE_HEARD_MIN_WORDS of its words, and
+// SILENCE_HEARD_MIN_SHARE of them, are in the sentence. Each hearing counts for one sentence only.
+export const SILENCE_HEARD_MEMORY_MS = 60000;
+export const SILENCE_HEARD_MIN_WORDS = 3;
+export const SILENCE_HEARD_MIN_SHARE = 0.6;
 // Customer side (no Transcribe while Nova Sonic works): speech on the line, then no Nova Sonic event.
 export const VOICE_THRESHOLD_RMS = 0.02;
 export const VOICE_MIN_VOICED_MS = 2000;
@@ -69,6 +77,33 @@ export function isLikelyEcho(text, recentlySpoken) {
   return wordsContainedIn(text, recentlySpoken.join(" ")) >= 0.7;
 }
 
+// fix 10: Transcribe writes down background noise as short "sentences" ("Mm.", "The.", "S."), which the
+// backup would translate and speak. A sentence on its own is left out when it is only hesitation sounds,
+// or when it has at most NOISE_MAX_WORDS words and Transcribe's average confidence in them (0 to 1) is
+// below NOISE_MIN_CONFIDENCE. Tune both from the [NOISE] lines in the browser console.
+export const NOISE_MAX_WORDS = 3;
+export const NOISE_MIN_CONFIDENCE = 0.5;
+// Sounds people make while thinking. Not "mhm", "mm-hmm" or "uh-huh": those can mean yes.
+const HESITATION_SOUNDS = new Set(["uh", "uhh", "um", "umm", "uhm", "er", "erm", "ah", "ahh", "eh", "hm", "hmm", "hmmm", "mm", "mmm"]);
+
+/**
+ * Why a piece from Transcribe is likely background noise and should not be translated, or null to
+ * translate it. Only a sentence on its own is judged: the end of a longer sentence is always kept.
+ * @param {string} text
+ * @param {{ words?: number, confidence?: number|null, wholeSentence?: boolean }} [about]  from the proxy
+ * @returns {string|null}
+ */
+export function noiseReason(text, about) {
+  if (!about?.wholeSentence) return null;
+  const spoken = words(String(text || "").toLowerCase().replace(/[^\p{L}\p{N}\s'-]/gu, " "));
+  if (spoken.length && spoken.every((word) => HESITATION_SOUNDS.has(word))) return "only hesitation sounds";
+  const count = Number.isFinite(about.words) ? about.words : spoken.length;
+  if (count <= NOISE_MAX_WORDS && Number.isFinite(about.confidence) && about.confidence < NOISE_MIN_CONFIDENCE) {
+    return "short and low confidence";
+  }
+  return null;
+}
+
 /**
  * Translates and speaks one side's sentences in order. Translations are fetched in parallel as the
  * sentences arrive, and delivered strictly in the order spoken.
@@ -78,11 +113,9 @@ export function isLikelyEcho(text, recentlySpoken) {
  * @param {(text: string) => Promise<{text: string, audio: Uint8Array|null, voiceLabel?: string}|null>} opts.translate
  * @param {(job: {text: string}, result: object|null) => Promise<void>} opts.deliver  shows and plays one result
  */
-export function createBackupSpeaker({ label, translate, deliver, joinMs = BACKUP_JOIN_MS, retryDelayMs = 400, timers = defaultTimers, now = Date.now, log = console }) {
+export function createBackupSpeaker({ label, translate, deliver, retryDelayMs = 400, timers = defaultTimers, now = Date.now, log = console }) {
   const queue = [];
   let epoch = 0;
-  let pendingText = "";
-  let joinTimer = null;
   let running = null;
   let lastDeliveredAt = 0;
   let playbackEndsAt = 0;
@@ -152,33 +185,20 @@ export function createBackupSpeaker({ label, translate, deliver, joinMs = BACKUP
     return job;
   }
 
-  function flush() {
-    timers.clearTimeout(joinTimer);
-    joinTimer = null;
-    const text = pendingText.trim();
-    pendingText = "";
-    if (text) enqueue(text);
-  }
-
   const speaker = {
-    /** A sentence Transcribe finished. Joined with one that follows within joinMs. */
-    say(text) {
-      const t = String(text || "").trim();
-      if (!t) return;
-      pendingText = pendingText ? `${pendingText} ${t}` : t;
-      timers.clearTimeout(joinTimer);
-      joinTimer = timers.setTimeout(flush, joinMs);
-    },
-    /** Speak at once, optionally with a translation already fetched (the fix 4 prefetch). */
+    /**
+     * Speak at once, optionally with a translation already fetched (the fix 4 prefetch). fix 11: a piece
+     * of a sentence comes here as soon as it arrives; it was held for 250 ms first, in case another piece
+     * followed to be joined with it.
+     */
     speakNow(text, prefetched) {
       const t = String(text || "").trim();
       if (!t) return;
-      flush();
       enqueue(t, prefetched);
     },
-    /** Nothing waiting, translating or playing (by the clip length, whichever ends later). */
+    /** Nothing translating or playing (by the clip length, whichever ends later). */
     isIdle() {
-      return !pendingText && !joinTimer && queue.length === 0 && !running && now() >= playbackEndsAt;
+      return queue.length === 0 && !running && now() >= playbackEndsAt;
     },
     whenIdle() {
       if (speaker.isIdle()) return Promise.resolve();
@@ -187,9 +207,6 @@ export function createBackupSpeaker({ label, translate, deliver, joinMs = BACKUP
     /** Drops everything not yet delivered; results still in flight are discarded when they arrive. */
     cancel() {
       epoch++;
-      timers.clearTimeout(joinTimer);
-      joinTimer = null;
-      pendingText = "";
       queue.length = 0;
       playbackEndsAt = 0;
       settleWaiters();
@@ -221,7 +238,8 @@ export function createBackupSpeaker({ label, translate, deliver, joinMs = BACKUP
  */
 export function createFailoverController({ label, ops, maxAttempts = BACKUP_MAX_ATTEMPTS, backoffMs = BACKUP_BACKOFF_MS, handoverPollMs = HANDOVER_POLL_MS, timers = defaultTimers, now = Date.now, log = console }) {
   let state = "nova";
-  let cause = null; // "failure" | "switch" | "memory" when not on Nova Sonic
+  // "failure" | "switch" | "memory" | "language" | "resume" (fix 9) when not on Nova Sonic
+  let cause = null;
   let reason = "";
   let attempts = 0;
   let generation = 0;
@@ -230,6 +248,9 @@ export function createFailoverController({ label, ops, maxAttempts = BACKUP_MAX_
   let handoverTimer = null;
   let returningSince = 0;
   let backupSince = 0;
+
+  // The switch and (fix 9) the language hold a side on the backup: Nova Sonic is not started for it.
+  const isHeld = () => cause === "switch" || cause === "language";
 
   const notify = (detail) => {
     try {
@@ -273,7 +294,7 @@ export function createFailoverController({ label, ops, maxAttempts = BACKUP_MAX_
   }
 
   async function attempt() {
-    if (state !== "backup" || cause === "switch" || attemptInFlight) return;
+    if (state !== "backup" || isHeld() || attemptInFlight) return;
     if (!ops.isCallLive()) return;
     if (attempts >= maxAttempts) return;
     attempts++;
@@ -296,11 +317,12 @@ export function createFailoverController({ label, ops, maxAttempts = BACKUP_MAX_
     if (busy) {
       // Another restart (Nova Sonic's own renewal, a WebRTC refresh) was running: not an attempt.
       attempts--;
-      if (gen === generation && state === "backup" && cause !== "switch") scheduleAttempt(1000);
+      if (gen === generation && state === "backup" && !isHeld()) scheduleAttempt(1000);
       return;
     }
-    if (gen !== generation || state !== "backup" || cause === "switch") {
-      // The call ended, the switch went on, or another path moved the side on while this attempt ran.
+    if (gen !== generation || state !== "backup" || isHeld()) {
+      // The call ended, the switch went on, the language changed, or another path moved the side on
+      // while this attempt ran.
       if (ok) {
         try {
           ops.abandonNova();
@@ -316,6 +338,8 @@ export function createFailoverController({ label, ops, maxAttempts = BACKUP_MAX_
       return;
     }
     ops.onNovaUnhealthy?.();
+    // fix 9: Nova Sonic not starting after a change back to its languages is a failure like any other.
+    if (cause === "resume") cause = "failure";
     if (attempts < maxAttempts) {
       scheduleAttempt(backoffMs(attempts));
       notify({ failedAttempt: n });
@@ -391,19 +415,22 @@ export function createFailoverController({ label, ops, maxAttempts = BACKUP_MAX_
       return true;
     },
     /**
-     * At Start: this side starts on the backup ("switch", "memory" or "failure"). speakInProgress: what
-     * Transcribe heard while Nova Sonic was trying to start is spoken by the backup.
+     * At Start: this side starts on the backup ("language", "switch", "memory" or "failure").
+     * speakInProgress: what Transcribe heard while Nova Sonic was trying to start is spoken by the backup.
      */
     startOnBackup(why, startCause, { speakInProgress = false } = {}) {
       generation++;
       clearAttempt();
       attempts = 0;
       enterBackup(why, startCause, { speakInProgress });
-      if (startCause !== "switch") scheduleAttempt(backoffMs(1));
+      if (!isHeld()) scheduleAttempt(backoffMs(1));
     },
-    /** The switch went on: every side goes to the backup and stays there. */
+    /**
+     * The switch went on: every side goes to the backup and stays there. fix 9: a side already held there
+     * by its language keeps that cause, so the switch going off later cannot start Nova Sonic for it.
+     */
     switchOn(why) {
-      if (state === "backup" && cause === "switch") return;
+      if (state === "backup" && isHeld()) return;
       generation++;
       clearAttempt();
       if (state === "backup") {
@@ -425,12 +452,55 @@ export function createFailoverController({ label, ops, maxAttempts = BACKUP_MAX_
       scheduleAttempt(0);
     },
     /**
+     * fix 9: a language Nova Sonic does not support was selected. The side goes to the backup at once, or
+     * stays there, and Nova Sonic is not started for it until languageOff. This takes precedence over the
+     * switch. What Nova Sonic was still translating is not spoken: it was said in the previous languages.
+     */
+    languageOn(why) {
+      if (state === "backup" && cause === "language") {
+        if (reason !== why) {
+          reason = why;
+          notify({});
+        }
+        return;
+      }
+      generation++;
+      clearAttempt();
+      if (state === "backup") {
+        cause = "language";
+        reason = why;
+        notify({});
+        return;
+      }
+      enterBackup(why, "language");
+    },
+    /**
+     * fix 9: both languages are Nova Sonic languages again. A side the language held on the backup starts
+     * Nova Sonic now, which takes over at the next quiet moment; with switchReason (the switch is on) it
+     * stays on the backup for the switch instead.
+     */
+    languageOff(switchReason = null) {
+      if (state !== "backup" || cause !== "language") return;
+      generation++;
+      if (switchReason) {
+        cause = "switch";
+        reason = switchReason;
+        notify({});
+        return;
+      }
+      cause = "resume";
+      reason = "the language is supported by Nova Sonic again";
+      attempts = 0;
+      notify({});
+      scheduleAttempt(0);
+    },
+    /**
      * A Nova Sonic session started through the existing restart path (7.5-minute renewal, WebRTC refresh,
      * language change) while this side was on the backup: treat it like a successful background attempt.
      */
     novaSessionStarted() {
       if (state === "nova" || state === "returning") return;
-      if (cause === "switch") {
+      if (isHeld()) {
         ops.abandonNova();
         return;
       }
@@ -456,17 +526,43 @@ export function createFailoverController({ label, ops, maxAttempts = BACKUP_MAX_
 /**
  * Agent side, while Nova Sonic works: a sentence that Transcribe heard, followed by no Nova Sonic event at
  * all (no transcript of its own, no text, no audio), means the session is silent. Stricter than "slow":
- * a working Nova Sonic always reports at least what it heard.
+ * a working Nova Sonic always reports at least what it heard. Nova Sonic's own transcript of the sentence
+ * also counts when it came earlier than the time window (2026-10-15: Transcribe closed a sentence about
+ * 20 seconds after Nova Sonic had heard and translated it, and the backup spoke it a second time).
  */
-export function createSilenceWatchdog({ isArmed, onSilent, waitMs = SILENCE_WAIT_MS, graceBeforeMs = SILENCE_GRACE_BEFORE_MS, minWords = SILENCE_MIN_WORDS, minChars = SILENCE_MIN_CHARS, settleMs = SILENCE_SESSION_SETTLE_MS, maxTriggers = SILENCE_MAX_TRIGGERS, timers = defaultTimers, now = Date.now }) {
+export function createSilenceWatchdog({ isArmed, onSilent, waitMs = SILENCE_WAIT_MS, graceBeforeMs = SILENCE_GRACE_BEFORE_MS, minWords = SILENCE_MIN_WORDS, minChars = SILENCE_MIN_CHARS, settleMs = SILENCE_SESSION_SETTLE_MS, maxTriggers = SILENCE_MAX_TRIGGERS, heardMemoryMs = SILENCE_HEARD_MEMORY_MS, heardMinWords = SILENCE_HEARD_MIN_WORDS, heardMinShare = SILENCE_HEARD_MIN_SHARE, timers = defaultTimers, now = Date.now }) {
   let lastEventAt = 0;
   let sessionStartedAt = 0;
+  let lastJudgedAt = 0;
   let triggers = 0;
   const pending = new Set();
+  // What Nova Sonic heard: { text, at, used }, newest last.
+  let hearings = [];
+
+  /**
+   * Takes the hearings since `from` that belong to `sentence` (mostly its words), so they cannot count
+   * for a later sentence. True when there was one.
+   */
+  function takeHearingsOf(sentence, from) {
+    let found = false;
+    for (const hearing of hearings) {
+      if (hearing.used || hearing.at < from) continue;
+      if (words(hearing.text).length < heardMinWords) continue;
+      if (wordsContainedIn(hearing.text, sentence) < heardMinShare) continue;
+      hearing.used = true;
+      found = true;
+    }
+    return found;
+  }
 
   return {
-    noteNovaEvent() {
+    /** Any Nova Sonic event; `heardText` is its own transcript of the speaker, when the event is one. */
+    noteNovaEvent(heardText) {
       lastEventAt = now();
+      const text = String(heardText || "").trim();
+      if (!text) return;
+      hearings.push({ text, at: lastEventAt, used: false });
+      hearings = hearings.filter((h) => lastEventAt - h.at <= heardMemoryMs).slice(-12);
     },
     noteSessionStart() {
       sessionStartedAt = now();
@@ -478,10 +574,16 @@ export function createSilenceWatchdog({ isArmed, onSilent, waitMs = SILENCE_WAIT
       if (t.length < minChars || words(t).length < minWords) return;
       const at = now();
       if (at - sessionStartedAt < settleMs) return;
+      // Hearings of this sentence come after the previous sentence judged, and from this session.
+      const from = Math.max(lastJudgedAt, sessionStartedAt);
+      lastJudgedAt = at;
       const id = timers.setTimeout(() => {
         pending.delete(id);
         if (triggers >= maxTriggers || !isArmed(session)) return;
+        // Always taken, so a hearing of this sentence cannot vouch for a later repeat of it.
+        const heard = takeHearingsOf(t, from);
         if (lastEventAt >= at - graceBeforeMs) return;
+        if (heard) return;
         triggers++;
         onSilent({ text: t, heardAt: at, lastEventAt });
       }, waitMs);
@@ -496,6 +598,8 @@ export function createSilenceWatchdog({ isArmed, onSilent, waitMs = SILENCE_WAIT
       triggers = 0;
       lastEventAt = 0;
       sessionStartedAt = 0;
+      lastJudgedAt = 0;
+      hearings = [];
     },
     get triggers() {
       return triggers;
@@ -797,7 +901,7 @@ export function createModePoller({ fetchMode, onChange, intervalMs = 30000, time
 
 /** Per-call counters for the [BACKUP-SUMMARY] line. */
 export function createBackupStats() {
-  const keys = ["switches", "returns", "sentences", "delivered", "textOnly", "failed", "echoDropped", "failedAttempts", "backupMs"];
+  const keys = ["switches", "returns", "sentences", "delivered", "textOnly", "failed", "echoDropped", "noiseDropped", "failedAttempts", "backupMs"];
   const counts = { agent: {}, customer: {} };
   const reset = () => {
     for (const side of ["agent", "customer"]) keys.forEach((k) => (counts[side][k] = 0));
@@ -821,7 +925,7 @@ export function createBackupStats() {
       const part = (s) =>
         `${s}: switched ${counts[s].switches}, back to Nova ${counts[s].returns}, sentences ${counts[s].sentences},` +
         ` spoken ${counts[s].delivered}, text only ${counts[s].textOnly}, failed ${counts[s].failed},` +
-        ` echo dropped ${counts[s].echoDropped}, failed restarts ${counts[s].failedAttempts},` +
+        ` echo dropped ${counts[s].echoDropped}, noise dropped ${counts[s].noiseDropped}, failed restarts ${counts[s].failedAttempts},` +
         ` on backup ${Math.round(counts[s].backupMs / 1000)}s`;
       return `${part("agent")} | ${part("customer")} | typed via backup ${counts.typed}`;
     },

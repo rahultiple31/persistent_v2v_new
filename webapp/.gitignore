@@ -23,5 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 
-#ignore frontend-config.js, as it's downloaded from S3
+# Local development settings only: when deployed, the proxy generates /frontend-config.js
 frontend-config.js

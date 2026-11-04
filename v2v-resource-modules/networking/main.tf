@@ -33,13 +33,13 @@ resource "aws_vpc_security_group_ingress_rule" "alb_from_cidrs" {
   ip_protocol       = "tcp"
 }
 
-# Egress from ALB to proxy tasks on container port 8080
+# Egress from ALB to proxy tasks on container port 8443 (HTTPS)
 resource "aws_vpc_security_group_egress_rule" "alb_to_service" {
   security_group_id            = aws_security_group.alb.id
   description                  = "Forward to proxy Fargate tasks"
   referenced_security_group_id = aws_security_group.service.id
-  from_port                    = 8080
-  to_port                      = 8080
+  from_port                    = 8443
+  to_port                      = 8443
   ip_protocol                  = "tcp"
 }
 
@@ -55,13 +55,13 @@ resource "aws_security_group" "service" {
   }
 }
 
-# Ingress from the ALB on container port
+# Ingress from the ALB on container port 8443 (HTTPS)
 resource "aws_vpc_security_group_ingress_rule" "service_from_alb" {
   security_group_id            = aws_security_group.service.id
   description                  = "From the load balancer"
   referenced_security_group_id = aws_security_group.alb.id
-  from_port                    = 8080
-  to_port                      = 8080
+  from_port                    = 8443
+  to_port                      = 8443
   ip_protocol                  = "tcp"
 }
 
@@ -117,14 +117,14 @@ resource "aws_vpc_security_group_ingress_rule" "endpoint_from_extra_cidrs" {
 locals {
   # Map of logical name -> VPC endpoint service name
   interface_endpoints = {
-    bedrock_runtime      = "com.amazonaws.${var.aws_region}.bedrock-runtime"
-    transcribe_streaming = "com.amazonaws.${var.aws_region}.transcribestreaming"
-    translate            = "com.amazonaws.${var.aws_region}.translate"
-    polly                = "com.amazonaws.${var.aws_region}.polly"
-    ssm                  = "com.amazonaws.${var.aws_region}.ssm"
-    ecr_api              = "com.amazonaws.${var.aws_region}.ecr.api"
-    ecr_dkr              = "com.amazonaws.${var.aws_region}.ecr.dkr"
-    logs                 = "com.amazonaws.${var.aws_region}.logs"
+    bedrock_runtime       = "com.amazonaws.${var.aws_region}.bedrock-runtime"
+    transcribe_streaming  = "com.amazonaws.${var.aws_region}.transcribestreaming"
+    translate             = "com.amazonaws.${var.aws_region}.translate"
+    polly                 = "com.amazonaws.${var.aws_region}.polly"
+    ssm                   = "com.amazonaws.${var.aws_region}.ssm"
+    ecr_api               = "com.amazonaws.${var.aws_region}.ecr.api"
+    ecr_dkr               = "com.amazonaws.${var.aws_region}.ecr.dkr"
+    logs                  = "com.amazonaws.${var.aws_region}.logs"
   }
 }
 

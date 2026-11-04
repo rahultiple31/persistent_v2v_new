@@ -26,7 +26,8 @@ document.addEventListener('DOMContentLoaded', function () {
     p.addEventListener('click', function (e) { e.stopPropagation(); });
   });
 
-  // ── Customer Information horizontal scroll arrows ──────────────────
+  // ── Customer Information horizontal scroll arrows ── COMMENTED OUT (no scroll)
+  /*
   (function () {
     var body = document.getElementById('customerInfoBody');
     var btnL = document.getElementById('ciScrollLeft');
@@ -63,6 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Initial state on page load
     updateArrows();
   })();
+  */
   // ─────────────────────────────────────────────────────────────────────
 
   // User profile icon — toggle logout tray
