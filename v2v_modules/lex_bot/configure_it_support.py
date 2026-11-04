@@ -1,9 +1,12 @@
 # v2v_modules/lex_bot/configure_it_support.py
-# Requires Python 3 and AWS CLI v2 with qInConnectIntentConfiguration support.
-# The deployment identity also needs lex:ListBuiltInIntents.
+# Requires Python 3 and AWS CLI v2 supporting qInConnectIntentConfiguration,
+# speechDetectionSensitivity and speakerDiarizationSettings.
+# The deployment identity also needs lex:ListBuiltInIntents,
+# lex:DescribeBotLocale and lex:UpdateBotLocale.
 import json
 import os
 import subprocess
+import time
 
 def aws(service, *operation, **payload):
     command = [
@@ -100,6 +103,52 @@ def main():
                 aws("lexv2-models", "update-intent", intentId=intent_id, **payload)
             else:
                 aws("lexv2-models", "create-intent", **payload)
+
+        # Apply these speech settings only to English (en_US) on this bot.
+        # Other languages retain their existing speech settings.
+        if (
+            config["bot_name"] == "BTSGSD-V2V-US-IT-Support_Agent"
+            and locale == "en_US"
+        ):
+            current = aws("lexv2-models", "describe-bot-locale", **scope)
+            settings = {
+                key: current[key]
+                for key in (
+                    "description",
+                    "voiceSettings",
+                    "unifiedSpeechSettings",
+                    "audioFillerSettings",
+                    "speechRecognitionSettings",
+                    "generativeAISettings",
+                )
+                if current.get(key) is not None
+            }
+            aws(
+                "lexv2-models", "update-bot-locale",
+                **scope,
+                **settings,
+                nluIntentConfidenceThreshold=current["nluIntentConfidenceThreshold"],
+                speechDetectionSensitivity="HighNoiseTolerance",
+                speakerDiarizationSettings={"enabled": True},
+            )
+
+            deadline = time.monotonic() + 600
+            while time.monotonic() < deadline:
+                result = aws("lexv2-models", "describe-bot-locale", **scope)
+                status = result["botLocaleStatus"]
+                if status == "Failed":
+                    raise RuntimeError(
+                        f"English locale update failed: {result.get('failureReasons', [])}"
+                    )
+                if status in {"NotBuilt", "Built", "ReadyExpressTesting"}:
+                    if (
+                        result.get("speechDetectionSensitivity") == "HighNoiseTolerance"
+                        and result.get("speakerDiarizationSettings", {}).get("enabled") is True
+                    ):
+                        break
+                time.sleep(5)
+            else:
+                raise RuntimeError("Timed out applying English speech settings")
 
         aws("lexv2-models", "build-bot-locale", **scope)
         aws("lexv2-models", "wait", "bot-locale-built", **scope)

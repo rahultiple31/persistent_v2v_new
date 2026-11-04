@@ -26,13 +26,24 @@ CONFIG = {
 
 class FakeAws:
     def __init__(self, existing=False, account="518902362956", child_directed=True,
-                 bot_name=CONFIG["bot_name"], fail_operation=None):
+                 bot_name=CONFIG["bot_name"], fail_operation=None,
+                 updated_locale_status="NotBuilt"):
         self.existing = existing
         self.account = account
         self.child_directed = child_directed
         self.bot_name = bot_name
         self.fail_operation = fail_operation
+        self.updated_locale_status = updated_locale_status
         self.calls = []
+        self.locale_settings = {
+            locale: {
+                "botLocaleStatus": "Built",
+                "nluIntentConfidenceThreshold": 0.40,
+                "speechDetectionSensitivity": "Default",
+                "speakerDiarizationSettings": {"enabled": False},
+            }
+            for locale in CONFIG["locales"]
+        }
         self.built_in_pages = {
             locale: [{"builtInIntentSummaries": [
                 {"intentSignature": "AMAZON.FallbackIntent"},
@@ -66,6 +77,12 @@ class FakeAws:
                 if payload["localeId"] == "pt_BR":
                     values.append({"intentName": "TransferToAgent", "intentId": "EXISTINGT1"})
             return {"intentSummaries": values}
+        if op == "describe-bot-locale":
+            return dict(self.locale_settings[payload["localeId"]])
+        if op == "update-bot-locale":
+            self.locale_settings[payload["localeId"]].update(payload)
+            self.locale_settings[payload["localeId"]]["botLocaleStatus"] = self.updated_locale_status
+            return dict(self.locale_settings[payload["localeId"]])
         if op == "create-bot-version":
             return {"botVersion": "2"}
         if op == "list-bot-aliases":
@@ -91,12 +108,83 @@ class FakeAws:
 
 
 class ItSupportConfigurationTests(unittest.TestCase):
-    def run_configuration(self, fake):
+    def run_configuration(self, fake, config=None):
         with mock.patch.dict(os.environ, {
             "LEX_BOT_ID": BOT_ID,
-            "LEX_CONFIGURATION": json.dumps(CONFIG),
+            "LEX_CONFIGURATION": json.dumps(CONFIG if config is None else config),
         }), mock.patch.object(CONFIGURE, "aws", fake), contextlib.redirect_stdout(io.StringIO()):
             CONFIGURE.main()
+
+    def test_speech_settings_only_update_english_and_preserve_other_configuration(self):
+        fake = FakeAws(existing=True)
+        existing_settings = {
+            "description": "Existing English locale",
+            "voiceSettings": {"voiceId": "Joanna", "engine": "neural"},
+            "speechRecognitionSettings": {"speechModelPreference": "Standard"},
+            "generativeAISettings": {
+                "runtimeSettings": {"nluImprovement": {"enabled": False}},
+            },
+        }
+        fake.locale_settings["en_US"].update(existing_settings)
+        fake.locale_settings["en_US"]["nluIntentConfidenceThreshold"] = 0.65
+        fake.locale_settings["en_US"]["localeName"] = "English (US)"
+        original_locales = json.loads(json.dumps(fake.locale_settings))
+
+        self.run_configuration(fake)
+
+        updates = fake.payloads("update-bot-locale")
+        self.assertEqual(len(updates), 1)
+        self.assertEqual(updates[0], {
+            "botId": BOT_ID,
+            "botVersion": "DRAFT",
+            "localeId": "en_US",
+            **existing_settings,
+            "nluIntentConfidenceThreshold": 0.65,
+            "speechDetectionSensitivity": "HighNoiseTolerance",
+            "speakerDiarizationSettings": {"enabled": True},
+        })
+        for locale in ("hi_IN", "pt_BR", "es_419"):
+            self.assertEqual(fake.locale_settings[locale], original_locales[locale])
+        update_position = next(
+            i for i, (_, op, _) in enumerate(fake.calls)
+            if op[0] == "update-bot-locale"
+        )
+        english_build_position = next(
+            i for i, (_, op, payload) in enumerate(fake.calls)
+            if op[0] == "build-bot-locale" and payload["localeId"] == "en_US"
+        )
+        self.assertLess(update_position, english_build_position)
+
+    def test_other_bot_does_not_receive_english_speech_settings(self):
+        fake = FakeAws(bot_name="OtherITSupportBot")
+        self.run_configuration(fake, {**CONFIG, "bot_name": fake.bot_name})
+        self.assertEqual(fake.payloads("update-bot-locale"), [])
+        self.assertEqual(fake.payloads("describe-bot-locale"), [])
+
+    def test_failed_speech_update_does_not_build_or_publish(self):
+        for fake in (
+            FakeAws(fail_operation="update-bot-locale"),
+            FakeAws(updated_locale_status="Failed"),
+        ):
+            with self.subTest(operation=fake.fail_operation, status=fake.updated_locale_status):
+                with self.assertRaises(RuntimeError):
+                    self.run_configuration(fake)
+                self.assertEqual(fake.payloads("build-bot-locale"), [])
+                self.assertEqual(fake.payloads("create-bot-version"), [])
+                self.assertEqual(fake.payloads("update-bot-alias"), [])
+                self.assertEqual(fake.payloads("create-bot-alias"), [])
+
+    def test_speech_update_timeout_does_not_build_or_publish(self):
+        fake = FakeAws(updated_locale_status="Processing")
+        with mock.patch.object(CONFIGURE.time, "monotonic", side_effect=[0, 0, 601]), \
+                mock.patch.object(CONFIGURE.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "Timed out applying English speech settings"):
+                self.run_configuration(fake)
+        sleep.assert_called_once_with(5)
+        self.assertEqual(fake.payloads("build-bot-locale"), [])
+        self.assertEqual(fake.payloads("create-bot-version"), [])
+        self.assertEqual(fake.payloads("update-bot-alias"), [])
+        self.assertEqual(fake.payloads("create-bot-alias"), [])
 
     def test_creates_requested_intents_and_builds_before_publishing(self):
         fake = FakeAws()
