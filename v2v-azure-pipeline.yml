@@ -83,9 +83,6 @@ parameters:
       - lex_yesno_bot
       - lex_customer_queue_flow_bot
       - s3_v2v
-      - cloudfront_v2v
-      - cognito_v2v
-      - iam_v2v
       - ssm_v2v
       # environments/v2v-resources-dev uses v2v-resource-modules.
       - all

@@ -217,7 +217,10 @@ fi
         self.assertIn("Unsupported V2V module", result.stderr)
 
     def test_retired_deployment_choices_remain_unavailable(self):
-        for target in ("connect_ai_agent", "survey_ai_prompt", "lex_aiagent_survey_bot", "lambda-ctr-raw"):
+        for target in (
+            "connect_ai_agent", "survey_ai_prompt", "lex_aiagent_survey_bot", "lambda-ctr-raw",
+            "cloudfront_v2v", "cognito_v2v", "iam_v2v",
+        ):
             with self.subTest(target=target):
                 result = self.run_selector(target)
                 self.assertNotEqual(result.returncode, 0)

@@ -497,19 +497,54 @@ moved {
   to   = module.s3_v2v[0]
 }
 
-moved {
-  from = module.cloudfront[0]
-  to   = module.cloudfront_v2v[0]
+# Retire unused frontend modules without deleting existing AWS resources.
+removed {
+  from = module.cloudfront
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-moved {
-  from = module.cognito[0]
-  to   = module.cognito_v2v[0]
+removed {
+  from = module.cloudfront_v2v
+
+  lifecycle {
+    destroy = false
+  }
 }
 
-moved {
-  from = module.iam[0]
-  to   = module.iam_v2v[0]
+removed {
+  from = module.cognito
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = module.cognito_v2v
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+# These IAM roles and their attachment depend on the retired Cognito pool.
+removed {
+  from = module.iam
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = module.iam_v2v
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 moved {
@@ -522,10 +557,10 @@ locals {
 
   frontend_config = {
     backendRegion             = data.aws_region.current.region
-    identityPoolId            = try(module.cognito_v2v[0].identity_pool_id, "")
-    userPoolId                = try(module.cognito_v2v[0].user_pool_id, "")
-    userPoolWebClientId       = try(module.cognito_v2v[0].user_pool_web_client_id, "")
-    cognitoDomainURL          = try(module.cognito_v2v[0].cognito_domain_url, "")
+    identityPoolId            = ""
+    userPoolId                = ""
+    userPoolWebClientId       = ""
+    cognitoDomainURL          = ""
     connectInstanceURL        = var.connect_instance_url
     connectInstanceRegion     = var.connect_instance_region
     transcribeRegion          = local.transcribe_region
@@ -570,69 +605,6 @@ module "s3_v2v" {
   deploy_v2v_assets = var.deploy_v2v_assets
   v2v_dist_path     = var.v2v_dist_path
   frontend_config   = local.frontend_config
-  common_tags       = local.common_tags
-}
-
-module "cloudfront_v2v" {
-  count  = local.deploy_v2v ? 1 : 0
-  source = "../../v2v_modules/cloudfront_v2v"
-
-  providers = {
-    aws = aws.us_east_1
-  }
-
-  name_prefix                     = local.name_prefix
-  app_name                        = var.app_name
-  v2v_root_prefix                 = var.v2v_root_prefix
-  v2v_bucket_regional_domain_name = try(module.s3_v2v[0].v2v_bucket_regional_domain_name, "")
-  v2v_log_bucket_domain_name      = try(module.s3_v2v[0].v2v_log_bucket_domain_name, "")
-  polly_region                    = local.polly_region
-  polly_proxy_enabled             = false
-  translate_region                = local.translate_region
-  translate_proxy_enabled         = false
-  proxy_enabled                   = false
-  translation_mode                = local.v2v_translation_mode
-  cognito_domain_url              = "https://${var.cognito_domain_prefix}.auth.us-east-1.amazoncognito.com"
-  connect_instance_url            = var.connect_instance_url
-  connect_instance_region         = var.connect_instance_region
-  csp_enforced                    = var.csp_enforced
-  common_tags                     = local.common_tags
-}
-
-module "cognito_v2v" {
-  count  = local.deploy_v2v ? 1 : 0
-  source = "../../v2v_modules/cognito_v2v"
-
-  providers = {
-    aws = aws.us_east_1
-  }
-
-  app_name              = var.app_name
-  frontend_client_name  = var.frontend_client_name
-  sso_enabled           = var.sso_enabled
-  sso_provider_name     = var.sso_provider_name
-  cognito_domain_prefix = var.cognito_domain_prefix
-  callback_urls         = distinct(concat(var.cognito_callback_urls, [module.cloudfront_v2v[0].v2v_url]))
-  logout_urls           = distinct(concat(var.cognito_logout_urls, [module.cloudfront_v2v[0].v2v_url]))
-  common_tags           = local.common_tags
-}
-
-module "iam_v2v" {
-  count  = local.deploy_v2v ? 1 : 0
-  source = "../../v2v_modules/iam_v2v"
-
-  providers = {
-    aws = aws.us_east_1
-  }
-
-  name_prefix       = local.name_prefix
-  identity_pool_id  = try(module.cognito_v2v[0].identity_pool_id, "")
-  translation_mode  = local.v2v_translation_mode
-  bedrock_region    = var.bedrock_region
-  bedrock_model_id  = var.bedrock_model_id
-  transcribe_region = local.transcribe_region
-  translate_region  = local.translate_region
-  polly_region      = local.polly_region
   common_tags       = local.common_tags
 }
 

@@ -100,9 +100,6 @@ lex_bot|lex_bot|module.lex_bot[0]
 lex_yesno_bot|lex_bot|module.lex_yesno_bot[0]
 lex_customer_queue_flow_bot|lex_bot|module.lex_customer_queue_flow_bot[0]
 s3_v2v|v2v|module.s3_v2v[0]
-cloudfront_v2v|v2v|module.cloudfront_v2v[0]
-cognito_v2v|v2v|module.cognito_v2v[0]
-iam_v2v|v2v|module.iam_v2v[0]
 ssm_v2v|v2v|module.ssm_v2v[0]
 V2V_CHOICES
 
