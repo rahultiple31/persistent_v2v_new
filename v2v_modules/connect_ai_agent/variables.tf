@@ -40,6 +40,12 @@ variable "agent_name" {
   type = string
 }
 
+variable "guardrail_name" {
+  description = "Optional custom guardrail name. Null retains the source agent guardrail."
+  type        = string
+  default     = null
+}
+
 variable "prompt_name" {
   type = string
 }

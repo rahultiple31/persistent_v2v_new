@@ -79,6 +79,14 @@ run "voice_agent_template" {
 
   assert {
     condition = (
+      !contains(keys(jsondecode(aws_s3_object.template.content).Resources), "SupportGuardrail") &&
+      !contains(keys(jsondecode(aws_s3_object.template.content).Resources), "SupportGuardrailVersion")
+    )
+    error_message = "Callers without guardrail_name must retain the source guardrail without creating a custom guardrail."
+  }
+
+  assert {
+    condition = (
       !strcontains(yamldecode(local.prompt_text).system, "Voice orchestration protocol.") &&
       strcontains(yamldecode(local.prompt_text).system, "{{$.toolConfigurationList}}") &&
       strcontains(yamldecode(local.prompt_text).system, trimspace(local.custom_prompt.system)) &&
@@ -124,7 +132,7 @@ run "survey_agent_template" {
     agent_name       = "BTSGSD-V2V-US-ai-survey-agent"
     prompt_name      = "BTSGSD-V2V-US-ai-survey-prompt"
     stack_name       = "BTSGSD-V2V-US-ai-survey-agent"
-    prompt_yaml_file = "../../environments/v2v/metadata/prompts/btsgsd-ai-survey-prompt.yaml"
+    prompt_yaml_file = "../../environments/v2v-dev/metadata/prompts/btsgsd-ai-survey-prompt.yaml"
   }
 
   assert {
@@ -158,8 +166,9 @@ run "support_agent_template" {
     agent_name         = "BTSGSD-V2V-US-SupportAgent"
     prompt_name        = "BTSGSD-V2V-US-SupportAgent-prompt"
     stack_name         = "BTSGSD-V2V-US-SupportAgent"
+    guardrail_name     = "BTSGSD-V2V-US-guardrails"
     source_prompt_name = "SelfServiceOrchestrationVoice"
-    prompt_yaml_file   = "../../environments/v2v/metadata/prompts/btsgsd-SupportAgent-prompt.yaml"
+    prompt_yaml_file   = "../../environments/v2v-dev/metadata/prompts/btsgsd-SupportAgent-prompt.yaml"
   }
 
   assert {
@@ -173,6 +182,36 @@ run "support_agent_template" {
       data.external.source.query.source_prompt_name == "SelfServiceOrchestrationVoice"
     )
     error_message = "Create the requested SupportAgent and prompt from the required system voice source."
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_s3_object.template.content).Resources.SupportGuardrail.Type == "AWS::Wisdom::AIGuardrail" &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportGuardrail.Properties.AssistantId == var.assistant_id &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportGuardrail.Properties.Name == "BTSGSD-V2V-US-guardrails" &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportGuardrail.Properties.Description == "Content filters only for AbbVie Service Desk IVA" &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportGuardrail.Properties.ContentPolicyConfig.FiltersConfig == [{
+        Type           = "PROMPT_ATTACK"
+        InputStrength  = "MEDIUM"
+        OutputStrength = "NONE"
+      }] &&
+      !contains(keys(jsondecode(aws_s3_object.template.content).Resources.SupportGuardrail.Properties), "TopicPolicyConfig") &&
+      !contains(keys(jsondecode(aws_s3_object.template.content).Resources.SupportGuardrail.Properties), "SensitiveInformationPolicyConfig") &&
+      !contains(keys(jsondecode(aws_s3_object.template.content).Resources.SupportGuardrail.Properties), "WordPolicyConfig") &&
+      !contains(keys(jsondecode(aws_s3_object.template.content).Resources.SupportGuardrail.Properties), "ContextualGroundingPolicyConfig")
+    )
+    error_message = "The support guardrail must configure only prompt-attack content filtering at Medium input strength."
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_s3_object.template.content).Resources.SupportGuardrailVersion.Type == "AWS::Wisdom::AIGuardrailVersion" &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportGuardrailVersion.Properties.AssistantId == var.assistant_id &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportGuardrailVersion.Properties.AIGuardrailId["Fn::GetAtt"] == ["SupportGuardrail", "AIGuardrailId"] &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportGuardrailVersion.Properties.ModifiedTimeSeconds["Fn::GetAtt"] == ["SupportGuardrail", "ModifiedTimeSeconds"] &&
+      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.OrchestrationAIGuardrailId["Fn::GetAtt"] == ["SupportGuardrailVersion", "AIGuardrailVersionId"]
+    )
+    error_message = "Publish a guardrail version when its configuration changes and attach that version to SupportAgent."
   }
 
   assert {
@@ -239,7 +278,7 @@ run "inherited_complete_keeps_its_tool_id_and_receives_schema" {
             ]
           }
         JSON
-        prompt_text = <<-YAML
+        prompt_text     = <<-YAML
           system: |
             Voice orchestration protocol.
             {{$.toolConfigurationList}}
@@ -290,7 +329,7 @@ run "inherited_escalate_keeps_its_tool_id_and_receives_schema" {
             ]
           }
         JSON
-        prompt_text = <<-YAML
+        prompt_text     = <<-YAML
           system: |
             Voice orchestration protocol.
             {{$.toolConfigurationList}}
