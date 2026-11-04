@@ -1,3 +1,8 @@
+# Environment variables override the defaults below.
+# Current V2V configuration sets SN_INSTANCE=abbvienowstage
+# and SN_CTI_RULE=cti_gsd. Set SN_CTI_RULE=cti_gsd_aws in the
+# Lambda environment to use the requested rule after deployment.
+
 import logging
 import operator
 import os
@@ -19,7 +24,7 @@ SN_INSTANCE = os.environ.get(
 
 SN_CTI_RULE = os.environ.get(
     "SN_CTI_RULE",
-    "cti_gsd"
+    "cti_gsd_aws"
 ).strip()
 
 URL_SCHEME = "https" + "://"

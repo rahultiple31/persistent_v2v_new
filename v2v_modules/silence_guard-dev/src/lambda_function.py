@@ -1,28 +1,12 @@
 """silence_guard v13 - advisory guard for the Complete / Escalate hand-back.
 
-v13 fix: _LOOKUP keys are normalised like the incoming intent (v11/v12 rewrote the hyphen in
-  "Password Reset - PingID Re-enable" to "Re - enable" on the incoming side only, so that valid
-  label was logged intent_unknown and would be BLOCKED in STRICT_MODE). No other change.
+Normalizes lookup keys and incoming intents consistently, including
+"Password Reset - PingID Re-enable".
 
-v12 changes (aligned to prompt v50 + flow 23); behaviour otherwise identical to v11:
-  * Adds the two prompt labels v11 did not know:
-      "Out of Scope - Medical Request", "Out of Scope - Unverified/WrongNumber Misroute"
-    (v11 logged them as intent_unknown and would BLOCK them in STRICT_MODE).
-  * CLOSE_ONLY now also covers those two labels and "Unverified - Verification Failed"
-    (the prompt only ever uses them with Complete).
-  * Advisory consistency checks for the routing pairs:
-      FieldForce  <-> "Field Force - Direct Routing" and Authenticated caller
-      HR          <-> an "HR - ..." intent
-      Veeva/Medcom <-> the matching "... - LATAM Helpdesk" intent
-  * Flow 23 already bypasses this Lambda for FieldForce and LATAM Veeva/Medcom
-    escalates, so those checks only fire if the flow is changed back.
+Defaults to advisory mode. STRICT_MODE=true enables blocking when issues
+are detected. Internal errors always fail open.
 
-Unchanged from v11:
-  * NEVER blocks by default - always returns GuardAllowed="true" and reports problems in
-    GuardReason / CloudWatch. STRICT_MODE=true (env var) restores blocking for test only.
-  * Fails open on any internal error.
-  * Output is a flat string map (flow uses STRING_MAP):
-      {"GuardAllowed": "true"|"false", "GuardReason": "...", "NormalizedIntent": "..."}
+Returns a flat string map for Amazon Connect STRING_MAP responses.
 
 Lambda entry point: warmup_wrapper.handler
 ORIGINAL_HANDLER: lambda_function.lambda_handler
@@ -34,7 +18,10 @@ import re
 log = logging.getLogger()
 log.setLevel(logging.INFO)
 
-STRICT_MODE = os.environ.get("STRICT_MODE", "false").strip().lower() == "true"
+STRICT_MODE = os.environ.get(
+    "STRICT_MODE",
+    "false",
+).strip().lower() == "true"
 
 BASE_INTENTS = {
     "Password Reset - Pre Hire", "Password Reset - New Hire", "Password Reset - Existing User",
@@ -79,7 +66,11 @@ def _norm(value):
     return _DASHES.sub(" - ", value)
 
 
-_LOOKUP = {_norm(i).casefold(): i for i in BASE_INTENTS}   # v13: same normalisation as incoming intent
+# Normalize both lookup keys and incoming intents using the same function.
+_LOOKUP = {
+    _norm(intent).casefold(): intent
+    for intent in BASE_INTENTS
+}
 
 
 def _canonical_intent(intent):
@@ -89,18 +80,23 @@ def _canonical_intent(intent):
     if key.startswith(CALLER_REQUEST):
         rest = key[len(CALLER_REQUEST):].lstrip(" -")
         if not rest or rest in _LOOKUP:
-            return "Live Agent - Caller Request" + (" - " + _LOOKUP[rest] if rest else "")
+            return (
+                "Live Agent - Caller Request"
+                + (" - " + _LOOKUP[rest] if rest else "")
+            )
     return None
 
 
-def _check(p):
-    expected = _norm(p.get("ExpectedTool"))
-    tool = _norm(p.get("Tool"))
-    intent_raw = _norm(p.get("Intent"))
-    summary = _norm(p.get("CallSummary"))
-    routing = _norm(p.get("RoutingIntent"))
-    region = _norm(p.get("region")).upper()
-    verified = _norm(p.get("VerificationStatus")) == "Authenticated"
+def _check(parameters):
+    expected = _norm(parameters.get("ExpectedTool"))
+    tool = _norm(parameters.get("Tool"))
+    intent_raw = _norm(parameters.get("Intent"))
+    summary = _norm(parameters.get("CallSummary"))
+    routing = _norm(parameters.get("RoutingIntent"))
+    region = _norm(parameters.get("region")).upper()
+    verified = (
+        _norm(parameters.get("VerificationStatus")) == "Authenticated"
+    )
     issues = []
 
     if expected not in ("Complete", "Escalate"):
@@ -118,7 +114,10 @@ def _check(p):
 
     if len(summary) < 20 or summary.casefold() in FILLERS:
         issues.append("summary_short")
-    if verified and _norm(p.get("VerifiedVia")) not in ("Phone", "UPI"):
+    if verified and _norm(parameters.get("VerifiedVia")) not in (
+        "Phone",
+        "UPI",
+    ):
         issues.append("verified_without_method")
     if expected == "Complete" and routing:
         issues.append("routing_intent_on_complete")
@@ -144,17 +143,34 @@ def _check(p):
 
 def lambda_handler(event, context):
     try:
-        params = (event.get("Details") or {}).get("Parameters") or {}
-        issues, intent = _check(params)
+        parameters = (
+            (event.get("Details") or {}).get("Parameters") or {}
+        )
+
+        issues, intent = _check(parameters)
         allowed = not (STRICT_MODE and issues)
-        log.info("guard contact=%s expected=%s tool=%s intent=%r routing=%s region=%s allowed=%s issues=%s",
-                 params.get("ContactId"), params.get("ExpectedTool"), params.get("Tool"),
-                 params.get("Intent"), params.get("RoutingIntent"), params.get("region"),
-                 allowed, issues)
-        return {"GuardAllowed": "true" if allowed else "false",
-                "GuardReason": ",".join(issues) or "ok",
-                "NormalizedIntent": intent or ""}
-    except Exception as exc:  # never let a guard bug cut a call
+        log.info(
+            "guard contact=%s expected=%s tool=%s intent=%r "
+            "routing=%s region=%s allowed=%s issues=%s",
+            parameters.get("ContactId"),
+            parameters.get("ExpectedTool"),
+            parameters.get("Tool"),
+            parameters.get("Intent"),
+            parameters.get("RoutingIntent"),
+            parameters.get("region"),
+            allowed,
+            issues,
+        )
+        return {
+            "GuardAllowed": "true" if allowed else "false",
+            "GuardReason": ",".join(issues) or "ok",
+            "NormalizedIntent": intent or "",
+        }
+    except Exception as exc:
+        # An internal guard error must not interrupt the call.
         log.exception("guard error, failing open")
-        return {"GuardAllowed": "true", "GuardReason": "guard_error:" + type(exc).__name__,
-                "NormalizedIntent": ""}
+        return {
+            "GuardAllowed": "true",
+            "GuardReason": "guard_error:" + type(exc).__name__,
+            "NormalizedIntent": "",
+        }

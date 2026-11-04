@@ -12,7 +12,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError, ParamValid
 
 SOURCE = (
     Path(__file__).resolve().parents[3]
-    / "environments/v2v/metadata/scr_lambda/lambda_function.py"
+    / "environments/v2v-dev/metadata/scr_lambda/lambda_function.py"
 )
 WRAPPER_SOURCE = Path(__file__).resolve().parents[1] / "warmup_wrapper.py"
 spec = importlib.util.spec_from_file_location("session_attributes_handler", SOURCE)
@@ -105,7 +105,8 @@ class HandlerTests(unittest.TestCase):
 
     def test_malformed_events_are_rejected_before_aws_calls(self):
         events = [None, {}, {"Details": None}, {"Details": {"ContactData": []}},
-                  invocation(["invalid"]), invocation("invalid")]
+                  invocation(["invalid"]), invocation("invalid"),
+                  invocation([]), invocation(""), invocation(False), invocation(0)]
         for field, value in (("InstanceARN", ""), ("ContactId", None)):
             event = invocation({"Name": "Alice"})
             event["Details"]["ContactData"][field] = value

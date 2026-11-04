@@ -1,11 +1,15 @@
-import os
+# Lambda handler: warmup_wrapper.handler
+# ORIGINAL_HANDLER: lambda_function.lambda_handler
+
 import importlib
+import os
 
 _orig = os.environ["ORIGINAL_HANDLER"]
 _mod_name, _fn_name = _orig.rsplit(".", 1)
+
 _original_handler = getattr(
     importlib.import_module(_mod_name.replace("/", ".")),
-    _fn_name,
+    _fn_name
 )
 
 
