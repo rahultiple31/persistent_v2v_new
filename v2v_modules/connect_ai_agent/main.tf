@@ -56,7 +56,7 @@ locals {
     }
   }
   escalate_tool_overrides = { escalate = local.escalate_tool_configuration }
-  retrieve_instruction    = <<-EOT
+  retrieve_instruction = <<-EOT
     Use only for a finalized support need when the orchestration prompt permits retrieval.
     Never retrieve for greetings, silence, yes/no answers, UPI availability, UPI capture,
     UPI readback confirmation, or first-name verification. A clear Yes to UPI availability
@@ -126,7 +126,7 @@ locals {
 
   template = jsonencode({
     AWSTemplateFormatVersion = "2010-09-09"
-    Resources = merge(local.guardrail_resources, {
+    Resources = {
       SupportPrompt = {
         Type = "AWS::Wisdom::AIPrompt"
         Properties = {
@@ -162,7 +162,7 @@ locals {
           Type        = "ORCHESTRATION"
           Tags        = local.tags
           Configuration = {
-            OrchestrationAIAgentConfiguration = merge(local.source_configuration, local.guardrail_configuration_override, {
+            OrchestrationAIAgentConfiguration = merge(local.source_configuration, {
               ConnectInstanceArn      = var.connect_instance_arn
               OrchestrationAIPromptId = local.prompt_version_id
 
@@ -191,7 +191,7 @@ locals {
           ModifiedTimeSeconds = { "Fn::GetAtt" = ["SupportAgent", "ModifiedTimeSeconds"] }
         }
       }
-    })
+    }
     Outputs = {
       AssistantId        = { Value = var.assistant_id }
       ConnectInstanceArn = { Value = var.connect_instance_arn }

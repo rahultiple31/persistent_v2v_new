@@ -335,7 +335,6 @@ module "btsgsd_support_agent" {
   agent_name         = "BTSGSD-V2V-US-SupportAgent"
   prompt_name        = "BTSGSD-V2V-US-SupportAgent-prompt"
   stack_name         = "BTSGSD-V2V-US-SupportAgent"
-  guardrail_name     = "BTSGSD-V2V-US-guardrails"
   source_agent_name  = "SelfServiceOrchestratorVoice"
   source_prompt_name = "SelfServiceOrchestrationVoice"
   prompt_model_id    = "global.anthropic.claude-sonnet-5"
