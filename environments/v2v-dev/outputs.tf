@@ -233,11 +233,7 @@ output "hr_transfer_data_table" {
 
 output "survey_data_table" {
   description = "BTSGSD-V2V-US-PROMPT-DATATABLE identifiers for flow configuration."
-  value = try({
-    name = "BTSGSD-V2V-US-PROMPT-DATATABLE"
-    arn  = aws_cloudformation_stack.survey_data_table[0].outputs["DataTableArn"]
-    id   = local.survey_data_table_id
-  }, null)
+  value       = try(module.survey_data_table[0].deployment, null)
 }
 
 output "veeva_transfer_data_table" {
@@ -259,14 +255,7 @@ output "top_level_blocker_data_table" {
 }
 
 output "bts_gsd_customer_number_data_table" {
-  value = try({
-    name = "BTSGSD-V2V-US-BTSGSD-CustomerNumber"
-    arn  = aws_cloudformation_stack.bts_gsd_customer_number_data_table[0].outputs["DataTableArn"]
-    id = element(
-      reverse(split("/", aws_cloudformation_stack.bts_gsd_customer_number_data_table[0].outputs["DataTableArn"])),
-      0
-    )
-  }, null)
+  value = try(module.bts_gsd_customer_number_data_table[0].deployment, null)
 }
 
 output "survey_flow_arn" {

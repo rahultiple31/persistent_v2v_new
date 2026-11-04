@@ -1,0 +1,21 @@
+{
+  "name": "BTSGSD-V2V-US-BTSGSD-CustomerNumber",
+  "stack_name": "BTSGSD-V2V-US-BTS-GSD-CustomerNumber",
+  "logical_id": "CustomerNumberTable",
+  "template_description": "BTSGSD-CustomerNumber routing configuration.",
+  "description": "Routing configuration by country and system phone number.",
+  "primary_columns": [
+    "country",
+    "system_phonenumber"
+  ],
+  "phone_columns": [
+    "system_phonenumber",
+    "hr_contact",
+    "medcom_contact",
+    "veeva_contact"
+  ],
+  "hashed_record_ids": true,
+  "use_s3": false,
+  "expected_columns": 11,
+  "expected_rows": 19
+}

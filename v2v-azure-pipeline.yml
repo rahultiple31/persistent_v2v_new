@@ -47,6 +47,7 @@ parameters:
       - BTSGSD-V2V-US-BTSGSD-HR_Transfer
       - BTSGSD-V2V-US-PROMPT-DATATABLE
       - BTSGSD-V2V-US-BTSGSD-Veeva_Transfer
+      - destroy_hr_veeva_transfer_tables
       - BTSGSD-V2V-US-TopLevelBlockerMessage
       - btsgsd_support_agent
       - btsgsd_support_agent_tools_access
@@ -231,7 +232,7 @@ stages:
               test -s "$TERRAFORM_VARIABLE_FILE"
 
               # Build file-based packages before Terraform evaluates their hashes.
-              # Retired survey module destruction does not deploy Lambda packages.
+              # Destroy-only choices do not deploy Lambda packages.
               if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TERRAFORM_DESTROY_ONLY" != true ]; then
                 python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" build \
                   --state-module "$TERRAFORM_STATE_MODULE"

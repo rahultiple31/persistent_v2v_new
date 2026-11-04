@@ -3,6 +3,14 @@ mock_provider "aws" {}
 mock_provider "aws" {
   alias = "us_east_1"
 
+  mock_resource "aws_cloudformation_stack" {
+    defaults = {
+      outputs = {
+        DataTableArn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/data-table/00000000-0000-0000-0000-000000000001"
+      }
+    }
+  }
+
   mock_data "aws_connect_instance" {
     defaults = {
       id  = "bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
@@ -29,16 +37,18 @@ variables {
 }
 
 run "customer_number" {
-  command = plan
+  # Resolve targeted child-module outputs through the mocked provider.
+  command = apply
   plan_options {
-    target = [aws_cloudformation_stack.bts_gsd_customer_number_data_table[0]]
+    target = [module.bts_gsd_customer_number_data_table[0]]
   }
   assert {
     condition = (
-      aws_cloudformation_stack.bts_gsd_customer_number_data_table[0].parameters.InstanceArn == data.aws_connect_instance.target[0].arn &&
-      jsondecode(aws_cloudformation_stack.bts_gsd_customer_number_data_table[0].template_body).Resources.CustomerNumberTable.Properties.Name == "BTSGSD-V2V-US-BTSGSD-CustomerNumber"
+      output.bts_gsd_customer_number_data_table.name == "BTSGSD-V2V-US-BTSGSD-CustomerNumber" &&
+      startswith(output.bts_gsd_customer_number_data_table.arn, "${data.aws_connect_instance.target[0].arn}/data-table/") &&
+      output.bts_gsd_customer_number_data_table.id == "00000000-0000-0000-0000-000000000001"
     )
-    error_message = "The customer-number choice must use its own table and the existing V2V instance."
+    error_message = "Retain the existing table name, ARN, and ID output contract after module extraction."
   }
 }
 
@@ -57,16 +67,31 @@ run "hr_transfer" {
 }
 
 run "survey" {
-  command = plan
+  # Mock apply resolves the bucket endpoint used by the stack template URL.
+  command = apply
+
+  variables {
+    dev_ai_template_bucket = "test-v2v-prompt-template-bucket"
+  }
+
+  override_resource {
+    target = aws_s3_bucket.dev_ai_template[0]
+    values = {
+      id                          = "test-v2v-prompt-template-bucket"
+      bucket_regional_domain_name = "test-v2v-prompt-template-bucket.s3.us-east-1.amazonaws.com"
+    }
+  }
+
   plan_options {
-    target = [aws_cloudformation_stack.survey_data_table[0]]
+    target = [module.survey_data_table[0]]
   }
   assert {
     condition = (
-      aws_cloudformation_stack.survey_data_table[0].parameters.InstanceArn == data.aws_connect_instance.target[0].arn &&
-      jsondecode(aws_cloudformation_stack.survey_data_table[0].template_body).Resources.SurveyTable.Properties.Name == "BTSGSD-V2V-US-PROMPT-DATATABLE"
+      output.survey_data_table.name == "BTSGSD-V2V-US-PROMPT-DATATABLE" &&
+      startswith(output.survey_data_table.arn, "${data.aws_connect_instance.target[0].arn}/data-table/") &&
+      output.survey_data_table.id == "00000000-0000-0000-0000-000000000001"
     )
-    error_message = "The survey choice must use its own table and the existing V2V instance."
+    error_message = "Retain the existing table name, ARN, and ID output contract after module extraction."
   }
 }
 

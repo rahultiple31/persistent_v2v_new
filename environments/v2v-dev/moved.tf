@@ -1,3 +1,18 @@
+moved {
+  from = aws_cloudformation_stack.bts_gsd_customer_number_data_table[0]
+  to   = module.bts_gsd_customer_number_data_table[0].aws_cloudformation_stack.this
+}
+
+moved {
+  from = aws_cloudformation_stack.survey_data_table[0]
+  to   = module.survey_data_table[0].aws_cloudformation_stack.this
+}
+
+moved {
+  from = aws_s3_object.survey_table_template[0]
+  to   = module.survey_data_table[0].aws_s3_object.template[0]
+}
+
 # Preserve resource ownership when renaming V2V Lambda modules.
 moved {
   from = module.lambda-servicenow-interaction

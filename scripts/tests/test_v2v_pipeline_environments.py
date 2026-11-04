@@ -13,6 +13,7 @@ import unittest
 from scripts.tests.test_v2v_terraform_target import (
     BASH, ROOT, RESOURCE_MODULE_CHOICES, DESTROY_CHOICES, ALL_FLOW_TARGETS,
     MOVED_CONNECT_TARGETS, change, plan,
+    TRANSFER_TABLE_DESTROY_CHOICE, TRANSFER_TABLE_TARGETS, DATA_TABLE_MODULE_CHOICES,
 )
 
 
@@ -117,15 +118,15 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
 
     def test_environment_choices_route_to_the_corresponding_roots(self):
         self.assertEqual(self.environment_routes, {
-            "v2v-dev": ("v2v", "v2v"),
-            "v2v-resources-dev": ("v2v-resources", "v2v-resources"),
+            "v2v-dev": ("v2v-dev", "v2v"),
+            "v2v-resources-dev": ("v2v-resources-dev", "v2v-resources"),
         })
         self.assertEqual(self.pipeline.count("TARGET_ENVIRONMENT: ${{ variables.deploymentEnvironment }}"), 2)
         self.assertNotIn("TARGET_ENVIRONMENT: ${{ parameters.targetEnvironment }}", self.pipeline)
         environments = self.pipeline.split("  - name: targetEnvironment\n", 1)[1].split("# Set AWS_DEV_OIDC_ROLE_ARN", 1)[0]
         self.assertIn("    default: v2v-dev\n", environments)
         self.assertEqual(re.findall(r"^      - (.+)$", environments, re.MULTILINE), ["v2v-dev", "v2v-resources-dev"])
-        source = (ROOT / "environments/v2v-resources/main.tf").read_text()
+        source = (ROOT / "environments/v2v-resources-dev/main.tf").read_text()
         modules = dict(re.findall(r'^module "([^"]+)" \{\s*(?:#[^\n]*\n\s*)?source\s*=\s*"([^"]+)"', source, re.MULTILINE))
         self.assertEqual(set(modules), RESOURCE_MODULE_CHOICES - {"all"})
         for name, path in modules.items():
@@ -317,6 +318,78 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
                 self.assertNotIn("packages <", trace)
                 self.assertNotIn("terraform <output>", trace)
 
+    def test_transfer_table_destroy_applies_only_the_saved_targeted_plan(self):
+        self.prepare("v2v-dev", TRANSFER_TABLE_DESTROY_CHOICE)
+        self.env["TEST_PLAN"] = json.dumps(plan(group="connect", changes=[
+            change(address, ["delete"]) for address in TRANSFER_TABLE_TARGETS
+        ]))
+        for stage in (0, 1):
+            result = self.run_stage(stage)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        trace = self.trace.read_text()
+        self.assertEqual(trace.count(
+            "<-backend-config=key=terraform-state/v2v/us-east-1/connect/terraform.tfstate>"
+        ), 2)
+        plan_command = next(line for line in trace.splitlines() if line.startswith("terraform <plan>"))
+        self.assertIn("<-destroy>", plan_command)
+        self.assertIn('<-var=enabled_modules=["connect"]>', plan_command)
+        self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), list(TRANSFER_TABLE_TARGETS))
+        apply_command = next(line for line in trace.splitlines() if line.startswith("terraform <apply>"))
+        self.assertIn("terraform.tfplan>", apply_command)
+        self.assertNotIn("<-target=", apply_command)
+        self.assertNotIn("<-destroy>", apply_command)
+        self.assertNotIn("packages <", trace)
+        self.assertNotIn("terraform <output>", trace)
+
+    def test_data_table_module_choices_keep_existing_state_and_saved_plan_apply(self):
+        for choice, module in DATA_TABLE_MODULE_CHOICES.items():
+            with self.subTest(choice=choice):
+                self.prepare("v2v-dev", choice)
+                self.env["TEST_PLAN"] = json.dumps(plan(group="connect", changes=[
+                    change(f"module.{module}[0].aws_cloudformation_stack.this", ["update"]),
+                ]))
+                for stage in (0, 1):
+                    result = self.run_stage(stage)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                trace = self.trace.read_text()
+                self.assertEqual(trace.count(
+                    "<-backend-config=key=terraform-state/v2v/us-east-1/connect/terraform.tfstate>"
+                ), 2)
+                plan_command = next(line for line in trace.splitlines() if line.startswith("terraform <plan>"))
+                self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), [
+                    f"module.{module}[0]", *MOVED_CONNECT_TARGETS,
+                ])
+                self.assertNotIn("<-destroy>", plan_command)
+                apply_command = next(line for line in trace.splitlines() if line.startswith("terraform <apply>"))
+                self.assertIn("terraform.tfplan>", apply_command)
+                self.assertNotIn("<-target=", apply_command)
+
+    def test_transfer_table_destroy_plan_rejects_unrelated_deletion(self):
+        self.prepare("v2v-dev", TRANSFER_TABLE_DESTROY_CHOICE)
+        self.env["TEST_PLAN"] = json.dumps(plan(group="connect", changes=[
+            change("aws_cloudformation_stack.survey_data_table[0]", ["delete"]),
+        ]))
+        result = self.run_stage(0)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Refusing changes other than deletion of the HR and Veeva", result.stderr)
+        self.assertNotIn("terraform <apply>", self.trace.read_text())
+
+    def test_transfer_table_destroy_apply_revalidates_saved_plan(self):
+        self.prepare("v2v-dev", TRANSFER_TABLE_DESTROY_CHOICE)
+        self.env["TEST_PLAN"] = json.dumps(plan(group="connect", changes=[
+            change(address, ["delete"]) for address in TRANSFER_TABLE_TARGETS
+        ]))
+        result = self.run_stage(0)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.trace.write_text("")
+        self.env["TEST_PLAN"] = json.dumps(plan(group="connect", changes=[
+            change(TRANSFER_TABLE_TARGETS[0], ["update"]),
+        ]))
+        result = self.run_stage(1)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Refusing changes other than deletion of the HR and Veeva", result.stderr)
+        self.assertNotIn("terraform <apply>", self.trace.read_text())
+
     def test_destroy_plan_rejects_unrelated_deletion_before_apply(self):
         for choice, (group, _) in DESTROY_CHOICES.items():
             with self.subTest(choice=choice):
@@ -350,6 +423,7 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
             ("v2v-resources", "connect"), ("v2v", "ecr"),
             ("v2v-resources", "destroy_survey_ai"),
             ("v2v-resources", "destroy_survey_lex"),
+            ("v2v-resources", TRANSFER_TABLE_DESTROY_CHOICE),
         ):
             with self.subTest(environment=environment, choice=choice):
                 self.prepare(environment, choice)

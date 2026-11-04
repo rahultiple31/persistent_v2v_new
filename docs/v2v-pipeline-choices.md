@@ -177,6 +177,38 @@ VMX3 inputs. The Connect instance must already exist.
 | BTSGSD-V2V-US-BTSGSD-Veeva_Transfer | `BTSGSD-V2V-US-BTSGSD-Veeva_Transfer` |
 | BTSGSD-V2V-US-TopLevelBlockerMessage | `BTSGSD-V2V-US-TopLevelBlockerMessage` |
 
+`BTSGSD-V2V-US-BTSGSD-CustomerNumber` and
+`BTSGSD-V2V-US-PROMPT-DATATABLE` now call the reusable
+`v2v_modules/connect-data-table` child module. Their CSV records and table
+configuration are stored under that module's `assets/customer-number` and
+`assets/prompt` directories. Edit those CSV files for future value changes;
+there are no environment-level prompt overrides. The customer table retains
+its country/phone composite key and inline template; the prompt table retains
+its Language key and existing private S3 template delivery.
+
+The existing pipeline choice names, Connect backend, stack names, table names,
+CloudFormation logical IDs, and output shapes are retained. Root `moved.tf`
+maps the two existing stacks and prompt S3 object into the child modules.
+For the first migration, run the complete `connect` choice with
+`terraformAction=plan` so all moves are included. Confirm that the refactor
+adds only state-address moves and no resource changes before applying. Other
+pending configuration changes can still appear in that plan. Keep the moved
+blocks until every relevant state has migrated, then use the same individual
+table choices. Voicemail retains its independent read-only table lookup.
+
+To destroy both `BTSGSD-V2V-US-BTSGSD-HR_Transfer` and
+`BTSGSD-V2V-US-BTSGSD-Veeva_Transfer`, select
+`targetModule=destroy_hr_veeva_transfer_tables` and
+`targetEnvironment=v2v-dev`. Run with `terraformAction=plan` to review the
+deletions, then `terraformAction=apply` to execute the saved destroy plan from
+that run. This choice uses the existing Connect state and targets only
+`aws_cloudformation_stack.hr_transfer_data_table[0]` and
+`aws_cloudformation_stack.veeva_transfer_data_table[0]`. Plan and Apply reject
+changes other than deletion of those exact stacks; Lambda packaging and
+moved-flow deployment targets are skipped. The table definitions remain in
+configuration, so a later normal deployment of those tables or the full
+`connect` group can recreate them.
+
 `BTSGSD-V2V-US-CustomerNumberDataTable` targets
 `aws_cloudformation_stack.customer_number_data_table[0]` in the existing
 Connect state. Its instance ARN comes from `module.connect_us_east_1[0]`,

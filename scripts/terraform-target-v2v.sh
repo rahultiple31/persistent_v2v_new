@@ -61,10 +61,11 @@ BTSGSD-V2V-US-agent-to-agent-transfer-flow|connect|module.connect_us_east_1[0].a
 BTSGSD-V2V-US-HR|connect|module.connect_us_east_1[0].aws_connect_contact_flow.hr[0]
 connect_queue|connect|module.connect_queue[0]
 BTSGSD-V2V-US-CustomerNumberDataTable|connect|aws_cloudformation_stack.customer_number_data_table[0]
-BTSGSD-V2V-US-BTSGSD-CustomerNumber|connect|aws_cloudformation_stack.bts_gsd_customer_number_data_table[0]
+BTSGSD-V2V-US-BTSGSD-CustomerNumber|connect|module.bts_gsd_customer_number_data_table[0]
 BTSGSD-V2V-US-BTSGSD-HR_Transfer|connect|aws_cloudformation_stack.hr_transfer_data_table[0]
-BTSGSD-V2V-US-PROMPT-DATATABLE|connect|aws_cloudformation_stack.survey_data_table[0]
+BTSGSD-V2V-US-PROMPT-DATATABLE|connect|module.survey_data_table[0]
 BTSGSD-V2V-US-BTSGSD-Veeva_Transfer|connect|aws_cloudformation_stack.veeva_transfer_data_table[0]
+destroy_hr_veeva_transfer_tables|connect|aws_cloudformation_stack.hr_transfer_data_table[0]
 BTSGSD-V2V-US-TopLevelBlockerMessage|connect|aws_cloudformation_stack.top_level_blocker_data_table[0]
 btsgsd_support_agent|connect|module.btsgsd_support_agent[0]
 btsgsd_support_agent_tools_access|connect|module.btsgsd_support_agent_tools_access[0]
@@ -165,8 +166,12 @@ if [ "$DEPLOYMENT_TARGET" = all-flows ]; then
   )
 fi
 
-# These retired modules remain addressable in state without restoring their code.
+# Destroy-only choices use their existing state and skip deployment dependencies.
 case "$DEPLOYMENT_TARGET" in
+  destroy_hr_veeva_transfer_tables)
+    TERRAFORM_DESTROY_ONLY=true
+    TERRAFORM_PLAN_ARGS+=("-destroy" "-target=aws_cloudformation_stack.veeva_transfer_data_table[0]")
+    ;;
   destroy_survey_ai)
     TERRAFORM_DESTROY_ONLY=true
     TERRAFORM_PLAN_ARGS+=("-destroy" "-target=module.survey_ai_prompt[0]")
@@ -270,6 +275,22 @@ if target in destroy_prefixes:
     if unexpected:
         raise SystemExit(
             "Refusing changes other than deletion of the selected retired modules: "
+            + ", ".join(unexpected)
+        )
+
+if target == "destroy_hr_veeva_transfer_tables":
+    allowed = {
+        "aws_cloudformation_stack.hr_transfer_data_table[0]",
+        "aws_cloudformation_stack.veeva_transfer_data_table[0]",
+    }
+    unexpected = [
+        change["address"] for change in changes
+        if change["address"] not in allowed
+        or change.get("change", {}).get("actions") != ["delete"]
+    ]
+    if unexpected:
+        raise SystemExit(
+            "Refusing changes other than deletion of the HR and Veeva transfer table stacks: "
             + ", ".join(unexpected)
         )
 

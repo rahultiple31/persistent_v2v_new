@@ -263,13 +263,7 @@ module "btsgsd-Main-IB-Flow" {
     survey_flow_arn         = module.aiagent_survey_flow[0].flow_arn
     agent_ui_flow_arn       = module.abbvie_views[0].flow_arn
 
-    language_table_id = element(
-      reverse(split(
-        "/",
-        aws_cloudformation_stack.bts_gsd_customer_number_data_table[0].outputs["DataTableArn"]
-      )),
-      0
-    )
+    language_table_id = module.bts_gsd_customer_number_data_table[0].deployment.id
 
     survey_table_id  = local.survey_data_table_id
     blocker_table_id = local.top_level_blocker_data_table_id
@@ -1705,132 +1699,28 @@ resource "aws_cloudformation_stack" "hr_transfer_data_table" {
 }
 
 
-# Preserve the supplied column names, SSML and empty translation cells.
-locals {
-  survey_template = {
-    AWSTemplateFormatVersion = "2010-09-09"
-    Description              = "Amazon Connect survey, callback and voicemail messages."
-    Parameters = {
-      InstanceArn = { Type = "String" }
-    }
+module "survey_data_table" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/connect-data-table"
 
-    Resources = merge(
-      {
-        SurveyTable = {
-          Type = "AWS::Connect::DataTable"
-          Properties = {
-            InstanceArn    = { Ref = "InstanceArn" }
-            Name           = "BTSGSD-V2V-US-PROMPT-DATATABLE"
-            Description    = "Survey, callback and voicemail configuration by language."
-            Status         = "PUBLISHED"
-            TimeZone       = "UTC"
-            ValueLockLevel = "NONE"
-            Tags = [
-              for key, value in merge(local.common_tags, { Name = "BTSGSD-V2V-US-PROMPT-DATATABLE" }) : {
-                Key   = key
-                Value = value
-              }
-            ]
-          }
-        }
-      },
-      {
-        for column in local.survey_columns : "Attribute${replace(column, "_", "")}" => {
-          Type = "AWS::Connect::DataTableAttribute"
-          Properties = {
-            InstanceArn  = { Ref = "InstanceArn" }
-            DataTableArn = { "Fn::GetAtt" = ["SurveyTable", "Arn"] }
-            Name         = column
-            ValueType    = "TEXT"
-            Primary      = column == "Language"
-          }
-        }
-      },
-      {
-        for language, row in local.survey_rows : "Record${replace(language, "-", "")}" => {
-          Type = "AWS::Connect::DataTableRecord"
-          Properties = {
-            InstanceArn  = { Ref = "InstanceArn" }
-            DataTableArn = { "Fn::GetAtt" = ["SurveyTable", "Arn"] }
-            DataTableRecord = {
-              PrimaryValues = [
-                {
-                  AttributeId    = { "Fn::GetAtt" = ["AttributeLanguage", "AttributeId"] }
-                  AttributeValue = language
-                }
-              ]
-              Values = [
-                for column in local.survey_columns : {
-                  AttributeId    = { "Fn::GetAtt" = ["Attribute${replace(column, "_", "")}", "AttributeId"] }
-                  AttributeValue = row[column]
-                }
-                if column != "Language"
-              ]
-            }
-          }
-        }
-      }
-    )
-
-    Outputs = {
-      DataTableArn = { Value = { "Fn::GetAtt" = ["SurveyTable", "Arn"] } }
-    }
+  providers = {
+    aws = aws.us_east_1
   }
 
-  survey_data_table_id = try(element(
-    reverse(split("/", aws_cloudformation_stack.survey_data_table[0].outputs["DataTableArn"])),
-    0
-  ), null)
+  profile              = "prompt"
+  connect_instance_arn = data.aws_connect_instance.target[0].arn
+  tags                 = local.common_tags
 
-  survey_data_table_stack_name = "BTSGSD-V2V-US-SurveyDataTable"
-
-  # Same table ID, read from the deployed stack instead of the managed
-  # resource, so "-target=module.voicemail[0]" does not pull the stack (and
-  # its dependent flows) into the voicemail plan.
-  voicemail_prompt_data_table_id = try(element(
-    reverse(split("/", data.aws_cloudformation_stack.survey_data_table[0].outputs["DataTableArn"])),
-    0
-  ), null)
-}
-
-data "aws_cloudformation_stack" "survey_data_table" {
-  count    = local.deploy_connect ? 1 : 0
-  provider = aws.us_east_1
-
-  name = local.survey_data_table_stack_name
-}
-
-resource "aws_cloudformation_stack" "survey_data_table" {
-  count    = local.deploy_connect ? 1 : 0
-  provider = aws.us_east_1
-
-  name          = local.survey_data_table_stack_name
-  template_body = jsonencode(local.survey_template)
-  parameters = {
-    InstanceArn = data.aws_connect_instance.target[0].arn
+  template_bucket = {
+    name                 = aws_s3_bucket.dev_ai_template[0].id
+    regional_domain_name = aws_s3_bucket.dev_ai_template[0].bucket_regional_domain_name
   }
-  tags = local.common_tags
 
-  lifecycle {
-    precondition {
-      condition = (
-        length(local.survey_columns) == 35 &&
-        contains(local.survey_columns, "Language") &&
-        contains(local.survey_columns, "VM_instruction_Survey")
-      )
-      error_message = "The survey CSV must contain the supplied 35 columns, including Language and VM_instruction_Survey."
-    }
-
-    precondition {
-      condition = (
-        toset(keys(local.survey_rows)) ==
-        toset(["en-US", "es-MX", "pt-BR"])
-      )
-      error_message = "The survey CSV must contain exactly the en-US, es-MX and pt-BR language rows."
-    }
-  }
+  depends_on = [
+    aws_s3_bucket_public_access_block.dev_ai_template,
+    aws_s3_bucket_server_side_encryption_configuration.dev_ai_template
+  ]
 }
-
 
 # Countries share system phone numbers, so both columns form the primary key.
 # Remove Excel's leading apostrophe from phone cells and retain the supplied digits.
@@ -2096,183 +1986,17 @@ resource "aws_cloudformation_stack" "top_level_blocker_data_table" {
 }
 
 
-# Composite primary key: country + system_phonenumber.
-# Flow lookups must supply both attributes because phone numbers repeat.
-# All columns remain TEXT; strip Excel's leading apostrophe from phone numbers.
-locals {
-  bts_gsd_customer_number_csv = <<-CSV
-"country","system_phonenumber","amazon_speaking_engine","amazon_speaking_style","amazon_voice","hr_contact","language_code","language_name","medcom_contact","region","veeva_contact"
-"","'+12","neural","conversational","Aditi","","hi-IN","Hindi","","",""
-"Argentina","'+548002661683","neural","conversational","Katie","'+5408003454866","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"Argentina","'+576014192633","neural","conversational","Katie","'+5408003454866","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"Bahamas","'+18336980331","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"Bahamas","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"Barbados","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"Canada","'+18004078577","neural","conversational","Katie","'+18553007019","en-US","English","","NORAM",""
-"Chile","'+56800395181","neural","conversational","Katie","'+56800914883","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"Chile","'+576014192633","neural","conversational","Katie","'+56800914883","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"Colombia","'+5718000128353","neural","conversational","Katie","'+57018005189572","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"Colombia","'+576014192633","neural","conversational","Katie","'+57018005189572","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"Costa Rica","'+576014192633","neural","conversational","Katie","'+5068000320022","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"Curacao","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"Dominican Republic","'+18001485151","neural","conversational","Katie","'+18665486437","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"Dominican Republic","'+576014192633","neural","conversational","Katie","'+18665486437","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"El Salvador","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"Guatemala","'+576014192633","neural","conversational","Katie","'+50224582811","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"Honduras","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"Jamaica","'+1833698332","neural","conversational","Katie","'+18552013947","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"Jamaica","'+576014192633","neural","conversational","Katie","'+18552013947","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"Mexico","'+528000835964","neural","conversational","Katie","'+528008770373","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"Nicaragua","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"Panama","'+50769789714","neural","conversational","Katie","'+5078000086","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"Peru","'+5180077559","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"Puerto Rico","'+18663806011","neural","conversational","Katie","'+18553075401","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"Trinidad and Tobago","'+576014192633","neural","conversational","Katie","'+18665462622","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-"United States","'+18335162999","neural","conversational","Katie","'+18446634748","en-US","English","'+13152949458","NORAM","'+13124799473"
-"Uruguay","'+576014192633","neural","conversational","Katie","'+5980004135985411","es-MX","Spanish","'+13152949458","LATAM","'+13124799473"
-"USA","'+18002524415","neural","conversational","Katie","'+18446634748","en-US","English","","NORAM",""
-"Venezuela","'+576014192633","neural","conversational","Katie","","es-MX","Spanish","'+13152949458","LATAM","'+13124799471"
-CSV
+module "bts_gsd_customer_number_data_table" {
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/connect-data-table"
 
-  bts_gsd_customer_number_raw_rows = csvdecode(
-    trimspace(local.bts_gsd_customer_number_csv)
-  )
-
-  bts_gsd_customer_number_columns = keys(
-    local.bts_gsd_customer_number_raw_rows[0]
-  )
-
-  bts_gsd_customer_number_primary_columns = [
-    "country",
-    "system_phonenumber",
-  ]
-
-  bts_gsd_customer_number_rows = {
-    for row in local.bts_gsd_customer_number_raw_rows :
-    jsonencode([
-      row.country,
-      trimprefix(trimspace(row.system_phonenumber), "'"),
-      ]) => {
-      for column, value in row :
-      column => (
-        contains(
-          ["system_phonenumber", "hr_contact", "medcom_contact", "veeva_contact"],
-          column
-        )
-        ? trimprefix(trimspace(value), "'")
-        : value
-      )
-    }
+  providers = {
+    aws = aws.us_east_1
   }
 
-  bts_gsd_customer_number_template = {
-    AWSTemplateFormatVersion = "2010-09-09"
-    Description              = "BTSGSD-CustomerNumber routing configuration."
-
-    Parameters = {
-      InstanceArn = {
-        Type = "String"
-      }
-    }
-
-    Resources = merge(
-      {
-        CustomerNumberTable = {
-          Type = "AWS::Connect::DataTable"
-          Properties = {
-            InstanceArn    = { Ref = "InstanceArn" }
-            Name           = "BTSGSD-V2V-US-BTSGSD-CustomerNumber"
-            Description    = "Routing configuration by country and system phone number."
-            Status         = "PUBLISHED"
-            TimeZone       = "UTC"
-            ValueLockLevel = "NONE"
-
-            Tags = [
-              for key, value in merge(local.common_tags, {
-                Name = "BTSGSD-V2V-US-BTSGSD-CustomerNumber"
-                }) : {
-                Key   = key
-                Value = value
-              }
-            ]
-          }
-        }
-      },
-      {
-        for column in local.bts_gsd_customer_number_columns :
-        "Attribute${replace(column, "_", "")}" => {
-          Type = "AWS::Connect::DataTableAttribute"
-          Properties = {
-            InstanceArn  = { Ref = "InstanceArn" }
-            DataTableArn = { "Fn::GetAtt" = ["CustomerNumberTable", "Arn"] }
-            Name         = column
-            ValueType    = "TEXT"
-            Primary      = contains(local.bts_gsd_customer_number_primary_columns, column)
-          }
-        }
-      },
-      {
-        for row_key, row in local.bts_gsd_customer_number_rows :
-        "Record${md5(row_key)}" => {
-          Type = "AWS::Connect::DataTableRecord"
-          Properties = {
-            InstanceArn  = { Ref = "InstanceArn" }
-            DataTableArn = { "Fn::GetAtt" = ["CustomerNumberTable", "Arn"] }
-
-            DataTableRecord = {
-              PrimaryValues = [
-                for column in local.bts_gsd_customer_number_primary_columns : {
-                  AttributeId = {
-                    "Fn::GetAtt" = [
-                      "Attribute${replace(column, "_", "")}",
-                      "AttributeId",
-                    ]
-                  }
-                  AttributeValue = row[column]
-                }
-              ]
-
-              Values = [
-                for column in local.bts_gsd_customer_number_columns : {
-                  AttributeId = {
-                    "Fn::GetAtt" = [
-                      "Attribute${replace(column, "_", "")}",
-                      "AttributeId",
-                    ]
-                  }
-                  AttributeValue = row[column]
-                }
-                if !contains(local.bts_gsd_customer_number_primary_columns, column)
-              ]
-            }
-          }
-        }
-      }
-    )
-
-    Outputs = {
-      DataTableArn = {
-        Value = {
-          "Fn::GetAtt" = ["CustomerNumberTable", "Arn"]
-        }
-      }
-    }
-  }
-}
-
-resource "aws_cloudformation_stack" "bts_gsd_customer_number_data_table" {
-  count    = local.deploy_connect ? 1 : 0
-  provider = aws.us_east_1
-
-  name          = "BTSGSD-V2V-US-BTS-GSD-CustomerNumber"
-  template_body = jsonencode(local.bts_gsd_customer_number_template)
-
-  parameters = {
-    InstanceArn = data.aws_connect_instance.target[0].arn
-  }
-
-  tags = local.common_tags
-
+  profile              = "customer-number"
+  connect_instance_arn = data.aws_connect_instance.target[0].arn
+  tags                 = local.common_tags
 }
 
 # Adding new modules for Connect resources (users, queues, prompts etc)

@@ -30,17 +30,24 @@ MOVED_CONNECT_TARGETS = (
 )
 DATA_TABLE_CHOICES = {
     "BTSGSD-V2V-US-CustomerNumberDataTable": "customer_number_data_table",
-    "BTSGSD-V2V-US-BTSGSD-CustomerNumber": "bts_gsd_customer_number_data_table",
     "BTSGSD-V2V-US-BTSGSD-HR_Transfer": "hr_transfer_data_table",
-    "BTSGSD-V2V-US-PROMPT-DATATABLE": "survey_data_table",
     "BTSGSD-V2V-US-BTSGSD-Veeva_Transfer": "veeva_transfer_data_table",
     "BTSGSD-V2V-US-TopLevelBlockerMessage": "top_level_blocker_data_table",
+}
+DATA_TABLE_MODULE_CHOICES = {
+    "BTSGSD-V2V-US-BTSGSD-CustomerNumber": "bts_gsd_customer_number_data_table",
+    "BTSGSD-V2V-US-PROMPT-DATATABLE": "survey_data_table",
 }
 DESTROY_CHOICES = {
     "destroy_survey_ai": ("connect", ("connect_ai_agent", "survey_ai_prompt")),
     "destroy_survey_lex": ("lex_bot", ("lex_aiagent_survey_bot",)),
     "destroy_ctr_raw": ("lambda-ctr-raw", ("lambda-ctr-raw",)),
 }
+TRANSFER_TABLE_DESTROY_CHOICE = "destroy_hr_veeva_transfer_tables"
+TRANSFER_TABLE_TARGETS = (
+    "aws_cloudformation_stack.hr_transfer_data_table[0]",
+    "aws_cloudformation_stack.veeva_transfer_data_table[0]",
+)
 FLOW_CHOICES = {
     "BTSGSD-V2V-US-AIAgent-SurveyFlow": "module.aiagent_survey_flow[0]",
     "BTSGSD-V2V-US-CustomerQueueFlow": 'module.customer_queue_flow[0]',
@@ -147,6 +154,13 @@ fi
                 self.assertEqual(backend, f"terraform-state/v2v/us-east-1/{state}/terraform.tfstate")
                 self.assertIn(f'-var=enabled_modules=["{group}"]', arguments)
                 targets = [a for a in arguments if a.startswith("-target=")]
+                if choice == TRANSFER_TABLE_DESTROY_CHOICE:
+                    self.assertEqual(group, "connect")
+                    self.assertIn("-destroy", arguments)
+                    self.assertEqual(targets, [f"-target={address}" for address in TRANSFER_TABLE_TARGETS])
+                    for address in TRANSFER_TABLE_TARGETS:
+                        self.assertIn(tuple(address.split("[", 1)[0].split(".")), resources)
+                    continue
                 if choice in DESTROY_CHOICES:
                     expected_group, retired_modules = DESTROY_CHOICES[choice]
                     self.assertEqual(group, expected_group)
@@ -184,6 +198,15 @@ fi
                     self.assertEqual(targets, [
                         f"-target={item}" for item in (address, *MOVED_CONNECT_TARGETS)
                     ])
+                elif choice in DATA_TABLE_MODULE_CHOICES:
+                    module = DATA_TABLE_MODULE_CHOICES[choice]
+                    self.assertEqual(group, "connect")
+                    self.assertIn(module, modules)
+                    self.assertEqual(targets, [
+                        f"-target={item}" for item in (
+                            f"module.{module}[0]", *MOVED_CONNECT_TARGETS
+                        )
+                    ])
                 elif choice in DATA_TABLE_CHOICES:
                     resource = DATA_TABLE_CHOICES[choice]
                     self.assertEqual(group, "connect")
@@ -215,6 +238,41 @@ fi
         result = self.run_selector("unknown-module")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Unsupported V2V module", result.stderr)
+
+    def test_transfer_table_destroy_accepts_both_one_or_no_deletions(self):
+        for targets in (TRANSFER_TABLE_TARGETS, TRANSFER_TABLE_TARGETS[:1], TRANSFER_TABLE_TARGETS[1:], ()):
+            with self.subTest(targets=targets):
+                result = self.run_selector(TRANSFER_TABLE_DESTROY_CHOICE, plan(group="connect", changes=[
+                    *(change(address, ["delete"]) for address in targets),
+                    change("module.connect_queue[0].aws_connect_queue.queue", ["no-op"]),
+                    change("data.aws_connect_instance.target[0]", ["read"], mode="data"),
+                ]))
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_transfer_table_destroy_rejects_other_addresses(self):
+        for address in (
+            "aws_cloudformation_stack.survey_data_table[0]",
+            "aws_cloudformation_stack.hr_transfer_data_table[1]",
+            "aws_cloudformation_stack.hr_transfer_data_table_extra[0]",
+            "module.connect_us_east_1[0].aws_connect_instance.this",
+        ):
+            with self.subTest(address=address):
+                result = self.run_selector(TRANSFER_TABLE_DESTROY_CHOICE, plan(group="connect", changes=[
+                    change(TRANSFER_TABLE_TARGETS[0], ["delete"]),
+                    change(address, ["delete"]),
+                ]))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing changes other than deletion of the HR and Veeva", result.stderr)
+
+    def test_transfer_table_destroy_rejects_non_delete_actions(self):
+        for address in TRANSFER_TABLE_TARGETS:
+            for actions in (["create"], ["update"], ["delete", "create"], ["create", "delete"]):
+                with self.subTest(address=address, actions=actions):
+                    result = self.run_selector(TRANSFER_TABLE_DESTROY_CHOICE, plan(group="connect", changes=[
+                        change(address, actions),
+                    ]))
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("Refusing changes other than deletion of the HR and Veeva", result.stderr)
 
     def test_retired_deployment_choices_remain_unavailable(self):
         for target in (
