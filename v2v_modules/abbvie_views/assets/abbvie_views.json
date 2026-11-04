@@ -1,6 +1,6 @@
 {
   "Version": "2019-10-30",
-  "StartAction": "7789d6bd-8d55-425b-b093-116e047c8cf1",
+  "StartAction": "chk-screenpop-0001",
   "Metadata": {
     "entryPointPosition": {
       "x": 40,
@@ -9,14 +9,14 @@
     "ActionMetadata": {
       "24d9f3a3-8769-4d26-a5bd-58d966fa8af9": {
         "position": {
-          "x": 581.6,
-          "y": 124.8
+          "x": 840,
+          "y": 0
         }
       },
       "7789d6bd-8d55-425b-b093-116e047c8cf1": {
         "position": {
-          "x": 263.2,
-          "y": 83.2
+          "x": 559.2,
+          "y": -0.8
         },
         "parameters": {
           "ViewResource": {
@@ -66,22 +66,85 @@
             }
           }
         }
+      },
+      "chk-screenpop-0001": {
+        "position": {
+          "x": 280,
+          "y": 0
+        },
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "96e8958b-76cb-40e5-b46e-1e3caf73a382",
+            "operator": {
+              "name": "Contains",
+              "value": "Contains",
+              "shortDisplay": "contains"
+            },
+            "value": "http"
+          }
+        ]
+      },
+      "04551b42-79e3-4651-980c-23226908da6c": {
+        "position": {
+          "x": 426.4,
+          "y": 257.6
+        },
+        "parameters": {
+          "ViewResource": {
+            "Id": {
+              "displayName": "BTSGSD-V2V-US-Customer Information"
+            }
+          },
+          "InvocationTimeLimitSeconds": {
+            "unit": 60
+          },
+          "ViewData": {
+            "CallerName": {
+              "useDynamic": true
+            },
+            "Customer_Prefferred_Language": {
+              "useDynamic": true
+            },
+            "Email": {
+              "useDynamic": true
+            },
+            "Intent": {
+              "useDynamic": true
+            },
+            "UPI": {
+              "useDynamic": true
+            },
+            "UserId": {
+              "useDynamic": true
+            },
+            "UserStatus": {
+              "useDynamic": true
+            },
+            "VerificationStatus": {
+              "useDynamic": true
+            },
+            "VerifiedVia": {
+              "useDynamic": true
+            },
+            "CallSummary": {
+              "useDynamic": true
+            },
+            "DialedNumber": {
+              "useDynamic": true
+            }
+          }
+        }
       }
     },
     "Annotations": [],
     "name": "BTSGSD-V2V-US-Views",
-    "description": "",
+    "description": "Displays customer details in the agent workspace.",
     "type": "contactFlow",
     "status": "PUBLISHED",
     "hash": {}
   },
   "Actions": [
-    {
-      "Parameters": {},
-      "Identifier": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
-      "Type": "EndFlowExecution",
-      "Transitions": {}
-    },
     {
       "Parameters": {
         "ViewResource": {
@@ -91,7 +154,7 @@
         "ViewData": {
           "CallerName": "$.Attributes.CallerName",
           "Customer_Prefferred_Language": "$.Attributes.Customer_Prefferred_Language",
-          "Dialed_Number": "$.CustomerEndpoint.Address",
+          "Dialed_Number": "$.SystemEndpoint.Address",
           "Email": "$.Attributes.Email",
           "Intent": "$.Attributes.Intent",
           "UPI": "$.Attributes.UPI",
@@ -104,6 +167,79 @@
         }
       },
       "Identifier": "7789d6bd-8d55-425b-b093-116e047c8cf1",
+      "Type": "ShowView",
+      "Transitions": {
+        "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+        "Errors": [
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "ErrorType": "NoMatchingError"
+          },
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "ErrorType": "TimeLimitExceeded"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+      "Type": "EndFlowExecution",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "ComparisonValue": "$.Attributes.ScreenPopURL"
+      },
+      "Identifier": "chk-screenpop-0001",
+      "Type": "Compare",
+      "Transitions": {
+        "NextAction": "04551b42-79e3-4651-980c-23226908da6c",
+        "Conditions": [
+          {
+            "NextAction": "7789d6bd-8d55-425b-b093-116e047c8cf1",
+            "Condition": {
+              "Operator": "TextContains",
+              "Operands": [
+                "http"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "04551b42-79e3-4651-980c-23226908da6c",
+            "ErrorType": "NoMatchingCondition"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ViewResource": {
+          "Id": "__CUSTOMER_INFORMATION_VIEW_ARN__"
+        },
+        "InvocationTimeLimitSeconds": "600",
+        "ViewData": {
+          "CallerName": "$.Attributes.CallerName",
+          "Customer_Prefferred_Language": "$.Attributes.Customer_Prefferred_Language",
+          "Email": "$.Attributes.Email",
+          "Intent": "$.Attributes.Intent",
+          "UPI": "$.Attributes.UPI",
+          "UserId": "$.Attributes.UserId",
+          "UserStatus": "$.Attributes.UserStatus",
+          "VerificationStatus": "$.Attributes.VerificationStatus",
+          "VerifiedVia": "$.Attributes.VerifiedVia",
+          "CallSummary": "$.Attributes.CallSummary",
+          "DialedNumber": "$.SystemEndpoint.Address"
+        }
+      },
+      "Identifier": "04551b42-79e3-4651-980c-23226908da6c",
       "Type": "ShowView",
       "Transitions": {
         "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",

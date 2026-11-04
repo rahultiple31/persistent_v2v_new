@@ -304,8 +304,9 @@ module "abbvie_views" {
     aws = aws.us_east_1
   }
 
-  connect_instance_arn      = module.connect_us_east_1[0].instance_arn
-  customer_details_view_arn = module.connect_views[0].view_latest_arn
+  connect_instance_arn          = module.connect_us_east_1[0].instance_arn
+  customer_details_view_arn     = module.connect_views[0].view_latest_arn
+  customer_information_view_arn = "${awscc_connect_view.customer_information[0].view_arn}:$LATEST"
 
   common_tags = local.common_tags
 }

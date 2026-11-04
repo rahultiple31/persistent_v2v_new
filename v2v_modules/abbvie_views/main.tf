@@ -14,9 +14,13 @@ resource "aws_connect_contact_flow" "this" {
   type        = "CONTACT_FLOW"
 
   content = replace(
-    file("${path.module}/assets/abbvie_views.json"),
-    "__CUSTOMER_DETAILS_VIEW_ARN__",
-    var.customer_details_view_arn
+    replace(
+      file("${path.module}/assets/abbvie_views.json"),
+      "__CUSTOMER_DETAILS_VIEW_ARN__",
+      var.customer_details_view_arn
+    ),
+    "__CUSTOMER_INFORMATION_VIEW_ARN__",
+    var.customer_information_view_arn
   )
 
   tags = merge(var.common_tags, {
@@ -25,17 +29,22 @@ resource "aws_connect_contact_flow" "this" {
 
   lifecycle {
     precondition {
-      condition = (
-        startswith(
+      condition = alltrue([
+        for view_arn in [
           var.customer_details_view_arn,
-          "${var.connect_instance_arn}/view/"
-        ) &&
-        can(regex(
-          "/view/[0-9a-fA-F-]{36}:(\\$LATEST|[1-9][0-9]*)$",
-          var.customer_details_view_arn
-        ))
-      )
-      error_message = "Provide a version-qualified Customer Details View ARN belonging to the target Connect instance."
+          var.customer_information_view_arn
+        ] : (
+          startswith(
+            view_arn,
+            "${var.connect_instance_arn}/view/"
+          ) &&
+          can(regex(
+            "/view/[0-9a-fA-F-]{36}:(\\$LATEST|[1-9][0-9]*)$",
+            view_arn
+          ))
+        )
+      ])
+      error_message = "Provide version-qualified Customer Details and Customer Information View ARNs belonging to the target Connect instance."
     }
   }
 }

@@ -16,6 +16,11 @@ variable "customer_details_view_arn" {
   type        = string
 }
 
+variable "customer_information_view_arn" {
+  description = "Customer Information View ARN, including its version."
+  type        = string
+}
+
 variable "common_tags" {
   description = "Tags applied to the contact flow."
   type        = map(string)
