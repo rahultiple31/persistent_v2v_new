@@ -17,6 +17,7 @@ fi
 TERRAFORM_STATE_MODULE=""
 TERRAFORM_TARGET_ADDRESS=""
 TERRAFORM_DESTROY_ONLY=false
+TERRAFORM_STATE_MIGRATION_ONLY=false
 
 # choice | existing state group | optional resource or module target
 # Flow targets include their Terraform dependencies. Run the full connect group
@@ -29,6 +30,7 @@ while IFS='|' read -r v2v_choice v2v_group v2v_address; do
   fi
 done <<'V2V_CHOICES'
 connect|connect|
+migrate_data_table_state|connect|
 lambda_security_groups|connect|module.lambda_security_groups[0]
 lambda_endpoint_associations|connect|module.lambda_endpoint_associations[0]
 all-flows|connect|
@@ -166,8 +168,11 @@ if [ "$DEPLOYMENT_TARGET" = all-flows ]; then
   )
 fi
 
-# Destroy-only choices use their existing state and skip deployment dependencies.
+# State-only and destroy-only choices skip deployment dependencies.
 case "$DEPLOYMENT_TARGET" in
+  migrate_data_table_state)
+    TERRAFORM_STATE_MIGRATION_ONLY=true
+    ;;
   destroy_hr_veeva_transfer_tables)
     TERRAFORM_DESTROY_ONLY=true
     TERRAFORM_PLAN_ARGS+=("-destroy" "-target=aws_cloudformation_stack.veeva_transfer_data_table[0]")
@@ -196,7 +201,8 @@ if [ "$TERRAFORM_STATE_MODULE" = connect ] &&
    [ "$DEPLOYMENT_TARGET" != voicemail ] &&
    [ "$DEPLOYMENT_TARGET" != lambda_security_groups ] &&
    [ "$DEPLOYMENT_TARGET" != lambda_endpoint_associations ] &&
-   [ "$TERRAFORM_DESTROY_ONLY" != true ]; then
+   [ "$TERRAFORM_DESTROY_ONLY" != true ] &&
+   [ "$TERRAFORM_STATE_MIGRATION_ONLY" != true ]; then
   TERRAFORM_PLAN_ARGS+=(
     "-target=aws_connect_contact_flow.survey"
     "-target=module.connect_us_east_1[0].aws_connect_contact_flow.imported"
@@ -214,7 +220,8 @@ fi
 
 # Call after Terraform init to preserve an existing gateway audience.
 preserve_v2v_target_outputs() {
-  if [ "$TERRAFORM_STATE_MODULE" != connect ] || [ "$TERRAFORM_DESTROY_ONLY" = true ]; then
+  if [ "$TERRAFORM_STATE_MODULE" != connect ] || [ "$TERRAFORM_DESTROY_ONLY" = true ] ||
+     [ "$TERRAFORM_STATE_MIGRATION_ONLY" = true ]; then
     return 0
   fi
 

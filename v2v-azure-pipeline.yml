@@ -10,6 +10,7 @@ parameters:
     default: connect
     values:
       - connect
+      - migrate_data_table_state
       - lambda_security_groups
       - lambda_endpoint_associations
       - lambda
@@ -232,8 +233,9 @@ stages:
               test -s "$TERRAFORM_VARIABLE_FILE"
 
               # Build file-based packages before Terraform evaluates their hashes.
-              # Destroy-only choices do not deploy Lambda packages.
-              if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TERRAFORM_DESTROY_ONLY" != true ]; then
+              # State-only and destroy-only choices do not deploy Lambda packages.
+              if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TERRAFORM_DESTROY_ONLY" != true ] &&
+                 [ "$TERRAFORM_STATE_MIGRATION_ONLY" != true ]; then
                 python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" build \
                   --state-module "$TERRAFORM_STATE_MODULE"
               fi
@@ -247,6 +249,16 @@ stages:
                 "-backend-config=key=$TERRAFORM_BACKEND_KEY" \
                 "-backend-config=region=$BACKEND_REGION" \
                 -backend-config=encrypt=true
+
+              if [ "${TERRAFORM_STATE_MIGRATION_ONLY:-false}" = true ]; then
+                python3 "$BUILD_SOURCESDIRECTORY/scripts/migrate_v2v_data_table_state.py" \
+                  --plan "$plan_file"
+                cp .terraform.lock.hcl "$plan_lock"
+                printf '%s\n' \
+                  "$BUILD_SOURCEVERSION" "$TARGET_ENVIRONMENT" "$DEPLOYMENT_REGION" "$TERRAFORM_BACKEND_KEY" "$TARGET_MODULE" \
+                  > "$plan_context"
+                exit 0
+              fi
 
               terraform validate
               if [ "$TARGET_ENVIRONMENT" = v2v ]; then
@@ -266,7 +278,8 @@ stages:
               fi
 
               # Include provider-generated ZIPs for standalone Lambdas as well.
-              if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TERRAFORM_DESTROY_ONLY" != true ]; then
+              if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TERRAFORM_DESTROY_ONLY" != true ] &&
+                 [ "$TERRAFORM_STATE_MIGRATION_ONLY" != true ]; then
                 python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" save \
                   --artifact-directory "$PLAN_DIRECTORY"
               fi
@@ -411,7 +424,8 @@ stages:
 
               cp "$plan_lock" .terraform.lock.hcl
 
-              if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TERRAFORM_DESTROY_ONLY" != true ]; then
+              if [ "$TARGET_ENVIRONMENT" = v2v ] && [ "$TERRAFORM_DESTROY_ONLY" != true ] &&
+                 [ "$TERRAFORM_STATE_MIGRATION_ONLY" != true ]; then
                 python3 "$BUILD_SOURCESDIRECTORY/scripts/v2v-lambda-packages.py" restore \
                   --artifact-directory "$PLAN_DIRECTORY"
               fi
@@ -426,6 +440,13 @@ stages:
                 "-backend-config=key=$TERRAFORM_BACKEND_KEY" \
                 "-backend-config=region=$BACKEND_REGION" \
                 -backend-config=encrypt=true
+
+              if [ "${TERRAFORM_STATE_MIGRATION_ONLY:-false}" = true ]; then
+                python3 "$BUILD_SOURCESDIRECTORY/scripts/migrate_v2v_data_table_state.py" \
+                  --apply "$plan_file" \
+                  --backup-directory "$AGENT_TEMPDIRECTORY/v2v-state-backups"
+                exit 0
+              fi
 
               terraform validate
               if [ "$TARGET_ENVIRONMENT" = v2v ]; then

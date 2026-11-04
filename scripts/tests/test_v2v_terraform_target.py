@@ -44,6 +44,7 @@ DESTROY_CHOICES = {
     "destroy_ctr_raw": ("lambda-ctr-raw", ("lambda-ctr-raw",)),
 }
 TRANSFER_TABLE_DESTROY_CHOICE = "destroy_hr_veeva_transfer_tables"
+STATE_MIGRATION_CHOICE = "migrate_data_table_state"
 TRANSFER_TABLE_TARGETS = (
     "aws_cloudformation_stack.hr_transfer_data_table[0]",
     "aws_cloudformation_stack.veeva_transfer_data_table[0]",
@@ -154,6 +155,11 @@ fi
                 self.assertEqual(backend, f"terraform-state/v2v/us-east-1/{state}/terraform.tfstate")
                 self.assertIn(f'-var=enabled_modules=["{group}"]', arguments)
                 targets = [a for a in arguments if a.startswith("-target=")]
+                if choice == STATE_MIGRATION_CHOICE:
+                    self.assertEqual(group, "connect")
+                    self.assertEqual(targets, [])
+                    self.assertNotIn("-destroy", arguments)
+                    continue
                 if choice == TRANSFER_TABLE_DESTROY_CHOICE:
                     self.assertEqual(group, "connect")
                     self.assertIn("-destroy", arguments)

@@ -14,6 +14,7 @@ from scripts.tests.test_v2v_terraform_target import (
     BASH, ROOT, RESOURCE_MODULE_CHOICES, DESTROY_CHOICES, ALL_FLOW_TARGETS,
     MOVED_CONNECT_TARGETS, change, plan,
     TRANSFER_TABLE_DESTROY_CHOICE, TRANSFER_TABLE_TARGETS, DATA_TABLE_MODULE_CHOICES,
+    STATE_MIGRATION_CHOICE,
 )
 
 
@@ -21,6 +22,15 @@ STUBS = r'''
 curl() { printf '%s' '{"oidcToken":"test-token"}'; }
 aws() { printf '%s\n' "$EXPECTED_ACCOUNT_ID"; }
 python3() {
+  if [[ "${1:-}" == */scripts/migrate_v2v_data_table_state.py ]]; then
+    printf 'state-migration' >> "$TEST_TRACE"
+    printf ' <%s>' "${@:2}" >> "$TEST_TRACE"
+    printf '\n' >> "$TEST_TRACE"
+    if [ "${2:-}" = --plan ]; then
+      printf 'migration-preview\n' > "$3"
+    fi
+    return "${TEST_MIGRATION_EXIT:-0}"
+  fi
   if [[ "${1:-}" == */scripts/v2v-lambda-packages.py ]]; then
     printf 'packages <%s>\n' "$2" >> "$TEST_TRACE"
     return 0
@@ -424,6 +434,7 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
             ("v2v-resources", "destroy_survey_ai"),
             ("v2v-resources", "destroy_survey_lex"),
             ("v2v-resources", TRANSFER_TABLE_DESTROY_CHOICE),
+            ("v2v-resources", STATE_MIGRATION_CHOICE),
         ):
             with self.subTest(environment=environment, choice=choice):
                 self.prepare(environment, choice)
@@ -444,6 +455,35 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Saved plan does not match", result.stderr)
         self.assertEqual(self.trace.read_text(), "")
+
+    def test_state_migration_previews_then_applies_without_deploying_resources(self):
+        self.prepare("v2v-dev", STATE_MIGRATION_CHOICE)
+        for stage in (0, 1):
+            result = self.run_stage(stage)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            if stage == 0:
+                trace = self.trace.read_text()
+                self.assertIn("state-migration <--plan>", trace)
+                self.assertNotIn("state-migration <--apply>", trace)
+        trace = self.trace.read_text()
+        self.assertEqual(trace.count("<-backend-config=key=terraform-state/v2v/us-east-1/connect/terraform.tfstate>"), 2)
+        self.assertIn("state-migration <--apply>", trace)
+        self.assertIn("<--backup-directory>", trace)
+        for forbidden in ("terraform <plan>", "terraform <validate>", "terraform <apply>", "terraform <output>", "packages <", "<-destroy>", "<-target="):
+            self.assertNotIn(forbidden, trace)
+        context = (self.working_directory / "artifact/context.txt").read_text().splitlines()
+        self.assertEqual(context[-1], STATE_MIGRATION_CHOICE)
+
+    def test_state_migration_apply_failure_stops_without_normal_apply(self):
+        self.prepare("v2v-dev", STATE_MIGRATION_CHOICE)
+        result = self.run_stage(0)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.env["TEST_MIGRATION_EXIT"] = "23"
+        self.trace.write_text("")
+        result = self.run_stage(1)
+        self.assertEqual(result.returncode, 23, result.stderr)
+        self.assertIn("state-migration <--apply>", self.trace.read_text())
+        self.assertNotIn("terraform <apply>", self.trace.read_text())
 
 
 if __name__ == "__main__":

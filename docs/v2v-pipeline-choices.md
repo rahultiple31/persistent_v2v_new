@@ -189,12 +189,35 @@ its Language key and existing private S3 template delivery.
 The existing pipeline choice names, Connect backend, stack names, table names,
 CloudFormation logical IDs, and output shapes are retained. Root `moved.tf`
 maps the two existing stacks and prompt S3 object into the child modules.
-For the first migration, run the complete `connect` choice with
-`terraformAction=plan` so all moves are included. Confirm that the refactor
-adds only state-address moves and no resource changes before applying. Other
-pending configuration changes can still appear in that plan. Keep the moved
-blocks until every relevant state has migrated, then use the same individual
-table choices. Voicemail retains its independent read-only table lookup.
+For the first migration, select `targetModule=migrate_data_table_state`,
+`targetEnvironment=v2v-dev`, and `terraformAction=plan` to preview the three
+state-address moves. Run the same choice with `terraformAction=apply` to
+execute the saved preview from that run. Plan only reads state; Apply backs
+it up in the agent's private temporary directory and runs the three required
+`terraform state mv` commands with locking. The preview contains no state
+attribute values. A changed state lineage, serial, contents, or preview
+requires a new Plan. Duplicate source/destination entries are rejected;
+already-migrated and absent objects are skipped. A partial failure can be
+resumed through a fresh Plan/Apply run.
+
+This choice requires the existing Connect backend and expected AWS account.
+It does not deploy resources, run a destroy plan, build Lambda packages, or
+evaluate unrelated resource configuration. Keep the moved blocks until every
+relevant state has migrated. Then rerun the original individual deployment or
+destroy choice with `terraformAction=plan`. Do not add the moved customer or
+prompt tables to the HR/Veeva destroy plan. Voicemail retains its independent
+read-only table lookup.
+
+The same helper can be run manually after initializing that backend, from
+`environments/v2v-dev`:
+
+```bash
+python3 ../../scripts/migrate_v2v_data_table_state.py --plan table-migration.json
+python3 ../../scripts/migrate_v2v_data_table_state.py --apply table-migration.json
+```
+
+The manual helper defaults to a local `state-migration-backups` directory for
+its private `.tfstate` backup. Do not commit or publish those state backups.
 
 To destroy both `BTSGSD-V2V-US-BTSGSD-HR_Transfer` and
 `BTSGSD-V2V-US-BTSGSD-Veeva_Transfer`, select
