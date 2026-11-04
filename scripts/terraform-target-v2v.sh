@@ -143,6 +143,13 @@ if [ -n "$TERRAFORM_TARGET_ADDRESS" ]; then
   TERRAFORM_PLAN_ARGS+=("-target=$TERRAFORM_TARGET_ADDRESS")
 fi
 
+# Deploy Customer Information alongside Customer Details with connect_views.
+if [ "$DEPLOYMENT_TARGET" = connect_views ]; then
+  TERRAFORM_PLAN_ARGS+=(
+    "-target=awscc_connect_view.customer_information[0]"
+  )
+fi
+
 # The Datalake secret shares the existing Secrets Manager state and choice.
 if [ "$DEPLOYMENT_TARGET" = secrets_manager ]; then
   TERRAFORM_PLAN_ARGS+=("-target=module.datalake_secret[0]")

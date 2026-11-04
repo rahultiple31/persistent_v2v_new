@@ -122,7 +122,7 @@ fi
         choices = [choice for choice in choices if choice in v2v_choices]
         modules = set()
         resources = set()
-        for path in (ROOT / "environments/v2v").glob("*.tf"):
+        for path in (ROOT / "environments/v2v-dev").glob("*.tf"):
             source = path.read_text(encoding="utf-8")
             modules.update(re.findall(r'^module "([^"]+)"', source, re.MULTILINE))
             resources.update(re.findall(r'^resource "([^"]+)" "([^"]+)"', source, re.MULTILINE))
@@ -197,6 +197,9 @@ fi
                     module = aliases.get(choice, choice)
                     self.assertIn(module, modules)
                     expected = [f"-target=module.{module}[0]"]
+                    if choice == "connect_views":
+                        self.assertIn(("awscc_connect_view", "customer_information"), resources)
+                        expected.append("-target=awscc_connect_view.customer_information[0]")
                     if choice == "secrets_manager":
                         self.assertIn("datalake_secret", modules)
                         expected.append("-target=module.datalake_secret[0]")
