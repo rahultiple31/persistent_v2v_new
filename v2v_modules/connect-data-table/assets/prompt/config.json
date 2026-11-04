@@ -1,7 +1,7 @@
 {
   "name": "BTSGSD-V2V-US-PROMPT-DATATABLE",
   "stack_name": "BTSGSD-V2V-US-SurveyDataTable",
-  "logical_id": "SurveyTable",
+  "logical_id": "SurveyTableRecoveryV2",
   "template_description": "Amazon Connect survey, callback and voicemail messages.",
   "description": "Survey, callback and voicemail configuration by language.",
   "primary_columns": [
