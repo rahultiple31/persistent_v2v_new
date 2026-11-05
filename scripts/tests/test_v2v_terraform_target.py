@@ -28,15 +28,17 @@ MOVED_CONNECT_FLOW_TARGETS = (
     "module.customer_queue_flow[0].module.flow.aws_connect_contact_flow.this",
     "module.outbound_whisper_flow[0].module.flow.aws_connect_contact_flow.this",
 )
-MOVED_DATA_TABLE_TARGETS = (
+MOVED_SHARED_CONNECT_TARGETS = (
     "aws_cloudformation_stack.bts_gsd_customer_number_data_table",
     "aws_cloudformation_stack.survey_data_table",
     "aws_s3_object.survey_table_template",
     "module.bts_gsd_customer_number_data_table[0].aws_cloudformation_stack.this",
     "module.survey_data_table[0].aws_cloudformation_stack.this",
     "module.survey_data_table[0].aws_s3_object.template[0]",
+    "aws_s3_bucket_server_side_encryption_configuration.dev_ai_template",
+    "module.dev_ai_template_encryption[0].aws_s3_bucket_server_side_encryption_configuration.this",
 )
-MOVED_CONNECT_TARGETS = (*MOVED_CONNECT_FLOW_TARGETS, *MOVED_DATA_TABLE_TARGETS)
+MOVED_CONNECT_TARGETS = (*MOVED_CONNECT_FLOW_TARGETS, *MOVED_SHARED_CONNECT_TARGETS)
 DATA_TABLE_CHOICES = {
     "BTSGSD-V2V-US-CustomerNumberDataTable": "customer_number_data_table",
     "BTSGSD-V2V-US-BTSGSD-HR_Transfer": "hr_transfer_data_table",
@@ -246,7 +248,7 @@ fi
                     ):
                         expected.extend(f"-target={address}" for address in MOVED_CONNECT_TARGETS)
                     elif group == "connect":
-                        expected.extend(f"-target={address}" for address in MOVED_DATA_TABLE_TARGETS)
+                        expected.extend(f"-target={address}" for address in MOVED_SHARED_CONNECT_TARGETS)
                     if choice == "conversion_of_queue_metrics":
                         expected.append("-target=aws_lambda_permission.queue_metrics_connect[0]")
                     self.assertEqual(targets, expected)
@@ -383,10 +385,10 @@ fi
         group, backend, *arguments = result.stdout.splitlines()
         self.assertEqual(group, "connect")
         self.assertEqual(backend, "terraform-state/v2v/us-east-1/connect/terraform.tfstate")
-        # Include pending data-table moves without targeting the Connect flows.
+        # Include pending shared resource moves without targeting the Connect flows.
         self.assertEqual([a for a in arguments if a.startswith("-target=")], [
             "-target=module.voicemail[0]",
-            *(f"-target={address}" for address in MOVED_DATA_TABLE_TARGETS),
+            *(f"-target={address}" for address in MOVED_SHARED_CONNECT_TARGETS),
         ])
 
     def test_voicemail_accepts_creates_and_updates(self):

@@ -355,7 +355,7 @@ module "btsgsd_support_agent" {
     module.connect_Integrations,
     aws_cloudformation_stack.dev_ai_domain,
     aws_s3_bucket_public_access_block.dev_ai_template,
-    aws_s3_bucket_server_side_encryption_configuration.dev_ai_template
+    module.dev_ai_template_encryption
   ]
 }
 
@@ -395,7 +395,7 @@ module "btsgsd_ai_survey_agent" {
   depends_on = [
     aws_cloudformation_stack.dev_ai_domain,
     aws_s3_bucket_public_access_block.dev_ai_template,
-    aws_s3_bucket_server_side_encryption_configuration.dev_ai_template
+    module.dev_ai_template_encryption
   ]
 }
 
@@ -1181,18 +1181,6 @@ resource "aws_s3_bucket_public_access_block" "dev_ai_template" {
   restrict_public_buckets = true
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "dev_ai_template" {
-  count    = local.dev_ai_template_bucket_enabled ? 1 : 0
-  provider = aws.us_east_1
-  bucket   = aws_s3_bucket.dev_ai_template[count.index].id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
 # The full prompt exceeds CloudFormation's inline template size limit.
 resource "aws_s3_object" "dev_ai_template" {
   count        = local.dev_ai_enabled ? 1 : 0
@@ -1205,7 +1193,7 @@ resource "aws_s3_object" "dev_ai_template" {
 
   depends_on = [
     aws_s3_bucket_public_access_block.dev_ai_template,
-    aws_s3_bucket_server_side_encryption_configuration.dev_ai_template
+    module.dev_ai_template_encryption
   ]
 
   lifecycle {
@@ -1718,7 +1706,7 @@ module "survey_data_table" {
 
   depends_on = [
     aws_s3_bucket_public_access_block.dev_ai_template,
-    aws_s3_bucket_server_side_encryption_configuration.dev_ai_template
+    module.dev_ai_template_encryption
   ]
 }
 

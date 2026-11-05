@@ -9,3 +9,9 @@ terraform {
 resource "aws_s3_bucket" "this" {
   bucket = var.bucket_name
 }
+
+module "encryption" {
+  source = "../s3_bucket_encryption"
+
+  bucket_name = aws_s3_bucket.this.id
+}
