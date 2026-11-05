@@ -1,0 +1,405 @@
+AbbVie_Views (3).json
+
+{
+  "Version": "2019-10-30",
+  "StartAction": "WaitForAgent",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": 40,
+      "y": 40
+    },
+    "ActionMetadata": {
+      "WaitForAgent": {
+        "position": {
+          "x": 200,
+          "y": 132.8
+        },
+        "isFriendlyName": true
+      },
+      "CheckAgentState": {
+        "position": {
+          "x": 760,
+          "y": 132.8
+        },
+        "isFriendlyName": true,
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "ea7bedec-c960-4786-b79b-4c54b3fa4b87",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "connected"
+          },
+          {
+            "id": "086f2c0c-0309-4219-8269-398f52a6045b",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "ended"
+          }
+        ]
+      },
+      "94522173-1eb3-4797-b3c5-b1cb9e012d9a": {
+        "position": {
+          "x": 1320,
+          "y": 260
+        },
+        "parameters": {
+          "ViewResource": {
+            "Id": {
+              "displayName": "Customer Information"
+            }
+          },
+          "InvocationTimeLimitSeconds": {
+            "unit": 60
+          },
+          "ViewData": {
+            "CallerName": {
+              "useDynamic": true
+            },
+            "Customer_Prefferred_Language": {
+              "useDynamic": true
+            },
+            "Dialed_Number": {
+              "useDynamic": true
+            },
+            "Email": {
+              "useDynamic": true
+            },
+            "Intent": {
+              "useDynamic": true
+            },
+            "UPI": {
+              "useDynamic": true
+            },
+            "UserId": {
+              "useDynamic": true
+            },
+            "UserStatus": {
+              "useDynamic": true
+            },
+            "VerificationStatus": {
+              "useDynamic": true
+            },
+            "VerifiedVia": {
+              "useDynamic": true
+            },
+            "CallSummary": {
+              "useDynamic": true
+            }
+          }
+        }
+      },
+      "24d9f3a3-8769-4d26-a5bd-58d966fa8af9": {
+        "position": {
+          "x": 1600,
+          "y": 0
+        }
+      },
+      "CheckAgentConnected": {
+        "position": {
+          "x": 479.2,
+          "y": 132.8
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "LambdaFunctionARN": {
+            "displayName": "BTSGSD-Abbvie-views-Dev"
+          }
+        },
+        "dynamicMetadata": {
+          "contactId": false
+        }
+      },
+      "d0a6b18b-e820-4e7d-b7d4-fc177ab470bf": {
+        "position": {
+          "x": 1039.2,
+          "y": 132.8
+        },
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "195ad35e-6670-4e10-928d-83b83d4bf3f1",
+            "operator": {
+              "name": "Contains",
+              "value": "Contains",
+              "shortDisplay": "contains"
+            },
+            "value": "http"
+          }
+        ]
+      },
+      "7789d6bd-8d55-425b-b093-116e047c8cf1": {
+        "position": {
+          "x": 1320,
+          "y": 0
+        },
+        "parameters": {
+          "ViewResource": {
+            "Id": {
+              "displayName": "Customer Details"
+            }
+          },
+          "InvocationTimeLimitSeconds": {
+            "unit": 60
+          },
+          "ViewData": {
+            "CallerName": {
+              "useDynamic": true
+            },
+            "Customer_Prefferred_Language": {
+              "useDynamic": true
+            },
+            "Dialed_Number": {
+              "useDynamic": true
+            },
+            "Email": {
+              "useDynamic": true
+            },
+            "Intent": {
+              "useDynamic": true
+            },
+            "UPI": {
+              "useDynamic": true
+            },
+            "UserId": {
+              "useDynamic": true
+            },
+            "UserStatus": {
+              "useDynamic": true
+            },
+            "VerificationStatus": {
+              "useDynamic": true
+            },
+            "VerifiedVia": {
+              "useDynamic": true
+            },
+            "CallSummary": {
+              "useDynamic": true
+            },
+            "ScreenPopURL": {
+              "useDynamic": true
+            }
+          }
+        }
+      }
+    },
+    "Annotations": [],
+    "name": "AbbVie_Views",
+    "description": "",
+    "type": "contactFlow",
+    "status": "published",
+    "hash": {}
+  },
+  "Actions": [
+    {
+      "Parameters": {
+        "LoopCount": "15"
+      },
+      "Identifier": "WaitForAgent",
+      "Type": "Loop",
+      "Transitions": {
+        "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+        "Conditions": [
+          {
+            "NextAction": "CheckAgentConnected",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "ContinueLooping"
+              ]
+            }
+          },
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "DoneLooping"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ComparisonValue": "$.External.state"
+      },
+      "Identifier": "CheckAgentState",
+      "Type": "Compare",
+      "Transitions": {
+        "NextAction": "WaitForAgent",
+        "Conditions": [
+          {
+            "NextAction": "d0a6b18b-e820-4e7d-b7d4-fc177ab470bf",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "connected"
+              ]
+            }
+          },
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "ended"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "WaitForAgent",
+            "ErrorType": "NoMatchingCondition"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ViewResource": {
+          "Id": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/view/1af1e3df-4cc4-4b3d-a709-cce9f2adf21f:$LATEST"
+        },
+        "InvocationTimeLimitSeconds": "600",
+        "ViewData": {
+          "CallerName": "$.Attributes.CallerName",
+          "Customer_Prefferred_Language": "$.Attributes.Customer_Prefferred_Language",
+          "Dialed_Number": "$.SystemEndpoint.Address",
+          "Email": "$.Attributes.Email",
+          "Intent": "$.Attributes.Intent",
+          "UPI": "$.Attributes.UPI",
+          "UserId": "$.Attributes.UserId",
+          "UserStatus": "$.Attributes.UserStatus",
+          "VerificationStatus": "$.Attributes.VerificationStatus",
+          "VerifiedVia": "$.Attributes.VerifiedVia",
+          "CallSummary": "$.Attributes.CallSummary"
+        }
+      },
+      "Identifier": "94522173-1eb3-4797-b3c5-b1cb9e012d9a",
+      "Type": "ShowView",
+      "Transitions": {
+        "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+        "Errors": [
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "ErrorType": "NoMatchingError"
+          },
+          {
+            "NextAction": "CheckAgentConnected",
+            "ErrorType": "TimeLimitExceeded"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+      "Type": "EndFlowExecution",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "LambdaFunctionARN": "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-Abbvie-views-Dev",
+        "InvocationTimeLimitSeconds": "8",
+        "InvocationType": "SYNCHRONOUS",
+        "LambdaInvocationAttributes": {
+          "contactId": "$.Attributes.OriginalContactId"
+        },
+        "ResponseValidation": {
+          "ResponseType": "STRING_MAP"
+        }
+      },
+      "Identifier": "CheckAgentConnected",
+      "Type": "InvokeLambdaFunction",
+      "Transitions": {
+        "NextAction": "CheckAgentState",
+        "Errors": [
+          {
+            "NextAction": "WaitForAgent",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ComparisonValue": "$.Attributes.ScreenPopURL"
+      },
+      "Identifier": "d0a6b18b-e820-4e7d-b7d4-fc177ab470bf",
+      "Type": "Compare",
+      "Transitions": {
+        "NextAction": "94522173-1eb3-4797-b3c5-b1cb9e012d9a",
+        "Conditions": [
+          {
+            "NextAction": "7789d6bd-8d55-425b-b093-116e047c8cf1",
+            "Condition": {
+              "Operator": "TextContains",
+              "Operands": [
+                "http"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "94522173-1eb3-4797-b3c5-b1cb9e012d9a",
+            "ErrorType": "NoMatchingCondition"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ViewResource": {
+          "Id": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/view/389249f1-faee-4337-bfb0-1beed3d5f4d1:$LATEST"
+        },
+        "InvocationTimeLimitSeconds": "600",
+        "ViewData": {
+          "CallerName": "$.Attributes.CallerName",
+          "Customer_Prefferred_Language": "$.Attributes.Customer_Prefferred_Language",
+          "Dialed_Number": "$.SystemEndpoint.Address",
+          "Email": "$.Attributes.Email",
+          "Intent": "$.Attributes.Intent",
+          "UPI": "$.Attributes.UPI",
+          "UserId": "$.Attributes.UserId",
+          "UserStatus": "$.Attributes.UserStatus",
+          "VerificationStatus": "$.Attributes.VerificationStatus",
+          "VerifiedVia": "$.Attributes.VerifiedVia",
+          "CallSummary": "$.Attributes.CallSummary",
+          "ScreenPopURL": "$.Attributes.ScreenPopURL"
+        }
+      },
+      "Identifier": "7789d6bd-8d55-425b-b093-116e047c8cf1",
+      "Type": "ShowView",
+      "Transitions": {
+        "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+        "Errors": [
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "24d9f3a3-8769-4d26-a5bd-58d966fa8af9",
+            "ErrorType": "NoMatchingError"
+          },
+          {
+            "NextAction": "CheckAgentConnected",
+            "ErrorType": "TimeLimitExceeded"
+          }
+        ]
+      }
+    }
+  ]
+}
