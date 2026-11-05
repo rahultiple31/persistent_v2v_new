@@ -156,6 +156,9 @@ fi
             "BTSGSD-V2V-US-lex-QueueFlow-Callback": "lex_queueflow_callback",
             "BTSGSD-V2V-US-lex-yesNo": "lex_yesno",
             "connect_external_vms": "external_vms",
+            "btsgsd-v2v-us-connect-reporting-bucket": "s3_connect_reporting",
+            "btsgsd-v2v-us-atsgsd-dev-us-east-1-ai-agent": "dev_ai_template_encryption",
+            "btsgsd-v2v-us-intent-kb": "s3_intent_kb",
         }
         for choice in choices:
             with self.subTest(choice=choice):

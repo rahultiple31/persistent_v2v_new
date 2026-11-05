@@ -52,7 +52,6 @@ parameters:
       - BTSGSD-V2V-US-TopLevelBlockerMessage
       - btsgsd_support_agent
       - btsgsd_support_agent_tools_access
-      - btsgsd_ai_survey_agent
       - destroy_survey_ai
       - destroy_survey_lex
       - agentcore_gateway
@@ -77,6 +76,9 @@ parameters:
       - iam-ctr
       - s3_connect_reporting
       - s3_intent_kb
+      - btsgsd-v2v-us-connect-reporting-bucket
+      - btsgsd-v2v-us-atsgsd-dev-us-east-1-ai-agent
+      - btsgsd-v2v-us-intent-kb
       - secrets_manager
       - queue_info_dynamodb
       - cloudwatch_log_group

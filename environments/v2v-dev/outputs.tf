@@ -30,11 +30,6 @@ output "btsgsd_support_agent" {
   depends_on  = [terraform_data.dev_ai_admin_security_profiles]
 }
 
-output "btsgsd_ai_survey_agent" {
-  description = "Published survey prompt and agent identifiers, including the versioned ARN for a voice flow."
-  value       = try(module.btsgsd_ai_survey_agent[0].deployment, null)
-}
-
 output "dev_ai_admin_security_profile" {
   description = "Existing Admin profile assigned to custom AI agents during apply, or null when disabled."
   value = local.dev_ai_admin_security_profile_enabled ? {

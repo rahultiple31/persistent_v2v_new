@@ -34,3 +34,12 @@ output "intent_kb_kms_key" {
     alias = module.s3_intent_kb[0].kms_alias
   }, null)
 }
+
+output "reporting_kms_key" {
+  description = "Default encryption KMS key for the Connect reporting bucket."
+  value = try({
+    id    = module.s3_connect_reporting[0].kms_key_id
+    arn   = module.s3_connect_reporting[0].kms_key_arn
+    alias = module.s3_connect_reporting[0].kms_alias
+  }, null)
+}

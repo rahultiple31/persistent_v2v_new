@@ -117,40 +117,6 @@ run "voice_agent_template" {
   }
 }
 
-run "survey_agent_template" {
-  command = plan
-
-  variables {
-    agent_name       = "BTSGSD-V2V-US-ai-survey-agent"
-    prompt_name      = "BTSGSD-V2V-US-ai-survey-prompt"
-    stack_name       = "BTSGSD-V2V-US-ai-survey-agent"
-    prompt_yaml_file = "../../environments/v2v/metadata/prompts/btsgsd-ai-survey-prompt.yaml"
-  }
-
-  assert {
-    condition = (
-      aws_cloudformation_stack.agent.name == "BTSGSD-V2V-US-ai-survey-agent" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Name == "BTSGSD-V2V-US-ai-survey-agent" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Type == "ORCHESTRATION" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.Name == "BTSGSD-V2V-US-ai-survey-prompt" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.Type == "ORCHESTRATION" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.ModelId == "global.anthropic.claude-sonnet-5"
-    )
-    error_message = "Survey deployment must use distinct agent, prompt, and stack names with the global Sonnet 5 model."
-  }
-
-  assert {
-    condition = (
-      data.external.source.query.source_name == "SelfServiceOrchestratorVoice" &&
-      strcontains(yamldecode(local.prompt_text).system, "Voice orchestration protocol.") &&
-      strcontains(yamldecode(local.prompt_text).system, "You are a helpful customer support AI agent.") &&
-      strcontains(yamldecode(local.prompt_text).system, "Select \"Forgot Password\".") &&
-      !contains(keys(yamldecode(local.prompt_text)), "model")
-    )
-    error_message = "The survey prompt must retain the source voice protocol, include the supplied support instructions, and exclude YAML model metadata."
-  }
-}
-
 run "support_agent_template" {
   command = plan
 

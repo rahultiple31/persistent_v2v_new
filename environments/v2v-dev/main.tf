@@ -371,34 +371,6 @@ module "btsgsd_support_agent_tools_access" {
   python_executable    = var.dev_ai_security_profile_python_executable
 }
 
-module "btsgsd_ai_survey_agent" {
-  count  = local.dev_survey_ai_enabled ? 1 : 0
-  source = "../../v2v_modules/connect_ai_agent"
-
-  providers = {
-    aws = aws.us_east_1
-  }
-
-  agent_name        = "BTSGSD-V2V-US-ai-survey-agent"
-  prompt_name       = "BTSGSD-V2V-US-ai-survey-prompt"
-  stack_name        = "BTSGSD-V2V-US-ai-survey-agent"
-  source_agent_name = "SelfServiceOrchestratorVoice"
-  prompt_model_id   = "global.anthropic.claude-sonnet-5"
-
-  assistant_id         = local.dev_ai_assistant_id
-  connect_instance_arn = module.connect_us_east_1[0].instance_arn
-  template_bucket_name = aws_s3_bucket.dev_ai_template[0].id
-  prompt_yaml_file     = abspath("${path.module}/${var.dev_survey_ai_prompt_file}")
-  python_executable    = var.dev_survey_ai_python_executable
-  tags                 = local.dev_ai_tags
-
-  depends_on = [
-    aws_cloudformation_stack.dev_ai_domain,
-    aws_s3_bucket_public_access_block.dev_ai_template,
-    module.dev_ai_template_encryption
-  ]
-}
-
 module "lambda_us_east_1" {
   code_signing_config_arn = var.lambda_code_signing_config_arn
 
@@ -1019,7 +991,6 @@ import {
 locals {
   dev_ai_domain_enabled  = var.dev_ai_domain_enabled && local.deploy_connect
   dev_ai_enabled         = var.dev_ai_agent_enabled && local.deploy_connect
-  dev_survey_ai_enabled  = var.dev_survey_ai_agent_enabled && local.deploy_connect
   dev_support_ai_enabled = var.dev_support_ai_agent_enabled && local.deploy_connect
   # Retain the private bucket while its name is configured, even without an agent.
   dev_ai_template_bucket_enabled = var.dev_ai_template_bucket != null && local.deploy_connect
@@ -1297,7 +1268,6 @@ resource "terraform_data" "dev_ai_admin_security_profiles" {
     instance_arn     = module.connect_us_east_1[0].instance_arn
     python           = var.dev_ai_security_profile_python_executable
     script_hash      = filesha256("${path.module}/../../v2v_modules/connect_ai_agent/assign_admin_security_profile.py")
-    survey_agent     = try(module.btsgsd_ai_survey_agent[0].deployment, null)
     support_agent    = try(module.btsgsd_support_agent[0].deployment, null)
     legacy_agent     = try(aws_cloudformation_stack.dev_ai_agent[0].outputs, null)
   }

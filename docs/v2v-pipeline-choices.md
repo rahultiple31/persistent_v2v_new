@@ -25,9 +25,9 @@ destruction plan. Both choices use `-destroy` with explicit module targets.
 Plan and Apply reject any managed changes except deletions inside those exact
 retired module instances. An empty plan means no matching resources remain in
 the selected state; verify state ownership if the resources still exist in AWS.
-The retired module definitions stay removed, and `btsgsd_ai_survey_agent` is a
-separate resource that these choices do not delete. Update the survey contact
-flow routing before using it after the referenced AI agent or bot is deleted.
+The lowercase survey agent and prompt are retired through
+`environments/v2v-dev/remove_survey_ai.tf` using the `connect` choice.
+Update survey contact-flow routing before using a deleted agent or bot.
 
 Select `targetEnvironment=v2v-resources-dev` to deploy
 `environments/v2v-resources`, whose module sources are in `v2v-resource-modules`.
@@ -49,6 +49,22 @@ they share the same state. Existing feature flags still apply: a disabled
 module can produce an empty plan.
 
 The `connect`, `v2v`, and `code-signing` choices deploy complete groups.
+For S3 default KMS encryption, select the bucket name as `targetModule`:
+
+| Bucket choice | Target | Existing state group |
+| --- | --- | --- |
+| `btsgsd-v2v-us-connect-reporting-bucket` | `module.s3_connect_reporting[0]` | `s3_connect_reporting` |
+| `btsgsd-v2v-us-atsgsd-dev-us-east-1-ai-agent` | `module.dev_ai_template_encryption[0]` | `connect` |
+| `btsgsd-v2v-us-intent-kb` | `module.s3_intent_kb[0]` | `btsgsd-intent-kb` |
+
+Use `targetEnvironment=v2v-dev`. Run each choice with `terraformAction=plan`,
+then use the same choice with `terraformAction=apply` after reviewing the plan.
+The AI-agent choice targets the encryption module and its bucket dependency;
+the reporting and intent-KB choices target their bucket modules, including
+encryption. Existing choices and backend keys are retained. The AI-agent choice
+also includes the shared Connect migration targets, which can add dependencies
+to its plan.
+
 For staged Lambda networking deployment, select `lambda_security_groups` first
 to create the two security groups and their rules, then select
 `lambda_endpoint_associations` to add `BTSGSD-V2V-US-LAMBDA-endpoint-sg` to the

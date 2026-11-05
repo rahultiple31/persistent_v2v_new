@@ -71,7 +71,6 @@ destroy_hr_veeva_transfer_tables|connect|aws_cloudformation_stack.hr_transfer_da
 BTSGSD-V2V-US-TopLevelBlockerMessage|connect|aws_cloudformation_stack.top_level_blocker_data_table[0]
 btsgsd_support_agent|connect|module.btsgsd_support_agent[0]
 btsgsd_support_agent_tools_access|connect|module.btsgsd_support_agent_tools_access[0]
-btsgsd_ai_survey_agent|connect|module.btsgsd_ai_survey_agent[0]
 destroy_survey_ai|connect|module.connect_ai_agent[0]
 destroy_survey_lex|lex_bot|module.lex_aiagent_survey_bot[0]
 agentcore_gateway|connect|module.agentcore_gateway[0]
@@ -95,6 +94,9 @@ BTSGSD-V2V-US-lex-yesNo|connect|module.lex_yesno[0]
 iam-ctr|iam-ctr|module.iam-ctr[0]
 s3_connect_reporting|s3_connect_reporting|module.s3_connect_reporting[0]
 s3_intent_kb|btsgsd-intent-kb|module.s3_intent_kb[0]
+btsgsd-v2v-us-connect-reporting-bucket|s3_connect_reporting|module.s3_connect_reporting[0]
+btsgsd-v2v-us-atsgsd-dev-us-east-1-ai-agent|connect|module.dev_ai_template_encryption[0]
+btsgsd-v2v-us-intent-kb|btsgsd-intent-kb|module.s3_intent_kb[0]
 secrets_manager|secrets_manager|module.secrets_manager[0]
 queue_info_dynamodb|dynamodb|module.queue_info_dynamodb[0]
 cloudwatch_log_group|cloudwatch_log_group|module.cloudwatch_log_group[0]
@@ -135,7 +137,6 @@ TERRAFORM_PLAN_ARGS=(
   "-var=connect_flow_python_executable=python3"
   "-var=dev_ai_security_profile_python_executable=python3"
   "-var=dev_support_ai_python_executable=python3"
-  "-var=dev_survey_ai_python_executable=python3"
 )
 
 # Apply executes the saved plan; targeting belongs on the Plan command.
