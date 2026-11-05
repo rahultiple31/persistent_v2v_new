@@ -36,7 +36,7 @@ run "main_inbound_uses_v2v_dependencies" {
       aws_connect_contact_flow.this.name == "BTSGSD-V2V-US-Main-IB-Flow" &&
       aws_connect_contact_flow.this.instance_id == "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" &&
       jsondecode(aws_connect_contact_flow.this.content).Metadata.name == "BTSGSD-V2V-US-Main-IB-Flow" &&
-      length(jsondecode(aws_connect_contact_flow.this.content).Actions) == 65 &&
+      length(jsondecode(aws_connect_contact_flow.this.content).Actions) == 86 &&
       jsondecode(aws_connect_contact_flow.this.content).StartAction == local.main_ib_source.StartAction &&
       alltrue([
         for i, action in jsondecode(aws_connect_contact_flow.this.content).Actions :
@@ -45,7 +45,24 @@ run "main_inbound_uses_v2v_dependencies" {
         jsonencode(action.Transitions) == jsonencode(local.main_ib_source.Actions[i].Transitions)
       ])
     )
-    error_message = "Create the requested flow in Dev and preserve all 65 actions and transitions."
+    error_message = "Create the requested flow in Dev and preserve all 86 actions and transitions."
+  }
+
+  assert {
+    condition = (
+      alltrue([
+        for identifier in keys(local.main_ib_parameter_overrides) :
+        contains([for action in local.main_ib_source.Actions : action.Identifier], identifier)
+      ]) &&
+      alltrue(flatten([
+        for action in jsondecode(aws_connect_contact_flow.this.content).Actions : [
+          for parameter, expected in try(local.main_ib_parameter_overrides[action.Identifier], {}) :
+          jsonencode(action.Parameters[parameter]) == jsonencode(expected)
+        ]
+      ])) &&
+      length(regexall("__[A-Z_]+__", aws_connect_contact_flow.this.content)) == 0
+    )
+    error_message = "Every V2V resource override must match a block in the attached flow and replace its placeholder before deployment."
   }
 
   assert {

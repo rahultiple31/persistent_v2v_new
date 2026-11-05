@@ -44,17 +44,17 @@ locals {
     "Survey FLow" = {
       ContactFlowId = var.flow_dependencies.survey_flow_arn
     }
-    "c90b1c9e-df88-48aa-9fa6-909039d9c383" = {
+    "b69a2aad-6fef-4349-a839-e1fbf206f2d3" = {
       EventHooks = {
         CustomerQueue = var.flow_dependencies.customer_queue_flow_arn
       }
     }
-    "37256844-b879-44cb-8daf-48b26def8d9c" = {
+    "d9899688-e08c-4865-a827-2d22da50eb82" = {
       EventHooks = {
         CustomerRemaining = var.flow_dependencies.survey_flow_arn
       }
     }
-    "97c6551a-ce04-4173-aee4-cbf615944a55" = {
+    "ff4ce28b-f76a-430a-ba3f-b5bf60cdfb94" = {
       EventHooks = {
         DefaultAgentUI = var.flow_dependencies.agent_ui_flow_arn
       }
@@ -62,7 +62,7 @@ locals {
     "Load lang config" = {
       DataTableId = var.flow_dependencies.language_table_id
     }
-    "302133e3-2823-41ca-adfe-5f5cbb0cd969" = {
+    "430a3acf-25ed-45c4-bcd5-4741bb2c619c" = {
       DataTableId = var.flow_dependencies.survey_table_id
     }
     "TopLevelBlocker_Message" = {
@@ -80,7 +80,7 @@ locals {
     "Guard_Lambda_Escalate" = {
       LambdaFunctionARN = var.flow_dependencies.silence_guard_lambda_arn
     }
-    "fee6981d-aa4b-4f53-83b8-36fc4f977c6b" = {
+    "0323e84a-b89e-466c-bd65-aa96cf580f9d" = {
       LambdaFunctionARN = var.flow_dependencies.queue_metrics_lambda_arn
     }
   }
