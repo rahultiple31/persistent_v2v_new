@@ -16,7 +16,7 @@ variables {
   function_name  = "BTSGSD-V2V-US-lex-QueueFlow-Callback"
   iam_role_name  = "BTSGSD-lex-QueueFlow-Callback-role-i0v0kqis"
   log_group_name = "/aws/lambda/BTSGSD-V2V-US-lex-QueueFlow-Callback"
-  zip_path       = "../../environments/v2v/metadata/BTSGSD-lex-QueueFlow-Callback-dev_lambda/lambda_function.zip"
+  zip_path       = "../../environments/v2v-dev/metadata/BTSGSD-lex-QueueFlow-Callback-dev_lambda/lambda_function.zip"
   layer_arn      = "arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroPython:32"
 
   environment_variables = {
@@ -42,7 +42,7 @@ run "no_alias_has_no_invocation_grant" {
   }
 }
 
-run "provided_alias_is_the_only_invocation_source" {
+run "provided_alias_account_is_the_invocation_source" {
   command = apply
 
   variables {
@@ -53,14 +53,14 @@ run "provided_alias_is_the_only_invocation_source" {
     condition = (
       length(aws_lambda_permission.lex_invoke) == 1 &&
       aws_lambda_permission.lex_invoke[0].principal == "lexv2.amazonaws.com" &&
-      aws_lambda_permission.lex_invoke[0].source_arn == var.lex_bot_alias_arn &&
+      aws_lambda_permission.lex_invoke[0].source_arn == null &&
       aws_lambda_permission.lex_invoke[0].source_account == "210987654321"
     )
-    error_message = "Limit invocation to the supplied Lex alias and its account."
+    error_message = "Limit Lex V2 invocation to the supplied source account without an ARN condition."
   }
 }
 
-run "v2v_callback_permission_uses_supplied_alias_and_function" {
+run "v2v_callback_permission_uses_source_account_and_function" {
   command = apply
 
   variables {
@@ -74,9 +74,9 @@ run "v2v_callback_permission_uses_supplied_alias_and_function" {
       aws_lambda_permission.lex_invoke[0].action == "lambda:InvokeFunction" &&
       aws_lambda_permission.lex_invoke[0].principal == "lexv2.amazonaws.com" &&
       aws_lambda_permission.lex_invoke[0].source_account == "518902362956" &&
-      aws_lambda_permission.lex_invoke[0].source_arn == var.lex_bot_alias_arn
+      aws_lambda_permission.lex_invoke[0].source_arn == null
     )
-    error_message = "Allow only the supplied Lex V2 alias and account to invoke the V2V callback function."
+    error_message = "Allow Lex V2 in the configured account to invoke the V2V callback without a source ARN restriction."
   }
 }
 

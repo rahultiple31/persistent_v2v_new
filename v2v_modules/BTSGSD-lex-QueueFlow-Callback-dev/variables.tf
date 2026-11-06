@@ -30,7 +30,7 @@ variable "environment_variables" {
 }
 
 variable "lex_bot_alias_arn" {
-  description = "Optional Lex V2 bot alias ARN allowed to invoke the function."
+  description = "Optional Lex V2 bot alias ARN used to enable invocation permission and identify the allowed source account. The permission does not restrict the source ARN."
   type        = string
   default     = null
 

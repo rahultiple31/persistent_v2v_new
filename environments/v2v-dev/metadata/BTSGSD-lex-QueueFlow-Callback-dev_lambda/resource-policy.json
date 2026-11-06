@@ -13,9 +13,6 @@
       "Condition": {
         "StringEquals": {
           "AWS:SourceAccount": "518902362956"
-        },
-        "ArnLike": {
-          "AWS:SourceArn": "arn:aws:lex:us-east-1:518902362956:bot-alias/RD35A35EAU/HJAVDZTZBO"
         }
       }
     }

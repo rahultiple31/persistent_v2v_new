@@ -112,6 +112,7 @@ resource "aws_lambda_function" "lambda" {
 }
 
 # Configure the Lex alias's Lambda code hook separately.
+# Permit Lex V2 invocations from the supplied alias's account without an ARN restriction.
 resource "aws_lambda_permission" "lex_invoke" {
   count = var.lex_bot_alias_arn == null ? 0 : 1
 
@@ -119,6 +120,5 @@ resource "aws_lambda_permission" "lex_invoke" {
   action         = "lambda:InvokeFunction"
   function_name  = aws_lambda_function.lambda.function_name
   principal      = "lexv2.amazonaws.com"
-  source_arn     = var.lex_bot_alias_arn
   source_account = split(":", var.lex_bot_alias_arn)[4]
 }

@@ -746,7 +746,7 @@ module "lex_yesno_bot" {
   alias_configuration = {
     name                 = "BTSGSD-V2V-US-DEV"
     lambda_function_arn  = data.aws_lambda_function.lex_yesno_alias_hook[0].arn
-    connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
+    connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
     text_log_group_arn   = data.aws_cloudwatch_log_group.lex_yesno_text_logs[0].arn
   }
 }
@@ -791,7 +791,7 @@ module "lex_customer_queue_flow_bot" {
   alias_configuration = {
     name                 = "BTSGSD-V2V-US-DEV"
     lambda_function_arn  = data.aws_lambda_function.customer_queue_alias_hook[0].arn
-    connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
+    connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
     text_log_group_arn   = module.customer_queue_lex_log_group[0].arn
   }
 }
