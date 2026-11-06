@@ -249,7 +249,7 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
 
     def test_dedicated_flow_choices_apply_saved_targeted_module_plans(self):
         for choice, address in (
-            ("BTSGSD-V2V-US-AIAgent-SurveyFlow", "module.aiagent_survey_flow[0]"),
+            ("BTSGSD-V2V-US-SurveyFlow", "module.aiagent_survey_flow[0]"),
             ("BTSGSD-V2V-US-AgentToAgentTransferFlow", "module.agent_to_agent_transfer_flow[0]"),
             ("BTSGSD-V2V-US-OutboundWhisperFlow", "module.outbound_whisper_flow[0]"),
             ("BTSGSD-V2V-US-CustomerQueueFlow", "module.customer_queue_flow[0]"),

@@ -1,27 +1,32 @@
+locals {
+  survey_flow_source = jsondecode(file("${path.module}/assets/BTSGSD-AIAgent-SurveyFlow.json"))
+  survey_flow_content = replace(
+    replace(
+      replace(
+        replace(
+          file("${path.module}/assets/BTSGSD-AIAgent-SurveyFlow.json"),
+          "__SURVEY_DATA_TABLE_ID__",
+          var.settings.survey_data_table_id
+        ),
+        "__TIMESTAMPER_LAMBDA_ARN__",
+        var.settings.timestamper_lambda_arn
+      ),
+      "__YESNO_BOT_ALIAS_ARN__",
+      var.settings.yesno_bot_alias_arn
+    ),
+    "__VOICEMAIL_FLOW_MODULE_ID__",
+    var.settings.voicemail_flow_module_id
+  )
+}
+
 module "flow" {
   source = "../connect_flow_resource"
 
   flow = merge(var.settings, {
-    name        = "BTSGSD-V2V-US-AIAgent-SurveyFlow"
-    type        = "CONTACT_FLOW"
-    description = "AI agent customer satisfaction survey."
-    content = replace(
-      replace(
-        replace(
-          replace(
-            file("${path.module}/assets/BTSGSD-AIAgent-SurveyFlow.json"),
-            "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
-            var.settings.survey_data_table_id
-          ),
-          "arn:aws:lambda:us-east-1:518902362956:function:UpdateSessionAttributes",
-          var.settings.session_attributes_lambda_arn
-        ),
-        "sureveyFlow_1",
-        "VM_instruction_Survey"
-      ),
-      "arn:aws:lambda:us-east-1:518902362956:function:VMX3-VoicemailTimestamper-abbvie-sd-contactcenter-dev-us",
-      var.settings.timestamper_lambda_arn
-    )
-    resolve_dependencies = true
+    name                 = "BTSGSD-V2V-US-SurveyFlow"
+    type                 = "CONTACT_FLOW"
+    description          = "AI agent customer satisfaction survey."
+    content              = local.survey_flow_content
+    resolve_dependencies = false
   })
 }

@@ -120,12 +120,14 @@ module "aiagent_survey_flow" {
   }
 
   settings = merge(local.connect_flow_settings, {
-    survey_data_table_id          = local.survey_data_table_id
-    session_attributes_lambda_arn = module.BTSGSD-V2V-US-UpdateSessionAttributes[0].lambda_arn
-    timestamper_lambda_arn        = module.voicemail[0].timestamper_lambda_arn
+    survey_data_table_id      = local.survey_data_table_id
+    timestamper_lambda_arn    = module.voicemail[0].timestamper_lambda_arn
+    voicemail_flow_module_id = module.vmx3_main_vm_module[0].contact_flow_module_id
+    yesno_bot_alias_arn = (
+      var.lex_yesno_bot_alias_arn != null ? var.lex_yesno_bot_alias_arn :
+      data.terraform_remote_state.survey_lex[0].outputs.lex_yesno_alias_arn
+    )
   })
-
-  depends_on = [module.BTSGSD-V2V-US-UpdateSessionAttributes]
 }
 
 module "agent_to_agent_transfer_flow" {

@@ -36,7 +36,10 @@ module "connect" {
 
 module "aiagent_survey_flow" {
   source   = "../../../../aiagent_survey_flow"
-  settings = local.settings
+  settings = merge(local.settings, {
+    yesno_bot_alias_arn       = "arn:aws:lex:us-east-1:518902362956:bot-alias/TESTBOT123/TESTALIAS1"
+    voicemail_flow_module_id = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+  })
 }
 
 module "agent_to_agent_transfer_flow" {

@@ -23,7 +23,7 @@ run "flow_names_and_connect_outputs_survive_extraction" {
   module { source = "./tests/fixtures/flow-modules" }
   assert {
     condition = jsonencode(output.flow_names) == jsonencode([
-      "BTSGSD-V2V-US-AIAgent-SurveyFlow",
+      "BTSGSD-V2V-US-SurveyFlow",
       "BTSGSD-V2V-US-AgentToAgentTransferFlow",
       "BTSGSD-V2V-US-OutboundWhisperFlow",
       "BTSGSD-V2V-US-CustomerQueueFlow",

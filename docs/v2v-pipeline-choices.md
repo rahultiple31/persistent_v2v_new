@@ -89,7 +89,7 @@ Connect state:
 
 ```text
 BTSGSD-V2V-US-Views
-BTSGSD-V2V-US-AIAgent-SurveyFlow
+BTSGSD-V2V-US-SurveyFlow
 BTSGSD-V2V-US-CustomerQueueFlow
 BTSGSD-V2V-US-stdgsd_Fieldforce_Flow
 BTSGSD-V2V-US-AgentToAgentTransferFlow
@@ -109,7 +109,7 @@ under that module's `assets` directory:
 
 | Choice | Child module |
 | --- | --- |
-| `BTSGSD-V2V-US-AIAgent-SurveyFlow` | `aiagent_survey_flow` |
+| `BTSGSD-V2V-US-SurveyFlow` | `aiagent_survey_flow` |
 | `BTSGSD-V2V-US-AgentToAgentTransferFlow` | `agent_to_agent_transfer_flow` |
 | `BTSGSD-V2V-US-OutboundWhisperFlow` | `outbound_whisper_flow` |
 | `BTSGSD-V2V-US-CustomerQueueFlow` | `customer_queue_flow` |
@@ -145,7 +145,7 @@ full resource name in `targetModule`, with `targetEnvironment=v2v-dev`. For exam
 
 ```yaml
 targetEnvironment: v2v-dev
-targetModule: BTSGSD-V2V-US-AIAgent-SurveyFlow
+targetModule: BTSGSD-V2V-US-SurveyFlow
 terraformAction: plan
 ```
 
@@ -459,6 +459,13 @@ is needed for this selector change. Prerequisites owned by other states must
 already exist, including IAM roles, the Lambda code-signing configuration,
 and configured Connect dependencies. The existing AWS OIDC pipeline variable
 is still required.
+
+The `BTSGSD-V2V-US-SurveyFlow` choice deploys the 43-action Yes/No
+survey and voicemail flow. Deploy `lex_yesno_bot` first: the flow reads its
+`lex_yesno_alias_arn` output from the existing `lex_bot` state unless
+`lex_yesno_bot_alias_arn` is explicitly supplied in the Connect configuration.
+The survey table, voicemail module and timestamper come from the Connect
+configuration. No source-environment IDs or template placeholders are deployed.
 
 Scoped choices use Terraform resource targeting. HashiCorp recommends
 separate configurations for routine independent lifecycles; targeting can

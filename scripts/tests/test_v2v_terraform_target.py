@@ -61,7 +61,7 @@ TRANSFER_TABLE_TARGETS = (
     "aws_cloudformation_stack.veeva_transfer_data_table[0]",
 )
 FLOW_CHOICES = {
-    "BTSGSD-V2V-US-AIAgent-SurveyFlow": "module.aiagent_survey_flow[0]",
+    "BTSGSD-V2V-US-SurveyFlow": "module.aiagent_survey_flow[0]",
     "BTSGSD-V2V-US-CustomerQueueFlow": 'module.customer_queue_flow[0]',
     "BTSGSD-V2V-US-Views": "module.abbvie_views[0]",
     "BTSGSD-V2V-US-stdgsd_Fieldforce_Flow": 'module.connect_us_east_1[0].aws_connect_contact_flow.imported["fieldforce"]',

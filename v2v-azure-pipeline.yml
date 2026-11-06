@@ -28,7 +28,7 @@ parameters:
       - abbvie_views
       # Deploy all six dedicated flow modules together, or select one below.
       - all-flows
-      - BTSGSD-V2V-US-AIAgent-SurveyFlow
+      - BTSGSD-V2V-US-SurveyFlow
       - BTSGSD-V2V-US-AgentToAgentTransferFlow
       - BTSGSD-V2V-US-OutboundWhisperFlow
       - BTSGSD-V2V-US-CustomerQueueFlow

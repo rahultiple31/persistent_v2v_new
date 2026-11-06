@@ -1,104 +1,54 @@
 {
   "Version": "2019-10-30",
-  "StartAction": "7e800fa7-d77e-4f74-ba6b-9177f7a74cf7",
+  "StartAction": "e22707de-bbdb-4b26-ba36-e20850615c85",
   "Metadata": {
     "entryPointPosition": {
-      "x": -442.4,
-      "y": 688.8
+      "x": 98.4,
+      "y": 1009.6
     },
     "ActionMetadata": {
-      "21bc5940-af45-4063-a477-fdcc48e140a2": {
+      "VM_instruction_Survey": {
         "position": {
-          "x": 978.4,
-          "y": 455.2
+          "x": 6595.2,
+          "y": 205.6
         },
-        "children": [
-          "47e64d25-b7b8-4fb4-96c4-27681c6c1006"
-        ],
-        "parameters": {
-          "OrchestrationAIAgentConfiguration": {
-            "AgentAssistanceAgentVersionArn": {
-              "useAIAgentDropdown": true,
-              "aiAgentName": "BTSGSD-AI-Survey-Agent"
-            }
-          }
-        },
-        "fragments": {
-          "SetContactData": "47e64d25-b7b8-4fb4-96c4-27681c6c1006"
-        },
-        "useAIAgentDropdown": true,
-        "aiAgentName": "BTSGSD-AI-Survey-Agent"
+        "isFriendlyName": true
       },
-      "47e64d25-b7b8-4fb4-96c4-27681c6c1006": {
+      "f8f115c0-acce-4843-a8b3-7e84adcaad15": {
         "position": {
-          "x": 978.4,
-          "y": 455.2
+          "x": 3539.2,
+          "y": 622.4
+        },
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "62948427-3df8-41fe-be13-59975739b31f",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "true"
+          }
+        ]
+      },
+      "9012911a-fda4-4e94-9b79-0a2ad2c94a0d": {
+        "position": {
+          "x": 8055.2,
+          "y": 821.6
+        }
+      },
+      "dcd3091d-31e9-43c6-8b0a-e938294b6c79": {
+        "position": {
+          "x": 6941.6,
+          "y": 1492
         },
         "dynamicParams": []
       },
-      "Get customer input": {
+      "78d289c9-ad39-4c84-b6ee-190493396fae": {
         "position": {
-          "x": 1889.6,
-          "y": 338.4
-        },
-        "isFriendlyName": true,
-        "children": [
-          "Get customer input-ZKl9XGJij8",
-          "Get customer input-MNajh3dY2Z"
-        ],
-        "parameters": {
-          "WisdomAssistantArn": {
-            "useAIAgentDropdown": true,
-            "aiAgentName": "BTSGSD-AI-Survey-Agent",
-            "aiAgentVersionArn": "arn:aws:wisdom:us-east-1:518902362956:ai-agent/160889f7-d564-47fb-97db-94549fc55993/3019fa9e-8e2a-4243-b5e1-a9e89e3cfec8:8"
-          }
-        },
-        "fragments": {
-          "SetContactData": "Get customer input-ZKl9XGJij8"
-        },
-        "useAIAgentDropdown": true,
-        "aiAgentName": "BTSGSD-AI-Survey-Agent",
-        "aiAgentVersionArn": "arn:aws:wisdom:us-east-1:518902362956:ai-agent/160889f7-d564-47fb-97db-94549fc55993/3019fa9e-8e2a-4243-b5e1-a9e89e3cfec8:8"
-      },
-      "Get customer input-ZKl9XGJij8": {
-        "position": {
-          "x": 1889.6,
-          "y": 338.4
-        },
-        "isFriendlyName": true,
-        "dynamicParams": []
-      },
-      "Get customer input-MNajh3dY2Z": {
-        "position": {
-          "x": 1889.6,
-          "y": 338.4
-        },
-        "isFriendlyName": true,
-        "parameters": {
-          "LexV2Bot": {
-            "AliasArn": {
-              "displayName": "Dev",
-              "useLexBotDropdown": true,
-              "lexV2BotName": "BTSGSD-AIAgent-Survey"
-            }
-          }
-        },
-        "dynamicMetadata": {
-          "x-amz-lex:q-in-connect:session-arn": false,
-          "x-amz-lex:audio:start-timeout-ms:*:*": false,
-          "x-amz-lex:audio:end-timeout-ms:*:*": false,
-          "x-amz-lex:audio:max-length-ms:*:*": false,
-          "x-amz-lex:q-in-connect:ai-agent-arn": false
-        },
-        "useLexBotDropdown": true,
-        "lexV2BotName": "BTSGSD-AIAgent-Survey",
-        "lexV2BotAliasName": "Dev",
-        "conditionMetadata": []
-      },
-      "434e2264-7479-44fd-8a48-914e8a67ae69": {
-        "position": {
-          "x": 464,
-          "y": 876.8
+          "x": 2049.6,
+          "y": 992.8
         },
         "parameters": {
           "Attributes": {
@@ -111,28 +61,610 @@
           "surveyStartTime"
         ]
       },
-      "17e07364-091d-4858-aabe-c43e54ea49af": {
+      "5e1dc8f4-0af8-47a4-bf81-8b98b2dab362": {
         "position": {
-          "x": 259.2,
-          "y": 656.8
+          "x": 3288,
+          "y": 348
+        },
+        "dynamicParams": []
+      },
+      "bac0a22b-5cd2-46ba-a938-16c9fc05367c": {
+        "position": {
+          "x": 2460.8,
+          "y": 448.8
+        }
+      },
+      "e05639c8-fd5d-4147-a13a-389b06538ce5": {
+        "position": {
+          "x": 3297.6,
+          "y": 577.6
+        },
+        "dynamicParams": []
+      },
+      "c29ef477-16cf-47bd-a3d0-242acc0f3b07": {
+        "position": {
+          "x": 3072.8,
+          "y": 580
+        },
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "34937276-77a6-468c-9bd3-f5f9f5c7d2c9",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "yes_confirmation"
+          },
+          {
+            "id": "3e206719-4091-48d8-8c20-63a9b83a91a0",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "no_confirmation"
+          }
+        ]
+      },
+      "SurveyGreeting": {
+        "position": {
+          "x": 2374.4,
+          "y": 812.8
+        },
+        "isFriendlyName": true
+      },
+      "874d2159-6166-4969-8600-946c48fcdf33": {
+        "position": {
+          "x": 3304,
+          "y": 814.4
+        },
+        "dynamicParams": []
+      },
+      "SurveyQuestion1": {
+        "position": {
+          "x": 2774.4,
+          "y": 535.2
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "LexV2Bot": {
+            "AliasArn": {
+              "displayName": "BTSGSD-V2V-US-DEV",
+              "useLexBotDropdown": true,
+              "lexV2BotName": "BTSGSD-V2V-US-yesNo"
+            }
+          }
+        },
+        "dynamicMetadata": {
+          "menu_prompt": false,
+          "x-amz-lex:dtmf:end-timeout-ms:*:*": false,
+          "x-amz-lex:barge-in-enabled:*:*": false,
+          "x-amz-lex:audio:start-timeout-ms:*:*": false,
+          "Global_t_2": false,
+          "Global_t_1": false,
+          "x-amz-lex:audio:end-timeout-ms:*:*": false,
+          "Global_r_2": false,
+          "Global_r_1": false,
+          " CustomerEndpointAddress": false
+        },
+        "useLexBotDropdown": true,
+        "lexV2BotName": "BTSGSD-V2V-US-yesNo",
+        "lexV2BotAliasName": "BTSGSD-V2V-US-DEV",
+        "conditionMetadata": [
+          {
+            "id": "2e2a1be8-310b-4235-9234-00ecbc1410e8",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "yes"
+          },
+          {
+            "id": "744c24d1-3efe-45da-8a9a-c30442c455f6",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "no"
+          },
+          {
+            "id": "bbfd0928-6121-4569-b78d-6d8f8d5705bf",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "repeat"
+          },
+          {
+            "id": "8fe3c6eb-c736-41b1-89b4-c865431597e9",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "dtmf"
+          }
+        ]
+      },
+      "751e0fb3-82b1-4470-bed4-4f5e675550b7": {
+        "position": {
+          "x": 3981.6,
+          "y": 310.4
+        }
+      },
+      "SurveyQuestion2a": {
+        "position": {
+          "x": 3756.8,
+          "y": 468
+        },
+        "isFriendlyName": true
+      },
+      "bf34deef-f06c-4a6e-95d8-f208b01f2a60": {
+        "position": {
+          "x": 4351.2,
+          "y": 488
+        },
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "ef1fcef4-ae7f-4047-9dae-1fbb1948b472",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "yes_confirmation"
+          },
+          {
+            "id": "7096fec1-c396-4e49-9a69-ecdce2805d19",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "no_confirmation"
+          }
+        ]
+      },
+      "SurveyQuestion2b": {
+        "position": {
+          "x": 3762.4,
+          "y": 748.8
+        },
+        "isFriendlyName": true
+      },
+      "SurveyQuestion2": {
+        "position": {
+          "x": 4065.6,
+          "y": 553.6
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "LexV2Bot": {
+            "AliasArn": {
+              "displayName": "BTSGSD-V2V-US-DEV",
+              "useLexBotDropdown": true,
+              "lexV2BotName": "BTSGSD-V2V-US-yesNo"
+            }
+          }
+        },
+        "dynamicMetadata": {
+          "menu_prompt": false,
+          "x-amz-lex:dtmf:end-timeout-ms:*:*": false,
+          "x-amz-lex:barge-in-enabled:*:*": false,
+          "x-amz-lex:audio:start-timeout-ms:*:*": false,
+          "Global_t_2": false,
+          "Global_t_1": false,
+          "x-amz-lex:audio:end-timeout-ms:*:*": false,
+          "Global_r_2": false,
+          "Global_r_1": false,
+          " CustomerEndpointAddress": false
+        },
+        "useLexBotDropdown": true,
+        "lexV2BotName": "BTSGSD-V2V-US-yesNo",
+        "lexV2BotAliasName": "BTSGSD-V2V-US-DEV",
+        "conditionMetadata": [
+          {
+            "id": "4e48b825-b68c-426d-a52c-a7de76161436",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "yes"
+          },
+          {
+            "id": "8f2f0c21-cfbc-4885-80c7-54fcefde7f84",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "no"
+          },
+          {
+            "id": "0b7bdbf2-7d91-4973-b17c-ff0c7df3739f",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "repeat"
+          },
+          {
+            "id": "f6c2b594-1d05-4b7f-ac21-71cc218d5810",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "dtmf"
+          }
+        ]
+      },
+      "4f39dc46-7ad2-44e1-8b03-13a370e6c710": {
+        "position": {
+          "x": 4599.2,
+          "y": 268
+        },
+        "dynamicParams": []
+      },
+      "ae1a1ce1-4660-4bbf-917d-78faa06b38d6": {
+        "position": {
+          "x": 4594.4,
+          "y": 474.4
+        },
+        "dynamicParams": []
+      },
+      "c5120c87-3465-493a-a0aa-e13ab5a03b6d": {
+        "position": {
+          "x": 4598.4,
+          "y": 686.4
+        },
+        "dynamicParams": []
+      },
+      "e97a60ea-1bdf-4fa0-aab6-71e78325999c": {
+        "position": {
+          "x": 5562.4,
+          "y": 90.4
+        }
+      },
+      "ef1abf4b-5ec3-45aa-afdd-c9d216cc310e": {
+        "position": {
+          "x": 6251.2,
+          "y": 250.4
+        },
+        "dynamicParams": []
+      },
+      "656c70c1-eb3d-47aa-b129-c88af5f6c561": {
+        "position": {
+          "x": 6257.6,
+          "y": 455.2
+        },
+        "dynamicParams": []
+      },
+      "365000f8-605a-4754-9862-838c9b2f227c": {
+        "position": {
+          "x": 5975.2,
+          "y": 476.8
+        },
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "1efc230b-a647-492a-8062-c2918ce47a65",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "yes_confirmation"
+          },
+          {
+            "id": "7ec7f02e-550c-4bd1-997b-1ddf6bc16626",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "no_confirmation"
+          }
+        ]
+      },
+      "d5d7ed86-8488-4383-8f88-9c347f97d022": {
+        "position": {
+          "x": 6266.4,
+          "y": 649.6
+        },
+        "dynamicParams": []
+      },
+      "voicemail attributes": {
+        "position": {
+          "x": 6900,
+          "y": 208.8
+        },
+        "isFriendlyName": true,
+        "dynamicParams": []
+      },
+      "Closing": {
+        "position": {
+          "x": 7456.8,
+          "y": 608.8
+        },
+        "isFriendlyName": true
+      },
+      "01727ab0-6f0b-4441-981f-2c596b0addcb": {
+        "position": {
+          "x": 7211.2,
+          "y": 196.8
+        },
+        "parameters": {
+          "FlowModuleId": {
+            "displayName": "VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1",
+            "Alias": {
+              "displayName": "$LATEST"
+            }
+          }
+        },
+        "contactFlowModuleName": "VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1"
+      },
+      "73b81f2d-bcfa-4a92-8017-91ae95ddf804": {
+        "position": {
+          "x": 1796.8,
+          "y": 1010.4
         },
         "parameters": {
           "LambdaFunctionARN": {
-            "displayName": "VMX3-VoicemailTimestamper-abbvie-sd-contactcenter-dev-us"
+            "displayName": "VMX3-VoicemailTimestamper (V2V)"
           }
         },
         "dynamicMetadata": {}
       },
-      "7e800fa7-d77e-4f74-ba6b-9177f7a74cf7": {
+      "Survey Error Message-copy-1": {
         "position": {
-          "x": -288.8,
-          "y": 692
+          "x": 4457.6,
+          "y": 1230.4
+        },
+        "isFriendlyName": true
+      },
+      "surveyBot_initialize": {
+        "position": {
+          "x": 1521.6,
+          "y": 1016.8
+        },
+        "isFriendlyName": true
+      },
+      "44ea368c-b822-4bd4-9174-8b1419555042": {
+        "position": {
+          "x": 5373.6,
+          "y": 282.4
+        },
+        "dynamicParams": []
+      },
+      "97080f5c-16c2-4475-9089-b5b188910cff": {
+        "position": {
+          "x": 4805.6,
+          "y": 22.4
         }
       },
-      "7e47cc3f-667b-4244-85b1-4753d3a2666b": {
+      "VM_message": {
         "position": {
-          "x": 11.2,
-          "y": 664.8
+          "x": 5704,
+          "y": 368
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "LexV2Bot": {
+            "AliasArn": {
+              "displayName": "BTSGSD-V2V-US-DEV",
+              "useLexBotDropdown": true,
+              "lexV2BotName": "BTSGSD-V2V-US-yesNo"
+            }
+          }
+        },
+        "dynamicMetadata": {
+          "menu_prompt": false,
+          "x-amz-lex:dtmf:end-timeout-ms:*:*": false,
+          "x-amz-lex:barge-in-enabled:*:*": false,
+          "x-amz-lex:audio:start-timeout-ms:*:*": false,
+          "Global_t_2": false,
+          "Global_t_1": false,
+          "x-amz-lex:audio:end-timeout-ms:*:*": false,
+          "Global_r_2": false,
+          "Global_r_1": false,
+          " CustomerEndpointAddress": false
+        },
+        "useLexBotDropdown": true,
+        "lexV2BotName": "BTSGSD-V2V-US-yesNo",
+        "lexV2BotAliasName": "BTSGSD-V2V-US-DEV",
+        "conditionMetadata": [
+          {
+            "id": "bfd69011-1e58-4820-b85e-b55f485b518b",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "yes"
+          },
+          {
+            "id": "a1f3cbcd-784a-4fa8-9792-950e645661db",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "no"
+          },
+          {
+            "id": "8b03d82b-065e-43b8-b352-3b65eba3edf6",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "repeat"
+          },
+          {
+            "id": "d2cfc290-2394-4eb9-806f-de2b88e215bd",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "dtmf"
+          }
+        ]
+      },
+      "df1cf757-60bf-4880-acdd-79586939c1ee": {
+        "position": {
+          "x": 5374.4,
+          "y": 479.2
+        },
+        "dynamicParams": []
+      },
+      "Dissat": {
+        "position": {
+          "x": 5612,
+          "y": 788.8
+        },
+        "isFriendlyName": true
+      },
+      "e244ada2-132b-426f-a1a3-125da448468a": {
+        "position": {
+          "x": 5130.4,
+          "y": 432.8
+        },
+        "conditions": [],
+        "conditionMetadata": [
+          {
+            "id": "9b1dfed0-4156-4dca-a036-89c85d708b32",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "yes_confirmation"
+          },
+          {
+            "id": "8f33115a-dbfe-4c2f-9b74-2e64831e282a",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "no_confirmation"
+          }
+        ]
+      },
+      "SurveyQuestion3": {
+        "position": {
+          "x": 4891.2,
+          "y": 396
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "LexV2Bot": {
+            "AliasArn": {
+              "displayName": "BTSGSD-V2V-US-DEV",
+              "useLexBotDropdown": true,
+              "lexV2BotName": "BTSGSD-V2V-US-yesNo"
+            }
+          }
+        },
+        "dynamicMetadata": {
+          "menu_prompt": false,
+          "x-amz-lex:dtmf:end-timeout-ms:*:*": false,
+          "x-amz-lex:barge-in-enabled:*:*": false,
+          "x-amz-lex:audio:start-timeout-ms:*:*": false,
+          "Global_t_2": false,
+          "Global_t_1": false,
+          "x-amz-lex:audio:end-timeout-ms:*:*": false,
+          "Global_r_2": false,
+          "Global_r_1": false,
+          " CustomerEndpointAddress": false
+        },
+        "useLexBotDropdown": true,
+        "lexV2BotName": "BTSGSD-V2V-US-yesNo",
+        "lexV2BotAliasName": "BTSGSD-V2V-US-DEV",
+        "conditionMetadata": [
+          {
+            "id": "6f1a2147-3e8f-41ef-b6d7-0015ec89255a",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "yes"
+          },
+          {
+            "id": "e398720d-dfb9-4349-971c-34b81c727c49",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "no"
+          },
+          {
+            "id": "18cadcf9-0711-4187-967e-09924313b334",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "repeat"
+          },
+          {
+            "id": "7e22fa4e-b5be-456e-85f3-488ed2d410d2",
+            "operator": {
+              "name": "Equals",
+              "value": "Equals",
+              "shortDisplay": "="
+            },
+            "value": "dtmf"
+          }
+        ]
+      },
+      "Survey Error Message": {
+        "position": {
+          "x": 6562.4,
+          "y": 1352.8
+        },
+        "isFriendlyName": true
+      },
+      "793c580b-0aea-4c68-be23-645868a4a00b": {
+        "position": {
+          "x": 5378.4,
+          "y": 691.2
+        },
+        "dynamicParams": []
+      },
+      "e22707de-bbdb-4b26-ba36-e20850615c85": {
+        "position": {
+          "x": 704.8,
+          "y": 1045.6
+        }
+      },
+      "3f72c3b4-31aa-4212-a052-f00feaeadbb5": {
+        "position": {
+          "x": 1258.4,
+          "y": 1020
+        },
+        "parameters": {
+          "DataTableId": {
+            "displayName": "BTSGSD-V2V-US-PROMPT-DATATABLE"
+          }
+        }
+      },
+      "2225e3b2-b9a8-421e-bf4c-9fef3b2f0384": {
+        "position": {
+          "x": 1004.8,
+          "y": 1018.4
         },
         "parameters": {
           "Attributes": {
@@ -144,182 +676,18 @@
         "dynamicParams": [
           "lang"
         ]
-      },
-      "f0f61663-556a-4e60-856e-4865791eecc2": {
-        "position": {
-          "x": 3849.6,
-          "y": 484
-        }
-      },
-      "03b93754-f615-406a-ae14-ae6aae18f498": {
-        "position": {
-          "x": 3838.4,
-          "y": 218.4
-        },
-        "parameters": {
-          "FlowModuleId": {
-            "displayName": "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us",
-            "Alias": {
-              "displayName": "$LATEST"
-            }
-          }
-        },
-        "contactFlowModuleName": "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us"
-      },
-      "voicemail attributes": {
-        "position": {
-          "x": 3623.2,
-          "y": 8.8
-        },
-        "isFriendlyName": true,
-        "dynamicParams": []
-      },
-      "6061270a-1f23-4bd1-b844-3203a128a508": {
-        "position": {
-          "x": 731.2,
-          "y": 655.2
-        },
-        "parameters": {
-          "DataTableId": {
-            "displayName": "BTSGSD-V2V-US-PROMPT-DATATABLE"
-          }
-        }
-      },
-      "Update session data": {
-        "position": {
-          "x": 1330.4,
-          "y": 438.4
-        },
-        "isFriendlyName": true,
-        "parameters": {
-          "LambdaFunctionARN": {
-            "displayName": "UpdateSessionAttributes"
-          },
-          "LambdaInvocationAttributes": {
-            "CallerAni": {
-              "useDynamic": true
-            },
-            "agentC": {
-              "useDynamic": true
-            }
-          }
-        },
-        "dynamicMetadata": {
-          "language_name": false,
-          "customer_address": false,
-          "CallerAni": true,
-          "agentC": true
-        }
-      },
-      "406ba542-148a-4f66-b3d4-b2da6ec82695": {
-        "position": {
-          "x": 4260.8,
-          "y": 558.4
-        }
-      },
-      "099b126e-602a-45a5-9961-d2a6d9ccec5d": {
-        "position": {
-          "x": 2975.2,
-          "y": 639.2
-        }
-      },
-      "3de75dd0-90ca-4eef-b3a9-9948343f4999": {
-        "position": {
-          "x": 3334.4,
-          "y": 642.4
-        },
-        "dynamicParams": []
-      },
-      "b0c62f90-947f-4930-99d7-cc6b7b8fac26": {
-        "position": {
-          "x": 3168.8,
-          "y": 12.8
-        }
-      },
-      "236e5f46-2960-4dd5-a372-72acfa0287d6": {
-        "position": {
-          "x": 2268,
-          "y": 260
-        },
-        "parameters": {
-          "Attributes": {
-            "SurveyIntent": {
-              "useDynamic": true
-            },
-            "SurveyQ1": {
-              "useDynamic": true
-            },
-            "SurveyQ2": {
-              "useDynamic": true
-            },
-            "SurveyQ3": {
-              "useDynamic": true
-            }
-          }
-        },
-        "dynamicParams": [
-          "SurveyIntent",
-          "SurveyQ1",
-          "SurveyQ2",
-          "SurveyQ3"
-        ]
-      },
-      "9e9d19b9-c0af-403f-b940-7b32a5903114": {
-        "position": {
-          "x": 2735.2,
-          "y": 66.4
-        },
-        "conditions": [],
-        "conditionMetadata": [
-          {
-            "id": "64cda886-bd4b-4e8b-855b-a5882b522fb9",
-            "operator": {
-              "name": "Contains",
-              "value": "Contains",
-              "shortDisplay": "contains"
-            },
-            "value": "want"
-          },
-          {
-            "id": "1422cf20-6173-4eff-bc48-7b539f23e534",
-            "operator": {
-              "name": "Equals",
-              "value": "Equals",
-              "shortDisplay": "="
-            },
-            "value": "wantTOleaveRecommendation"
-          },
-          {
-            "id": "69641dad-0644-4a28-b00d-ca477e213112",
-            "operator": {
-              "name": "Equals",
-              "value": "Equals",
-              "shortDisplay": "="
-            },
-            "value": "wantToleaveRecommendation"
-          },
-          {
-            "id": "283bea65-00ed-4973-af73-8b7c1c26ff1b",
-            "operator": {
-              "name": "Equals",
-              "value": "Equals",
-              "shortDisplay": "="
-            },
-            "value": "wantToLeaveRecommendation"
-          }
-        ]
       }
     },
     "Annotations": [
       {
         "type": "default",
-        "id": "d62b4d2d-dcd2-4cca-9bcc-6dac1981f73f",
+        "id": "6e81ec7d-922d-4f29-a7ef-8b3ae1102cdd",
         "content": "AbbVie_Survey: \n\nSurvey flow , will ask questions and customer should response in Yes/No .",
         "actionId": "",
         "isFolded": false,
         "position": {
-          "x": 292,
-          "y": 333
+          "x": 2224.6666259765625,
+          "y": 831
         },
         "size": {
           "height": 295,
@@ -327,8 +695,8 @@
         }
       }
     ],
-    "name": "BTSGSD-V2V-US-AIAgent-SurveyFlow",
-    "description": "",
+    "name": "BTSGSD-V2V-US-SurveyFlow",
+    "description": "AI agent customer satisfaction survey.",
     "type": "contactFlow",
     "status": "PUBLISHED",
     "hash": {}
@@ -336,18 +704,16 @@
   "Actions": [
     {
       "Parameters": {
-        "WisdomAssistantArn": "arn:aws:wisdom:us-east-1:518902362956:assistant/160889f7-d564-47fb-97db-94549fc55993",
-        "OrchestrationAIAgentConfiguration": {
-          "AgentAssistanceAgentVersionArn": "arn:aws:wisdom:us-east-1:518902362956:ai-agent/160889f7-d564-47fb-97db-94549fc55993/3019fa9e-8e2a-4243-b5e1-a9e89e3cfec8:8"
-        }
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak>$.DataTables.LanguageCheck.VM_instruction_Survey</speak>"
       },
-      "Identifier": "21bc5940-af45-4063-a477-fdcc48e140a2",
-      "Type": "CreateWisdomSession",
+      "Identifier": "VM_instruction_Survey",
+      "Type": "MessageParticipant",
       "Transitions": {
-        "NextAction": "47e64d25-b7b8-4fb4-96c4-27681c6c1006",
+        "NextAction": "voicemail attributes",
         "Errors": [
           {
-            "NextAction": "Update session data",
+            "NextAction": "Survey Error Message",
             "ErrorType": "NoMatchingError"
           }
         ]
@@ -355,77 +721,51 @@
     },
     {
       "Parameters": {
-        "WisdomSessionArn": "$.Wisdom.SessionArn"
+        "ComparisonValue": "$.Attributes.agentC"
       },
-      "Identifier": "47e64d25-b7b8-4fb4-96c4-27681c6c1006",
-      "Type": "UpdateContactData",
+      "Identifier": "f8f115c0-acce-4843-a8b3-7e84adcaad15",
+      "Type": "Compare",
       "Transitions": {
-        "NextAction": "Update session data",
-        "Errors": [
+        "NextAction": "SurveyQuestion2b",
+        "Conditions": [
           {
-            "NextAction": "Update session data",
-            "ErrorType": "NoMatchingError"
+            "NextAction": "SurveyQuestion2a",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "true"
+              ]
+            }
           }
-        ]
-      }
-    },
-    {
-      "Parameters": {
-        "WisdomAssistantArn": "arn:aws:wisdom:us-east-1:518902362956:assistant/160889f7-d564-47fb-97db-94549fc55993"
-      },
-      "Identifier": "Get customer input",
-      "Type": "CreateWisdomSession",
-      "Transitions": {
-        "NextAction": "Get customer input-ZKl9XGJij8",
+        ],
         "Errors": [
           {
-            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
-            "ErrorType": "NoMatchingError"
-          }
-        ]
-      }
-    },
-    {
-      "Parameters": {
-        "WisdomSessionArn": "$.Wisdom.SessionArn"
-      },
-      "Identifier": "Get customer input-ZKl9XGJij8",
-      "Type": "UpdateContactData",
-      "Transitions": {
-        "NextAction": "Get customer input-MNajh3dY2Z",
-        "Errors": [
-          {
-            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
-            "ErrorType": "NoMatchingError"
-          }
-        ]
-      }
-    },
-    {
-      "Parameters": {
-        "SSML": "<speak>$.DataTables.LanguageCheck.surveyBot_initialize</speak>",
-        "LexV2Bot": {
-          "AliasArn": "arn:aws:lex:us-east-1:518902362956:bot-alias/LW428B2LK5/6APIQ3LRFO"
-        },
-        "LexSessionAttributes": {
-          "x-amz-lex:q-in-connect:session-arn": "$.Wisdom.SessionArn",
-          "x-amz-lex:audio:start-timeout-ms:*:*": "5000",
-          "x-amz-lex:audio:end-timeout-ms:*:*": "1500",
-          "x-amz-lex:audio:max-length-ms:*:*": "30000",
-          "x-amz-lex:q-in-connect:ai-agent-arn": "arn:aws:wisdom:us-east-1:518902362956:ai-agent/160889f7-d564-47fb-97db-94549fc55993/3019fa9e-8e2a-4243-b5e1-a9e89e3cfec8:8"
-        }
-      },
-      "Identifier": "Get customer input-MNajh3dY2Z",
-      "Type": "ConnectParticipantWithLexBot",
-      "Transitions": {
-        "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
-        "Errors": [
-          {
-            "NextAction": "236e5f46-2960-4dd5-a372-72acfa0287d6",
+            "NextAction": "SurveyQuestion2b",
             "ErrorType": "NoMatchingCondition"
-          },
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "9012911a-fda4-4e94-9b79-0a2ad2c94a0d",
+      "Type": "DisconnectParticipant",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "journey": "$.Attributes.journey | Error Occured"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "dcd3091d-31e9-43c6-8b0a-e938294b6c79",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "Closing",
+        "Errors": [
           {
-            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+            "NextAction": "Closing",
             "ErrorType": "NoMatchingError"
           }
         ]
@@ -438,65 +778,124 @@
         },
         "TargetContact": "Current"
       },
-      "Identifier": "434e2264-7479-44fd-8a48-914e8a67ae69",
+      "Identifier": "78d289c9-ad39-4c84-b6ee-190493396fae",
       "Type": "UpdateContactAttributes",
       "Transitions": {
-        "NextAction": "6061270a-1f23-4bd1-b844-3203a128a508",
+        "NextAction": "SurveyGreeting",
         "Errors": [
           {
-            "NextAction": "6061270a-1f23-4bd1-b844-3203a128a508",
+            "NextAction": "Survey Error Message-copy-1",
             "ErrorType": "NoMatchingError"
           }
         ]
-      }
-    },
-    {
-      "Parameters": {
-        "LambdaFunctionARN": "arn:aws:lambda:us-east-1:518902362956:function:VMX3-VoicemailTimestamper-abbvie-sd-contactcenter-dev-us",
-        "InvocationTimeLimitSeconds": "3",
-        "InvocationType": "SYNCHRONOUS",
-        "ResponseValidation": {
-          "ResponseType": "STRING_MAP"
-        }
-      },
-      "Identifier": "17e07364-091d-4858-aabe-c43e54ea49af",
-      "Type": "InvokeLambdaFunction",
-      "Transitions": {
-        "NextAction": "434e2264-7479-44fd-8a48-914e8a67ae69",
-        "Errors": [
-          {
-            "NextAction": "434e2264-7479-44fd-8a48-914e8a67ae69",
-            "ErrorType": "NoMatchingError"
-          }
-        ]
-      }
-    },
-    {
-      "Parameters": {
-        "FlowLoggingBehavior": "Enabled"
-      },
-      "Identifier": "7e800fa7-d77e-4f74-ba6b-9177f7a74cf7",
-      "Type": "UpdateFlowLoggingBehavior",
-      "Transitions": {
-        "NextAction": "7e47cc3f-667b-4244-85b1-4753d3a2666b"
       }
     },
     {
       "Parameters": {
         "Attributes": {
-          "journey": "$.Attributes.journey | SurveyFlow",
-          "lang": "$.Attributes.Customer_Prefferred_Language"
+          "SurveyQ1": "yes"
         },
         "TargetContact": "Current"
       },
-      "Identifier": "7e47cc3f-667b-4244-85b1-4753d3a2666b",
+      "Identifier": "5e1dc8f4-0af8-47a4-bf81-8b98b2dab362",
       "Type": "UpdateContactAttributes",
       "Transitions": {
-        "NextAction": "17e07364-091d-4858-aabe-c43e54ea49af",
+        "NextAction": "f8f115c0-acce-4843-a8b3-7e84adcaad15",
         "Errors": [
           {
-            "NextAction": "17e07364-091d-4858-aabe-c43e54ea49af",
+            "NextAction": "Survey Error Message-copy-1",
             "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "LoopCount": "1"
+      },
+      "Identifier": "bac0a22b-5cd2-46ba-a938-16c9fc05367c",
+      "Type": "Loop",
+      "Transitions": {
+        "NextAction": "874d2159-6166-4969-8600-946c48fcdf33",
+        "Conditions": [
+          {
+            "NextAction": "SurveyQuestion1",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "ContinueLooping"
+              ]
+            }
+          },
+          {
+            "NextAction": "874d2159-6166-4969-8600-946c48fcdf33",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "DoneLooping"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message-copy-1",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "SurveyQ1": "no"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "e05639c8-fd5d-4147-a13a-389b06538ce5",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "f8f115c0-acce-4843-a8b3-7e84adcaad15",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message-copy-1",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ComparisonValue": "$.Lex.SessionAttributes.confirmation"
+      },
+      "Identifier": "c29ef477-16cf-47bd-a3d0-242acc0f3b07",
+      "Type": "Compare",
+      "Transitions": {
+        "NextAction": "874d2159-6166-4969-8600-946c48fcdf33",
+        "Conditions": [
+          {
+            "NextAction": "5e1dc8f4-0af8-47a4-bf81-8b98b2dab362",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "yes_confirmation"
+              ]
+            }
+          },
+          {
+            "NextAction": "e05639c8-fd5d-4147-a13a-389b06538ce5",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "no_confirmation"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "874d2159-6166-4969-8600-946c48fcdf33",
+            "ErrorType": "NoMatchingCondition"
           }
         ]
       }
@@ -504,15 +903,15 @@
     {
       "Parameters": {
         "SkipWhenDTMFBufferEnabled": "false",
-        "SSML": "<speak>$.DataTables.LanguageCheck.Closing</speak>"
+        "SSML": "<speak>$.DataTables.LanguageCheck.SurveyGreeting</speak>"
       },
-      "Identifier": "f0f61663-556a-4e60-856e-4865791eecc2",
+      "Identifier": "SurveyGreeting",
       "Type": "MessageParticipant",
       "Transitions": {
-        "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
+        "NextAction": "SurveyQuestion1",
         "Errors": [
           {
-            "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
+            "NextAction": "Survey Error Message-copy-1",
             "ErrorType": "NoMatchingError"
           }
         ]
@@ -520,19 +919,462 @@
     },
     {
       "Parameters": {
-        "FlowModuleId": "4648e1d4-37fb-438b-a47e-65f04a67718b:$LATEST"
+        "Attributes": {
+          "SurveyQ1": "-"
+        },
+        "TargetContact": "Current"
       },
-      "Identifier": "03b93754-f615-406a-ae14-ae6aae18f498",
-      "Type": "InvokeFlowModule",
+      "Identifier": "874d2159-6166-4969-8600-946c48fcdf33",
+      "Type": "UpdateContactAttributes",
       "Transitions": {
-        "NextAction": "f0f61663-556a-4e60-856e-4865791eecc2",
+        "NextAction": "f8f115c0-acce-4843-a8b3-7e84adcaad15",
         "Errors": [
           {
-            "NextAction": "f0f61663-556a-4e60-856e-4865791eecc2",
+            "NextAction": "Survey Error Message-copy-1",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SSML": "<speak>$.DataTables.LanguageCheck.SurveyQuestion1</speak>",
+        "LexV2Bot": {
+          "AliasArn": "__YESNO_BOT_ALIAS_ARN__"
+        },
+        "LexSessionAttributes": {
+          "menu_prompt": "$.DataTables.LanguageCheck.SurveyQuestion1",
+          "x-amz-lex:dtmf:end-timeout-ms:*:*": "2000",
+          "x-amz-lex:barge-in-enabled:*:*": "true",
+          "x-amz-lex:audio:start-timeout-ms:*:*": "5000",
+          "Global_t_2": "$.DataTables.LanguageCheck.Global_t_2",
+          "Global_t_1": "$.DataTables.LanguageCheck.Global_t_1",
+          "x-amz-lex:audio:end-timeout-ms:*:*": "2000",
+          "Global_r_2": "$.DataTables.LanguageCheck.Global_r_1",
+          "Global_r_1": "$.DataTables.LanguageCheck.Global_r_1",
+          " CustomerEndpointAddress": " $.CustomerEndpoint.Address"
+        }
+      },
+      "Identifier": "SurveyQuestion1",
+      "Type": "ConnectParticipantWithLexBot",
+      "Transitions": {
+        "NextAction": "Survey Error Message-copy-1",
+        "Conditions": [
+          {
+            "NextAction": "5e1dc8f4-0af8-47a4-bf81-8b98b2dab362",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "yes"
+              ]
+            }
+          },
+          {
+            "NextAction": "e05639c8-fd5d-4147-a13a-389b06538ce5",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "no"
+              ]
+            }
+          },
+          {
+            "NextAction": "bac0a22b-5cd2-46ba-a938-16c9fc05367c",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "repeat"
+              ]
+            }
+          },
+          {
+            "NextAction": "c29ef477-16cf-47bd-a3d0-242acc0f3b07",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "dtmf"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "874d2159-6166-4969-8600-946c48fcdf33",
             "ErrorType": "NoMatchingCondition"
           },
           {
-            "NextAction": "f0f61663-556a-4e60-856e-4865791eecc2",
+            "NextAction": "Survey Error Message-copy-1",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "LoopCount": "1"
+      },
+      "Identifier": "751e0fb3-82b1-4470-bed4-4f5e675550b7",
+      "Type": "Loop",
+      "Transitions": {
+        "NextAction": "c5120c87-3465-493a-a0aa-e13ab5a03b6d",
+        "Conditions": [
+          {
+            "NextAction": "SurveyQuestion2",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "ContinueLooping"
+              ]
+            }
+          },
+          {
+            "NextAction": "c5120c87-3465-493a-a0aa-e13ab5a03b6d",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "DoneLooping"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message-copy-1",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowAttributes": {
+          "Q2menuPrompt": {
+            "Value": "$.DataTables.LanguageCheck.SurveyQuestion2a"
+          }
+        }
+      },
+      "Identifier": "SurveyQuestion2a",
+      "Type": "UpdateFlowAttributes",
+      "Transitions": {
+        "NextAction": "SurveyQuestion2",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message-copy-1",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ComparisonValue": "$.Lex.SessionAttributes.confirmation"
+      },
+      "Identifier": "bf34deef-f06c-4a6e-95d8-f208b01f2a60",
+      "Type": "Compare",
+      "Transitions": {
+        "NextAction": "c5120c87-3465-493a-a0aa-e13ab5a03b6d",
+        "Conditions": [
+          {
+            "NextAction": "4f39dc46-7ad2-44e1-8b03-13a370e6c710",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "yes_confirmation"
+              ]
+            }
+          },
+          {
+            "NextAction": "ae1a1ce1-4660-4bbf-917d-78faa06b38d6",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "no_confirmation"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "c5120c87-3465-493a-a0aa-e13ab5a03b6d",
+            "ErrorType": "NoMatchingCondition"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowAttributes": {
+          "Q2menuPrompt": {
+            "Value": "$.DataTables.LanguageCheck.SurveyQuestion2b"
+          }
+        }
+      },
+      "Identifier": "SurveyQuestion2b",
+      "Type": "UpdateFlowAttributes",
+      "Transitions": {
+        "NextAction": "SurveyQuestion2",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message-copy-1",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SSML": "<speak>$.FlowAttributes.Q2menuPrompt</speak>",
+        "LexV2Bot": {
+          "AliasArn": "__YESNO_BOT_ALIAS_ARN__"
+        },
+        "LexSessionAttributes": {
+          "menu_prompt": "$.FlowAttributes.Q2menuPrompt",
+          "x-amz-lex:dtmf:end-timeout-ms:*:*": "2000",
+          "x-amz-lex:barge-in-enabled:*:*": "true",
+          "x-amz-lex:audio:start-timeout-ms:*:*": "5000",
+          "Global_t_2": "$.DataTables.LanguageCheck.Global_t_2",
+          "Global_t_1": "$.DataTables.LanguageCheck.Global_t_1",
+          "x-amz-lex:audio:end-timeout-ms:*:*": "2000",
+          "Global_r_2": "$.DataTables.LanguageCheck.Global_r_1",
+          "Global_r_1": "$.DataTables.LanguageCheck.Global_r_1",
+          " CustomerEndpointAddress": " $.CustomerEndpoint.Address"
+        }
+      },
+      "Identifier": "SurveyQuestion2",
+      "Type": "ConnectParticipantWithLexBot",
+      "Transitions": {
+        "NextAction": "Survey Error Message-copy-1",
+        "Conditions": [
+          {
+            "NextAction": "4f39dc46-7ad2-44e1-8b03-13a370e6c710",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "yes"
+              ]
+            }
+          },
+          {
+            "NextAction": "ae1a1ce1-4660-4bbf-917d-78faa06b38d6",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "no"
+              ]
+            }
+          },
+          {
+            "NextAction": "751e0fb3-82b1-4470-bed4-4f5e675550b7",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "repeat"
+              ]
+            }
+          },
+          {
+            "NextAction": "bf34deef-f06c-4a6e-95d8-f208b01f2a60",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "dtmf"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "c5120c87-3465-493a-a0aa-e13ab5a03b6d",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "Survey Error Message-copy-1",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "SurveyQ2": "yes"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "4f39dc46-7ad2-44e1-8b03-13a370e6c710",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "SurveyQuestion3",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "SurveyQ2": "no"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "ae1a1ce1-4660-4bbf-917d-78faa06b38d6",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "SurveyQuestion3",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "SurveyQ2": "-"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "c5120c87-3465-493a-a0aa-e13ab5a03b6d",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "SurveyQuestion3",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "LoopCount": "1"
+      },
+      "Identifier": "e97a60ea-1bdf-4fa0-aab6-71e78325999c",
+      "Type": "Loop",
+      "Transitions": {
+        "NextAction": "d5d7ed86-8488-4383-8f88-9c347f97d022",
+        "Conditions": [
+          {
+            "NextAction": "VM_message",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "ContinueLooping"
+              ]
+            }
+          },
+          {
+            "NextAction": "d5d7ed86-8488-4383-8f88-9c347f97d022",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "DoneLooping"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "SurveyIntent": "wantToleaveRecommendation"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "ef1abf4b-5ec3-45aa-afdd-c9d216cc310e",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "VM_instruction_Survey",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "SurveyIntent": "completeSurvey"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "656c70c1-eb3d-47aa-b129-c88af5f6c561",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "Closing",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ComparisonValue": "$.Lex.SessionAttributes.confirmation"
+      },
+      "Identifier": "365000f8-605a-4754-9862-838c9b2f227c",
+      "Type": "Compare",
+      "Transitions": {
+        "NextAction": "d5d7ed86-8488-4383-8f88-9c347f97d022",
+        "Conditions": [
+          {
+            "NextAction": "ef1abf4b-5ec3-45aa-afdd-c9d216cc310e",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "yes_confirmation"
+              ]
+            }
+          },
+          {
+            "NextAction": "656c70c1-eb3d-47aa-b129-c88af5f6c561",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "no_confirmation"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "d5d7ed86-8488-4383-8f88-9c347f97d022",
+            "ErrorType": "NoMatchingCondition"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "SurveyIntent": "-"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "d5d7ed86-8488-4383-8f88-9c347f97d022",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "Closing",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
             "ErrorType": "NoMatchingError"
           }
         ]
@@ -548,10 +1390,10 @@
       "Identifier": "voicemail attributes",
       "Type": "UpdateContactAttributes",
       "Transitions": {
-        "NextAction": "03b93754-f615-406a-ae14-ae6aae18f498",
+        "NextAction": "01727ab0-6f0b-4441-981f-2c596b0addcb",
         "Errors": [
           {
-            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
+            "NextAction": "Survey Error Message",
             "ErrorType": "NoMatchingError"
           }
         ]
@@ -559,14 +1401,439 @@
     },
     {
       "Parameters": {
-        "DataTableId": "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak>$.DataTables.LanguageCheck.Closing</speak>"
+      },
+      "Identifier": "Closing",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "9012911a-fda4-4e94-9b79-0a2ad2c94a0d",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowModuleId": "__VOICEMAIL_FLOW_MODULE_ID__:$LATEST"
+      },
+      "Identifier": "01727ab0-6f0b-4441-981f-2c596b0addcb",
+      "Type": "InvokeFlowModule",
+      "Transitions": {
+        "NextAction": "Closing",
+        "Errors": [
+          {
+            "NextAction": "Closing",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "LambdaFunctionARN": "__TIMESTAMPER_LAMBDA_ARN__",
+        "InvocationTimeLimitSeconds": "3",
+        "InvocationType": "SYNCHRONOUS",
+        "ResponseValidation": {
+          "ResponseType": "STRING_MAP"
+        }
+      },
+      "Identifier": "73b81f2d-bcfa-4a92-8017-91ae95ddf804",
+      "Type": "InvokeLambdaFunction",
+      "Transitions": {
+        "NextAction": "78d289c9-ad39-4c84-b6ee-190493396fae",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message-copy-1",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak>$.DataTables.LanguageCheck.sureveyFlow_error</speak>"
+      },
+      "Identifier": "Survey Error Message-copy-1",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "dcd3091d-31e9-43c6-8b0a-e938294b6c79",
+        "Errors": [
+          {
+            "NextAction": "dcd3091d-31e9-43c6-8b0a-e938294b6c79",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak>$.DataTables.LanguageCheck.surveyBot_initialize</speak>"
+      },
+      "Identifier": "surveyBot_initialize",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "73b81f2d-bcfa-4a92-8017-91ae95ddf804",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message-copy-1",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "SurveyQ3": "yes"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "44ea368c-b822-4bd4-9174-8b1419555042",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "VM_message",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "LoopCount": "1"
+      },
+      "Identifier": "97080f5c-16c2-4475-9089-b5b188910cff",
+      "Type": "Loop",
+      "Transitions": {
+        "NextAction": "df1cf757-60bf-4880-acdd-79586939c1ee",
+        "Conditions": [
+          {
+            "NextAction": "SurveyQuestion3",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "ContinueLooping"
+              ]
+            }
+          },
+          {
+            "NextAction": "df1cf757-60bf-4880-acdd-79586939c1ee",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "DoneLooping"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SSML": "<speak>$.DataTables.LanguageCheck.VM_message</speak>",
+        "LexV2Bot": {
+          "AliasArn": "__YESNO_BOT_ALIAS_ARN__"
+        },
+        "LexSessionAttributes": {
+          "menu_prompt": "$.DataTables.LanguageCheck.VM_message",
+          "x-amz-lex:dtmf:end-timeout-ms:*:*": "2000",
+          "x-amz-lex:barge-in-enabled:*:*": "true",
+          "x-amz-lex:audio:start-timeout-ms:*:*": "5000",
+          "Global_t_2": "$.DataTables.LanguageCheck.Global_t_2",
+          "Global_t_1": "$.DataTables.LanguageCheck.Global_t_1",
+          "x-amz-lex:audio:end-timeout-ms:*:*": "2000",
+          "Global_r_2": "$.DataTables.LanguageCheck.Global_r_1",
+          "Global_r_1": "$.DataTables.LanguageCheck.Global_r_1",
+          " CustomerEndpointAddress": " $.CustomerEndpoint.Address"
+        }
+      },
+      "Identifier": "VM_message",
+      "Type": "ConnectParticipantWithLexBot",
+      "Transitions": {
+        "NextAction": "Survey Error Message",
+        "Conditions": [
+          {
+            "NextAction": "ef1abf4b-5ec3-45aa-afdd-c9d216cc310e",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "yes"
+              ]
+            }
+          },
+          {
+            "NextAction": "656c70c1-eb3d-47aa-b129-c88af5f6c561",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "no"
+              ]
+            }
+          },
+          {
+            "NextAction": "e97a60ea-1bdf-4fa0-aab6-71e78325999c",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "repeat"
+              ]
+            }
+          },
+          {
+            "NextAction": "365000f8-605a-4754-9862-838c9b2f227c",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "dtmf"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "d5d7ed86-8488-4383-8f88-9c347f97d022",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "SurveyQ3": "-"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "df1cf757-60bf-4880-acdd-79586939c1ee",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "VM_message",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak>$.DataTables.LanguageCheck.Dissat</speak>"
+      },
+      "Identifier": "Dissat",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "VM_message",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ComparisonValue": "$.Lex.SessionAttributes.confirmation"
+      },
+      "Identifier": "e244ada2-132b-426f-a1a3-125da448468a",
+      "Type": "Compare",
+      "Transitions": {
+        "NextAction": "df1cf757-60bf-4880-acdd-79586939c1ee",
+        "Conditions": [
+          {
+            "NextAction": "44ea368c-b822-4bd4-9174-8b1419555042",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "yes_confirmation"
+              ]
+            }
+          },
+          {
+            "NextAction": "793c580b-0aea-4c68-be23-645868a4a00b",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "no_confirmation"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "df1cf757-60bf-4880-acdd-79586939c1ee",
+            "ErrorType": "NoMatchingCondition"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SSML": "<speak>$.DataTables.LanguageCheck.SurveyQuestion3</speak>",
+        "LexV2Bot": {
+          "AliasArn": "__YESNO_BOT_ALIAS_ARN__"
+        },
+        "LexSessionAttributes": {
+          "menu_prompt": "$.DataTables.LanguageCheck.SurveyQuestion3",
+          "x-amz-lex:dtmf:end-timeout-ms:*:*": "2000",
+          "x-amz-lex:barge-in-enabled:*:*": "true",
+          "x-amz-lex:audio:start-timeout-ms:*:*": "5000",
+          "Global_t_2": "$.DataTables.LanguageCheck.Global_t_2",
+          "Global_t_1": "$.DataTables.LanguageCheck.Global_t_1",
+          "x-amz-lex:audio:end-timeout-ms:*:*": "2000",
+          "Global_r_2": "$.DataTables.LanguageCheck.Global_r_1",
+          "Global_r_1": "$.DataTables.LanguageCheck.Global_r_1",
+          " CustomerEndpointAddress": " $.CustomerEndpoint.Address"
+        }
+      },
+      "Identifier": "SurveyQuestion3",
+      "Type": "ConnectParticipantWithLexBot",
+      "Transitions": {
+        "NextAction": "Survey Error Message",
+        "Conditions": [
+          {
+            "NextAction": "44ea368c-b822-4bd4-9174-8b1419555042",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "yes"
+              ]
+            }
+          },
+          {
+            "NextAction": "793c580b-0aea-4c68-be23-645868a4a00b",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "no"
+              ]
+            }
+          },
+          {
+            "NextAction": "97080f5c-16c2-4475-9089-b5b188910cff",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "repeat"
+              ]
+            }
+          },
+          {
+            "NextAction": "e244ada2-132b-426f-a1a3-125da448468a",
+            "Condition": {
+              "Operator": "Equals",
+              "Operands": [
+                "dtmf"
+              ]
+            }
+          }
+        ],
+        "Errors": [
+          {
+            "NextAction": "df1cf757-60bf-4880-acdd-79586939c1ee",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "SkipWhenDTMFBufferEnabled": "false",
+        "SSML": "<speak>$.DataTables.LanguageCheck.sureveyFlow_error</speak>"
+      },
+      "Identifier": "Survey Error Message",
+      "Type": "MessageParticipant",
+      "Transitions": {
+        "NextAction": "dcd3091d-31e9-43c6-8b0a-e938294b6c79",
+        "Errors": [
+          {
+            "NextAction": "dcd3091d-31e9-43c6-8b0a-e938294b6c79",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "SurveyQ3": "no"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "793c580b-0aea-4c68-be23-645868a4a00b",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "Dissat",
+        "Errors": [
+          {
+            "NextAction": "Survey Error Message",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "e22707de-bbdb-4b26-ba36-e20850615c85",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "2225e3b2-b9a8-421e-bf4c-9fef3b2f0384"
+      }
+    },
+    {
+      "Parameters": {
+        "DataTableId": "__SURVEY_DATA_TABLE_ID__",
         "Queries": [
           {
             "QueryName": "LanguageCheck",
             "Attributes": [
+              "Dissat",
+              "SurveyGreeting",
               "surveyBot_initialize",
-              "sureveyFlow_1",
               "Closing",
+              "voicemail_errorMessage",
+              "surveyAnnouncement",
+              "SurveyQuestion2a",
+              "voicemail_confirmation",
+              "SurveyQuestion2b",
+              "VM_message",
+              "Global_t_1",
+              "Global_r_2",
+              "Global_t_2",
+              "SurveyQuestion3",
+              "VM_instruction_Survey",
+              "SurveyQuestion1",
+              "Global_r_1",
               "sureveyFlow_error"
             ],
             "PrimaryValues": [
@@ -578,63 +1845,13 @@
           }
         ]
       },
-      "Identifier": "6061270a-1f23-4bd1-b844-3203a128a508",
+      "Identifier": "3f72c3b4-31aa-4212-a052-f00feaeadbb5",
       "Type": "EvaluateDataTableValues",
       "Transitions": {
-        "NextAction": "21bc5940-af45-4063-a477-fdcc48e140a2",
+        "NextAction": "surveyBot_initialize",
         "Errors": [
           {
-            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
-            "ErrorType": "NoMatchingError"
-          }
-        ]
-      }
-    },
-    {
-      "Parameters": {
-        "LambdaFunctionARN": "arn:aws:lambda:us-east-1:518902362956:function:UpdateSessionAttributes",
-        "InvocationTimeLimitSeconds": "3",
-        "InvocationType": "SYNCHRONOUS",
-        "LambdaInvocationAttributes": {
-          "language_name": "$.Attributes.lang",
-          "customer_address": "$.CustomerEndpoint.Address",
-          "CallerAni": "$.CustomerEndpoint.Address",
-          "agentC": "$.Attributes.agentC"
-        },
-        "ResponseValidation": {
-          "ResponseType": "STRING_MAP"
-        }
-      },
-      "Identifier": "Update session data",
-      "Type": "InvokeLambdaFunction",
-      "Transitions": {
-        "NextAction": "Get customer input",
-        "Errors": [
-          {
-            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
-            "ErrorType": "NoMatchingError"
-          }
-        ]
-      }
-    },
-    {
-      "Parameters": {},
-      "Identifier": "406ba542-148a-4f66-b3d4-b2da6ec82695",
-      "Type": "DisconnectParticipant",
-      "Transitions": {}
-    },
-    {
-      "Parameters": {
-        "SkipWhenDTMFBufferEnabled": "false",
-        "SSML": "<speak>$.DataTables.LanguageCheck.sureveyFlow_error</speak>"
-      },
-      "Identifier": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
-      "Type": "MessageParticipant",
-      "Transitions": {
-        "NextAction": "3de75dd0-90ca-4eef-b3a9-9948343f4999",
-        "Errors": [
-          {
-            "NextAction": "3de75dd0-90ca-4eef-b3a9-9948343f4999",
+            "NextAction": "Survey Error Message-copy-1",
             "ErrorType": "NoMatchingError"
           }
         ]
@@ -643,111 +1860,19 @@
     {
       "Parameters": {
         "Attributes": {
-          "journey": "$.Attributes.journey | Error Occured"
+          "journey": "$.Attributes.journey | SurveyFlow",
+          "lang": "$.Attributes.IVR_Prefferred_Language"
         },
         "TargetContact": "Current"
       },
-      "Identifier": "3de75dd0-90ca-4eef-b3a9-9948343f4999",
+      "Identifier": "2225e3b2-b9a8-421e-bf4c-9fef3b2f0384",
       "Type": "UpdateContactAttributes",
       "Transitions": {
-        "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
+        "NextAction": "3f72c3b4-31aa-4212-a052-f00feaeadbb5",
         "Errors": [
           {
-            "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
+            "NextAction": "3f72c3b4-31aa-4212-a052-f00feaeadbb5",
             "ErrorType": "NoMatchingError"
-          }
-        ]
-      }
-    },
-    {
-      "Parameters": {
-        "SkipWhenDTMFBufferEnabled": "false",
-        "SSML": "<speak>$.DataTables.LanguageCheck.sureveyFlow_1</speak>"
-      },
-      "Identifier": "b0c62f90-947f-4930-99d7-cc6b7b8fac26",
-      "Type": "MessageParticipant",
-      "Transitions": {
-        "NextAction": "voicemail attributes",
-        "Errors": [
-          {
-            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
-            "ErrorType": "NoMatchingError"
-          }
-        ]
-      }
-    },
-    {
-      "Parameters": {
-        "Attributes": {
-          "SurveyIntent": "$.Lex.SessionAttributes.SurveyIntent",
-          "SurveyQ1": "$.Lex.SessionAttributes.SurveyQ1",
-          "SurveyQ2": "$.Lex.SessionAttributes.SurveyQ2",
-          "SurveyQ3": "$.Lex.SessionAttributes.SurveyQ3"
-        },
-        "TargetContact": "Current"
-      },
-      "Identifier": "236e5f46-2960-4dd5-a372-72acfa0287d6",
-      "Type": "UpdateContactAttributes",
-      "Transitions": {
-        "NextAction": "9e9d19b9-c0af-403f-b940-7b32a5903114",
-        "Errors": [
-          {
-            "NextAction": "099b126e-602a-45a5-9961-d2a6d9ccec5d",
-            "ErrorType": "NoMatchingError"
-          }
-        ]
-      }
-    },
-    {
-      "Parameters": {
-        "ComparisonValue": "$.Attributes.SurveyIntent"
-      },
-      "Identifier": "9e9d19b9-c0af-403f-b940-7b32a5903114",
-      "Type": "Compare",
-      "Transitions": {
-        "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
-        "Conditions": [
-          {
-            "NextAction": "b0c62f90-947f-4930-99d7-cc6b7b8fac26",
-            "Condition": {
-              "Operator": "TextContains",
-              "Operands": [
-                "want"
-              ]
-            }
-          },
-          {
-            "NextAction": "b0c62f90-947f-4930-99d7-cc6b7b8fac26",
-            "Condition": {
-              "Operator": "Equals",
-              "Operands": [
-                "wantTOleaveRecommendation"
-              ]
-            }
-          },
-          {
-            "NextAction": "b0c62f90-947f-4930-99d7-cc6b7b8fac26",
-            "Condition": {
-              "Operator": "Equals",
-              "Operands": [
-                "wantToleaveRecommendation"
-              ]
-            }
-          },
-          {
-            "NextAction": "b0c62f90-947f-4930-99d7-cc6b7b8fac26",
-            "Condition": {
-              "Operator": "Equals",
-              "Operands": [
-                "wantToLeaveRecommendation"
-              ]
-            }
-          }
-        ],
-        "Errors": [
-          {
-            "NextAction": "406ba542-148a-4f66-b3d4-b2da6ec82695",
-            "ErrorType": "NoMatchingCondition"
           }
         ]
       }
