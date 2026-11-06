@@ -122,7 +122,7 @@ module "aiagent_survey_flow" {
   settings = merge(local.connect_flow_settings, {
     survey_data_table_id      = local.survey_data_table_id
     timestamper_lambda_arn    = module.voicemail[0].timestamper_lambda_arn
-    voicemail_flow_module_id = module.vmx3_main_vm_module[0].contact_flow_module_id
+    voicemail_flow_module_id = module.voicemail[0].flow_module.id
     yesno_bot_alias_arn = (
       var.lex_yesno_bot_alias_arn != null ? var.lex_yesno_bot_alias_arn :
       data.terraform_remote_state.survey_lex[0].outputs.lex_yesno_alias_arn

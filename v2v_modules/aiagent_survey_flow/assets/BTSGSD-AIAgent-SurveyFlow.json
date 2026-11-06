@@ -404,13 +404,13 @@
         },
         "parameters": {
           "FlowModuleId": {
-            "displayName": "VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1",
+            "displayName": "BTSGSD-V2V-US-VMX3_Main_VM_Module",
             "Alias": {
               "displayName": "$LATEST"
             }
           }
         },
-        "contactFlowModuleName": "VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1"
+        "contactFlowModuleName": "BTSGSD-V2V-US-VMX3_Main_VM_Module"
       },
       "73b81f2d-bcfa-4a92-8017-91ae95ddf804": {
         "position": {
