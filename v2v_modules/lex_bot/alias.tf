@@ -129,3 +129,16 @@ resource "awscc_lex_resource_policy" "connect" {
     }]
   })
 }
+
+resource "awscc_connect_integration_association" "lex_alias" {
+  count = var.alias_configuration != null ? 1 : 0
+
+  instance_id      = var.alias_configuration.connect_instance_arn
+  integration_arn  = awscc_lex_bot_alias.this[0].arn
+  integration_type = "LEX_BOT"
+
+  depends_on = [
+    awscc_lex_resource_policy.connect,
+    aws_lambda_permission.lex_alias,
+  ]
+}
