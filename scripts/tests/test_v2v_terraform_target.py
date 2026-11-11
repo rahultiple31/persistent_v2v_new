@@ -212,7 +212,7 @@ fi
                     self.assertEqual(group, "secrets_manager")
                     self.assertIn("-destroy", arguments)
                     self.assertEqual(targets, [f"-target={DATALAKE_SECRET_ADDRESS}"])
-                    self.assertIn("datalake_secret", modules)
+                    self.assertNotIn("datalake_secret", modules)
                     continue
                 if choice in DESTROY_CHOICES:
                     expected_group, retired_modules = DESTROY_CHOICES[choice]
@@ -276,9 +276,6 @@ fi
                     if choice == "connect_views":
                         self.assertIn(("awscc_connect_view", "customer_information"), resources)
                         expected.append("-target=awscc_connect_view.customer_information[0]")
-                    if choice == "secrets_manager":
-                        self.assertIn("datalake_secret", modules)
-                        expected.append("-target=module.datalake_secret[0]")
                     if group == "connect" and choice not in (
                         "voicemail", "lambda_security_groups", "lambda_endpoint_associations",
                     ):

@@ -232,7 +232,7 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
         self.env.pop("DATALAKE_AWS_ACCESS_KEY_ID", None)
         self.env.pop("DATALAKE_AWS_SECRET_ACCESS_KEY", None)
         self.env["TEST_PLAN"] = json.dumps(plan(group="secrets_manager", changes=[
-            change("module.datalake_secret[0].aws_secretsmanager_secret.this", ["create"]),
+            change('module.secrets_manager[0].aws_secretsmanager_secret.this["example"]', ["create"]),
         ]))
         for stage in (0, 1):
             result = self.run_stage(stage)
@@ -241,7 +241,7 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
         trace = self.trace.read_text()
         plan_command = next(line for line in trace.splitlines() if line.startswith("terraform <plan>"))
         self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), [
-            "module.secrets_manager[0]", "module.datalake_secret[0]",
+            "module.secrets_manager[0]",
         ])
         self.assertIn("terraform <apply>", trace)
         self.assertNotIn("put-secret-value", trace)

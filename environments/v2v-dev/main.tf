@@ -668,15 +668,6 @@ module "secrets_manager" {
   common_tags = local.common_tags
 }
 
-module "datalake_secret" {
-  count  = contains(local.enabled_module_set, "secrets_manager") ? 1 : 0
-  source = "../../v2v_modules/datalake_secret"
-
-  providers = {
-    aws = aws.us_east_1
-  }
-}
-
 # Deploys with the btsgsd-intent-kb selection.
 module "s3_intent_kb" {
   count  = contains(local.enabled_module_set, "btsgsd-intent-kb") ? 1 : 0

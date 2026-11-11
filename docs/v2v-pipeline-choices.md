@@ -87,18 +87,18 @@ console-managed user off that profile before applying. The module also
 creates `BTSGSD-V2V-VM-AGENT-RP` (task channel, `BTSGSD-V2V-US-VM-QUEUE`) and
 users take a `security_profiles` list.
 
-The `secrets_manager` choice also creates the `BTSGSD-V2V-US-Datalake/dev`
-secret through `v2v_modules/datalake_secret`. Terraform manages the secret
-metadata only; the pipeline uses OIDC for AWS access and does not write a
-static access key pair to this secret. A consumer that needs a secret value
-must have its own value provisioning and authentication design.
+The `BTSGSD-V2V-US-Datalake/dev` module declaration and its target in the
+`secrets_manager` deployment choice have been removed. Normal deployments
+no longer create this secret. The pipeline uses OIDC for AWS access.
 
 To delete this secret, run `destroy_datalake_secret` from `main` with
 `targetEnvironment=v2v-dev` and `terraformAction=plan`, then rerun the same
 choice with `terraformAction=apply`. Plan and Apply reject changes other than
 deletion of that exact secret resource in its existing Secrets Manager state.
-The secret must already be managed in that state. Its Terraform declaration
-remains, so a later `secrets_manager` deployment may attempt to recreate it.
+The secret must already be managed in that state. The destroy choice retains
+its exact resource target so it can delete the secret remaining in state after
+the module declaration was removed. The existing 30-day recovery window is
+preserved in state; subsequent normal deployments will not recreate it.
 
 Each of these flow names is an individual `targetModule` choice in the existing
 Connect state:

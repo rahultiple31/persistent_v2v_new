@@ -154,11 +154,6 @@ if [ "$DEPLOYMENT_TARGET" = connect_views ]; then
   )
 fi
 
-# The Datalake secret shares the existing Secrets Manager state and choice.
-if [ "$DEPLOYMENT_TARGET" = secrets_manager ]; then
-  TERRAFORM_PLAN_ARGS+=("-target=module.datalake_secret[0]")
-fi
-
 # Deploy the six dedicated flow modules in one plan using the existing state.
 # Terraform includes the dependencies required by these targets.
 if [ "$DEPLOYMENT_TARGET" = all-flows ]; then
