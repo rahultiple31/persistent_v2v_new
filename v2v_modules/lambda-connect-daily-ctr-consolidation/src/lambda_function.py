@@ -1,756 +1,235 @@
+"""Consolidate fixed-name regional seven-day snapshots into two fixed outputs.
+
+No Secrets Manager or IAM user keys. Uses the Lambda execution role.
+All source snapshots must describe the requested seven-day window.
+"""
 import boto3
 import csv
 import io
 import json
 import logging
 import os
-import re
 import tempfile
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-from typing import Dict, List, Optional
-
-# Use the Lambda execution role for all S3 operations.
-s3 = boto3.client(
-    "s3",
-    region_name=os.environ["S3_REGION"]
-)
+from botocore.config import Config
+from botocore.exceptions import ClientError
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-
-# ---------------------------------------------------------------------------
-# Environment configuration
-# ---------------------------------------------------------------------------
-
+logger.setLevel(os.getenv("LOG_LEVEL", "INFO").upper())
+s3 = boto3.client("s3", region_name=os.environ["S3_REGION"],
+                  config=Config(retries={"mode": "standard", "total_max_attempts": 4}))
 REPORT_BUCKET = os.environ["REPORT_BUCKET"]
-
-ACD_SOURCE_PREFIX = os.environ.get(
-    "ACD_SOURCE_PREFIX",
-    "daily/acd/"
-).strip("/")
-
-SURVEY_SOURCE_PREFIX = os.environ.get(
-    "SURVEY_SOURCE_PREFIX",
-    "daily/survey/"
-).strip("/")
-
-OUTPUT_PREFIX = os.environ.get(
-    "OUTPUT_PREFIX",
-    "consolidated/"
-).strip("/")
-
-EXPECTED_REGIONS = [
-    value.strip()
-    for value in os.environ.get(
-        "EXPECTED_REGIONS",
-        "region-1,region-2,region-3"
-    ).split(",")
-    if value.strip()
-]
-
-BUSINESS_TIMEZONE = os.environ.get(
-    "BUSINESS_TIMEZONE",
-    "America/Chicago"
-)
-
-REPORT_DATE_OFFSET_DAYS = int(
-    os.environ.get("REPORT_DATE_OFFSET_DAYS", "1")
-)
-
-FAIL_IF_REGION_MISSING = (
-    os.environ.get(
-        "FAIL_IF_REGION_MISSING",
-        "false"
-    ).lower() == "true"
-)
-
-ADD_SOURCE_COLUMNS = (
-    os.environ.get(
-        "ADD_SOURCE_COLUMNS",
-        "true"
-    ).lower() == "true"
-)
-
-CSV_ENCODING = os.environ.get(
-    "CSV_ENCODING",
-    "utf-8-sig"
-)
-
-SSE_KMS_KEY_ID = os.environ.get(
-    "SSE_KMS_KEY_ID",
-    ""
-).strip()
-
-# Supported date formats inside source S3 filenames.
-DATE_PATTERNS = [
-    # 2026-10-28
-    re.compile(
-        r"(?<!\d)(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})(?!\d)"
-    ),
-
-    # 20261028
-    re.compile(
-        r"(?<!\d)(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})(?!\d)"
-    ),
-
-    # 2026_10_28
-    re.compile(
-        r"(?<!\d)(?P<year>\d{4})_(?P<month>\d{2})_(?P<day>\d{2})(?!\d)"
-    )
-]
+ACD_SOURCE_PREFIX = os.getenv("ACD_SOURCE_PREFIX", "daily/acd/").strip("/")
+SURVEY_SOURCE_PREFIX = os.getenv("SURVEY_SOURCE_PREFIX", "daily/survey/").strip("/")
+OUTPUT_PREFIX = os.getenv("OUTPUT_PREFIX", "consolidated/").strip("/")
+EXPECTED_REGIONS = [v.strip() for v in os.getenv(
+    "EXPECTED_REGIONS", "region-1,region-2,region-3").split(",") if v.strip()]
+BUSINESS_TIMEZONE = os.getenv("BUSINESS_TIMEZONE", "America/Chicago")
+FAIL_IF_REGION_MISSING = os.getenv("FAIL_IF_REGION_MISSING", "true").lower() == "true"
+ADD_SOURCE_COLUMNS = os.getenv("ADD_SOURCE_COLUMNS", "false").lower() == "true"
+CSV_ENCODING = os.getenv("CSV_ENCODING", "utf-8-sig")
+CSV_DELIMITER = os.getenv("CSV_DELIMITER", ",")
+SSE_KMS_KEY_ID = os.getenv("SSE_KMS_KEY_ID", "").strip()
+MAX_SOURCE_BYTES = int(os.getenv("MAX_SOURCE_BYTES", str(512 * 1024 * 1024)))
 
 
-def normalize_prefix(prefix: str) -> str:
+def get_rolling_window(event):
+    """Seven complete business-calendar days, excluding the run date.
+
+    as_of_date: optional run date (YYYY-MM-DD).
+    scheduled_time: optional EventBridge Scheduler ISO timestamp.
+    reportDate/report_date: optional inclusive END date for compatibility.
+    Use at most one override. Empty event uses the current business date.
     """
-    Remove leading/trailing slashes and add one trailing slash.
-    """
-    return prefix.strip("/") + "/"
-
-
-def calculate_default_report_date() -> str:
-    """
-    Calculate the default reporting date in the configured business timezone.
-
-    With REPORT_DATE_OFFSET_DAYS=1, a run on October 28 processes
-    October 27 files.
-    """
-    timezone_value = ZoneInfo(BUSINESS_TIMEZONE)
-
-    current_business_time = datetime.now(timezone_value)
-
-    report_date = (
-        current_business_time
-        - timedelta(days=REPORT_DATE_OFFSET_DAYS)
-    ).date()
-
-    return report_date.isoformat()
-
-
-def validate_report_date(report_date: str) -> str:
-    """
-    Validate and normalize the date as YYYY-MM-DD.
-    """
-    try:
-        parsed_date = datetime.strptime(
-            report_date,
-            "%Y-%m-%d"
-        ).date()
-    except ValueError as error:
-        raise ValueError(
-            f"Invalid reportDate '{report_date}'. "
-            f"Expected format is YYYY-MM-DD."
-        ) from error
-
-    return parsed_date.isoformat()
-
-
-def extract_date_from_key(key: str) -> Optional[str]:
-    """
-    Extract the first supported date from an S3 key.
-
-    Supported examples:
-    ACD_2026-10-28.csv
-    ACD_20261028.csv
-    ACD_2026_10_28.csv
-    """
-    filename = key.rsplit("/", 1)[-1]
-
-    for pattern in DATE_PATTERNS:
-        match = pattern.search(filename)
-
-        if not match:
-            continue
-
-        try:
-            extracted_date = datetime(
-                year=int(match.group("year")),
-                month=int(match.group("month")),
-                day=int(match.group("day"))
-            ).date()
-
-            return extracted_date.isoformat()
-
-        except ValueError:
-            continue
-
-    return None
-
-
-def identify_region(
-    key: str,
-    expected_regions: List[str]
-) -> str:
-    """
-    Identify the source region from an exact S3 path segment.
-
-    Example:
-    daily/acd/us-east-1/abbvieacd_2026-10-28.csv
-    """
-    key_parts = key.split("/")
-
-    for region in expected_regions:
-        if region in key_parts:
-            return region
-
-    return "unknown"
-
-
-def list_daily_csv_objects(
-    bucket: str,
-    prefix: str,
-    report_date: str,
-    report_type: str
-) -> List[Dict]:
-    """
-    Find regional source files for the requested date.
-
-    Missing regions are allowed.
-    """
-
-    normalized_prefix = normalize_prefix(prefix)
-
-    if report_type == "ACD":
-        expected_filename = (
-            f"abbvieacd_{report_date}.csv"
-        )
-    elif report_type == "SURVEY":
-        expected_filename = (
-            f"abbvieacd_survey_{report_date}.csv"
-        )
+    event = event or {}
+    tz = ZoneInfo(BUSINESS_TIMEZONE)
+    choices = [key for key in ("as_of_date", "scheduled_time", "reportDate", "report_date")
+               if event.get(key)]
+    if len(choices) > 1:
+        raise ValueError("Supply only one date override.")
+    if event.get("as_of_date"):
+        run_date = datetime.strptime(str(event["as_of_date"]), "%Y-%m-%d").date()
+    elif event.get("scheduled_time"):
+        stamp = datetime.fromisoformat(str(event["scheduled_time"]).replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            raise ValueError("scheduled_time must include a timezone.")
+        run_date = stamp.astimezone(tz).date()
+    elif event.get("reportDate") or event.get("report_date"):
+        end_date = datetime.strptime(str(event.get("reportDate") or event.get("report_date")), "%Y-%m-%d").date()
+        run_date = end_date + timedelta(days=1)
     else:
-        raise ValueError(
-            f"Unsupported report type: {report_type}"
-        )
+        run_date = datetime.now(tz).date()
+    start_date = run_date - timedelta(days=7)
+    end_date = run_date - timedelta(days=1)
+    start_local = datetime.combine(start_date, datetime.min.time(), tzinfo=tz)
+    end_local = datetime.combine(run_date, datetime.min.time(), tzinfo=tz)
+    return run_date, start_date, end_date, start_local, end_local
 
-    paginator = s3.get_paginator(
-        "list_objects_v2"
-    )
 
-    matching_objects = []
+def object_key(*parts):
+    return "/".join(str(part).strip("/") for part in parts if str(part).strip("/"))
 
-    for page in paginator.paginate(
-        Bucket=bucket,
-        Prefix=normalized_prefix
-    ):
-        for item in page.get("Contents", []):
-            key = item["Key"]
 
-            filename = key.rsplit("/", 1)[-1]
+def check_time(context):
+    if context is not None and context.get_remaining_time_in_millis() < 60000:
+        raise RuntimeError("Insufficient execution time to safely continue consolidation.")
 
-            if filename != expected_filename:
+
+def snapshot_sources(report_type, prefix, filename, window, context):
+    run_date, start_date, end_date, _, _ = window
+    expected_metadata = {
+        "window-start": start_date.isoformat(),
+        "window-end": end_date.isoformat(),
+        "window-end-exclusive": run_date.isoformat(),
+        "business-timezone": BUSINESS_TIMEZONE,
+        "lookback-days": "7"
+    }
+    snapshots, missing = [], []
+    for region in EXPECTED_REGIONS:
+        check_time(context)
+        key = object_key(prefix, region, filename)
+        try:
+            head = s3.head_object(Bucket=REPORT_BUCKET, Key=key)
+        except ClientError as error:
+            if error.response["Error"]["Code"] in ("404", "NoSuchKey", "NotFound"):
+                missing.append(region)
                 continue
-
-            matching_objects.append(
-                {
-                    "Key": key,
-                    "Size": item.get("Size", 0),
-                    "LastModified": item.get(
-                        "LastModified"
-                    ),
-                    "ETag": item.get(
-                        "ETag",
-                        ""
-                    )
-                }
-            )
-
-    matching_objects.sort(
-        key=lambda value: value["Key"]
-    )
-
-    return matching_objects
-
-
-def validate_expected_regions(
-    source_objects: List[Dict],
-    expected_regions: List[str],
-    report_type: str,
-    report_date: str
-) -> None:
-    """
-    Confirm that one or more matching files exist for every
-    configured region.
-    """
-    if not expected_regions:
-        logger.warning(
-            "%s %s: no expected regions configured.",
-            report_type,
-            report_date
-        )
-        return
-
-    found_regions = set()
-
-    for source_object in source_objects:
-        source_region = identify_region(
-            source_object["Key"],
-            expected_regions
-        )
-
-        if source_region != "unknown":
-            found_regions.add(source_region)
-
-    missing_regions = sorted(
-        set(expected_regions) - found_regions
-    )
-
-    if missing_regions:
-        message = (
-            f"{report_type} {report_date}: source files are missing "
-            f"for regions {missing_regions}. Files were found for "
-            f"regions {sorted(found_regions)}."
-        )
-
+            # Never interpret AccessDenied as an absent file.
+            raise
+        metadata = head.get("Metadata", {})
+        for name, expected in expected_metadata.items():
+            if metadata.get(name) != expected:
+                raise RuntimeError(
+                    f"{report_type} {region}: stale or incompatible source {key}; "
+                    f"metadata {name}={metadata.get(name)!r}, expected {expected!r}. "
+                    "Run the updated regional exporter first."
+                )
+        try:
+            count = int(metadata["row-count"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise RuntimeError(f"Missing/invalid row-count metadata: {key}") from error
+        if count < 0:
+            raise RuntimeError(f"Negative row count: {key}")
+        snapshots.append({"region": region, "key": key, "etag": head["ETag"],
+                          "rows": count, "size": head["ContentLength"]})
+    if missing:
+        message = f"{report_type}: missing regional files: {missing}"
         if FAIL_IF_REGION_MISSING:
             raise RuntimeError(message)
-
-        logger.warning(message)
-
-
-def open_s3_csv(bucket: str, key: str):
-    """
-    Stream one CSV from S3 rather than loading the complete object
-    into Lambda memory.
-    """
-    response = s3.get_object(
-        Bucket=bucket,
-        Key=key
-    )
-
-    return io.TextIOWrapper(
-        response["Body"],
-        encoding=CSV_ENCODING,
-        newline=""
-    )
+        logger.warning("%s; partial regional output explicitly enabled.", message)
+    if not snapshots:
+        raise RuntimeError(f"{report_type}: no usable regional files found.")
+    return snapshots, missing
 
 
-def upload_consolidated_file(
-    local_path: str,
-    bucket: str,
-    output_key: str,
-    metadata: Dict[str, str]
-) -> None:
-    """
-    Upload the daily consolidated file.
-    """
-    extra_args = {
-        "ContentType": "text/csv",
-        "Metadata": metadata,
-        "ServerSideEncryption": "aws:kms"
-    }
-
-    if SSE_KMS_KEY_ID:
-        extra_args["SSEKMSKeyId"] = SSE_KMS_KEY_ID
-
-    s3.upload_file(
-        Filename=local_path,
-        Bucket=bucket,
-        Key=output_key,
-        ExtraArgs=extra_args
-    )
-
-
-def build_daily_consolidated_csv(
-    report_type: str,
-    source_prefix: str,
-    report_date: str
-) -> Dict:
-    """
-    Combine all regional source files for one report type and one day.
-    """
-    source_objects = list_daily_csv_objects(
-        bucket=REPORT_BUCKET,
-        prefix=source_prefix,
-        report_date=report_date,
-        report_type=report_type
-    )
-
-    if not source_objects:
-        raise RuntimeError(
-            f"{report_type} {report_date}: no matching source CSV "
-            f"files were found under "
-            f"s3://{REPORT_BUCKET}/{normalize_prefix(source_prefix)}"
-        )
-
-    validate_expected_regions(
-        source_objects=source_objects,
-        expected_regions=EXPECTED_REGIONS,
-        report_type=report_type,
-        report_date=report_date
-    )
-
-    if report_type == "ACD":
-        output_filename = (
-            f"abbvieacd_{report_date}.csv"
-        )
-    elif report_type == "SURVEY":
-        output_filename = (
-            f"abbvieacdsurvey_{report_date}.csv"
-        )
-    else:
-        raise ValueError(
-            f"Unsupported report type: {report_type}"
-        )
-
-    output_key = (
-        f"{normalize_prefix(OUTPUT_PREFIX)}"
-        f"{output_filename}"
-    )
-
-    logger.info(
-        "%s %s: found %s matching source files",
-        report_type,
-        report_date,
-        len(source_objects)
-    )
-
-    expected_headers: Optional[List[str]] = None
-    total_data_rows = 0
-    processed_files = 0
-    header_only_files = 0
-
-    temporary_file = tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        newline="",
-        suffix=".csv",
-        delete=False,
-        dir="/tmp"
-    )
-
-    temporary_path = temporary_file.name
-
-    try:
-        writer = csv.writer(
-            temporary_file,
-            quoting=csv.QUOTE_MINIMAL,
-            lineterminator="\n"
-        )
-
-        for source_object in source_objects:
-            source_key = source_object["Key"]
-
-            source_region = identify_region(
-                source_key,
-                EXPECTED_REGIONS
-            )
-
-            logger.info(
-                "%s %s: processing s3://%s/%s",
-                report_type,
-                report_date,
-                REPORT_BUCKET,
-                source_key
-            )
-
-            text_stream = None
-
-            try:
-                text_stream = open_s3_csv(
-                    REPORT_BUCKET,
-                    source_key
-                )
-
-                reader = csv.reader(text_stream)
-
-                try:
-                    headers = next(reader)
-                except StopIteration:
-                    raise RuntimeError(
-                        f"{report_type} {report_date}: source file "
-                        f"is completely empty: "
-                        f"s3://{REPORT_BUCKET}/{source_key}"
-                    )
-
-                if headers:
-                    headers[0] = headers[0].lstrip("\ufeff")
-
-                if not headers or not any(
-                    str(value).strip()
-                    for value in headers
-                ):
-                    raise RuntimeError(
-                        f"{report_type} {report_date}: source file "
-                        f"has a blank CSV header: "
-                        f"s3://{REPORT_BUCKET}/{source_key}"
-                    )
-
-                if expected_headers is None:
-                    expected_headers = headers.copy()
-
-                    output_headers = expected_headers.copy()
-
-                    if ADD_SOURCE_COLUMNS:
-                        output_headers.extend(
-                            [
-                                "SourceRegion",
-                                "SourceFile"
-                            ]
-                        )
-
-                    writer.writerow(output_headers)
-
-                    logger.info(
-                        "%s %s: established schema with %s columns",
-                        report_type,
-                        report_date,
-                        len(expected_headers)
-                    )
-
-                elif headers != expected_headers:
-                    raise RuntimeError(
-                        f"{report_type} {report_date}: CSV schema "
-                        f"mismatch in s3://{REPORT_BUCKET}/{source_key}. "
-                        f"Expected headers: {expected_headers}. "
-                        f"Actual headers: {headers}."
-                    )
-
-                rows_from_file = 0
-
-                for csv_row_number, row in enumerate(
-                    reader,
-                    start=2
-                ):
-                    if not row or not any(
-                        str(value).strip()
-                        for value in row
-                    ):
+def build_csv(report_type, snapshots, path, context):
+    headers = None
+    total_rows = 0
+    counts = {}
+    with open(path, "w", encoding=CSV_ENCODING, newline="") as output:
+        writer = csv.writer(output, delimiter=CSV_DELIMITER, lineterminator="\r\n")
+        for source in snapshots:
+            check_time(context)
+            # Read the exact observed object content, or fail if overwritten.
+            response = s3.get_object(Bucket=REPORT_BUCKET, Key=source["key"],
+                                     IfMatch=source["etag"])
+            count = 0
+            with io.TextIOWrapper(response["Body"], encoding=CSV_ENCODING, newline="") as stream:
+                reader = csv.reader(stream, delimiter=CSV_DELIMITER, strict=True)
+                current_headers = next(reader, None)
+                if (not current_headers or any(not h.strip() for h in current_headers)
+                        or len(current_headers) != len(set(current_headers))):
+                    raise RuntimeError(f"Invalid/duplicate CSV headers: {source['key']}")
+                if headers is None:
+                    headers = current_headers
+                    if ADD_SOURCE_COLUMNS and set(headers) & {"SourceRegion", "SourceFile"}:
+                        raise RuntimeError("Source tracking columns already exist in input.")
+                    writer.writerow(headers + (["SourceRegion", "SourceFile"] if ADD_SOURCE_COLUMNS else []))
+                elif current_headers != headers:
+                    raise RuntimeError(f"{report_type}: schema mismatch in {source['key']}")
+                for row in reader:
+                    if not row:
                         continue
-
-                    if len(row) != len(expected_headers):
-                        raise RuntimeError(
-                            f"{report_type} {report_date}: column "
-                            f"count mismatch in "
-                            f"s3://{REPORT_BUCKET}/{source_key} at "
-                            f"row {csv_row_number}. Expected "
-                            f"{len(expected_headers)} columns but "
-                            f"found {len(row)}."
-                        )
-
-                    if ADD_SOURCE_COLUMNS:
-                        row.extend(
-                            [
-                                source_region,
-                                source_key
-                            ]
-                        )
-
-                    writer.writerow(row)
-
-                    rows_from_file += 1
-                    total_data_rows += 1
-
-                if rows_from_file == 0:
-                    header_only_files += 1
-
-                    logger.info(
-                        "%s %s: header-only file accepted: %s",
-                        report_type,
-                        report_date,
-                        source_key
-                    )
-
-                processed_files += 1
-
-                logger.info(
-                    "%s %s: added %s rows from %s",
-                    report_type,
-                    report_date,
-                    rows_from_file,
-                    source_key
-                )
-
-            finally:
-                if text_stream is not None:
-                    text_stream.close()
-
-        temporary_file.flush()
-        temporary_file.close()
-
-        if expected_headers is None:
-            raise RuntimeError(
-                f"{report_type} {report_date}: no usable CSV "
-                f"header was found."
-            )
-
-        generated_at = datetime.now(
-            timezone.utc
-        ).isoformat()
-
-        metadata = {
-            "report-type": report_type.lower(),
-            "report-date": report_date,
-            "generated-at-utc": generated_at,
-            "source-file-count": str(processed_files),
-            "data-row-count": str(total_data_rows)
-        }
-
-        upload_consolidated_file(
-            local_path=temporary_path,
-            bucket=REPORT_BUCKET,
-            output_key=output_key,
-            metadata=metadata
-        )
-
-        result = {
-            "reportType": report_type,
-            "reportDate": report_date,
-            "bucket": REPORT_BUCKET,
-            "sourcePrefix": normalize_prefix(
-                source_prefix
-            ),
-            "outputKey": output_key,
-            "processedFiles": processed_files,
-            "headerOnlyFiles": header_only_files,
-            "dataRows": total_data_rows,
-            "outputSizeBytes": os.path.getsize(
-                temporary_path
-            ),
-            "generatedAtUtc": generated_at
-        }
-
-        logger.info(
-            "DAILY_CONSOLIDATION_COMPLETE %s",
-            json.dumps(
-                result,
-                default=str
-            )
-        )
-
-        return result
-
-    except Exception:
-        try:
-            temporary_file.close()
-        except Exception:
-            pass
-
-        raise
-
-    finally:
-        try:
-            if os.path.exists(temporary_path):
-                os.remove(temporary_path)
-        except Exception as cleanup_error:
-            logger.warning(
-                "Unable to delete temporary file %s: %s",
-                temporary_path,
-                cleanup_error
-            )
+                    if len(row) != len(headers):
+                        raise RuntimeError(f"Invalid row width in {source['key']} near line {reader.line_num}")
+                    writer.writerow(row + ([source["region"], source["key"]] if ADD_SOURCE_COLUMNS else []))
+                    count += 1
+                    if count % 10000 == 0:
+                        check_time(context)
+            if count != source["rows"]:
+                raise RuntimeError(f"Row-count mismatch in {source['key']}: {count} vs {source['rows']}")
+            counts[source["region"]] = count
+            total_rows += count
+    return {"dataRows": total_rows, "regionalRowCounts": counts,
+            "outputSizeBytes": os.path.getsize(path)}
 
 
 def lambda_handler(event, context):
-    """
-    Supported events:
-
-    Default previous-business-day processing:
-    {}
-
-    Process an explicit date:
-    {
-      "reportDate": "2026-10-27"
-    }
-
-    Process only ACD:
-    {
-      "reportDate": "2026-10-27",
-      "reportType": "ACD"
-    }
-
-    Process only Survey:
-    {
-      "reportDate": "2026-10-27",
-      "reportType": "SURVEY"
-    }
-    """
     event = event or {}
-
-    logger.info(
-        "Daily consolidation started. Event: %s",
-        json.dumps(
-            event,
-            default=str
-        )
-    )
-
-    requested_report_type = str(
-        event.get(
-            "reportType",
-            "ALL"
-        )
-    ).upper()
-
-    if requested_report_type not in {
-        "ALL",
-        "ACD",
-        "SURVEY"
-    }:
-        raise ValueError(
-            f"Invalid reportType "
-            f"'{requested_report_type}'. "
-            f"Valid values: ALL, ACD, SURVEY."
-        )
-
-    requested_report_date = event.get(
-        "reportDate"
-    )
-
-    if requested_report_date:
-        report_date = validate_report_date(
-            str(requested_report_date)
-        )
-    else:
-        report_date = calculate_default_report_date()
-
-    logger.info(
-        "Processing report date %s in business timezone %s",
-        report_date,
-        BUSINESS_TIMEZONE
-    )
-
-    results = []
-
-    if requested_report_type in {
-        "ALL",
-        "ACD"
-    }:
-        results.append(
-            build_daily_consolidated_csv(
-                report_type="ACD",
-                source_prefix=ACD_SOURCE_PREFIX,
-                report_date=report_date
-            )
-        )
-
-    if requested_report_type in {
-        "ALL",
-        "SURVEY"
-    }:
-        results.append(
-            build_daily_consolidated_csv(
-                report_type="SURVEY",
-                source_prefix=SURVEY_SOURCE_PREFIX,
-                report_date=report_date
-            )
-        )
-
-    response = {
-        "statusCode": 200,
-        "message": (
-            "Daily report consolidation completed successfully."
-        ),
-        "reportDate": report_date,
-        "results": results
-    }
-
-    logger.info(
-        "CONSOLIDATION_COMPLETE %s",
-        json.dumps(
-            response,
-            default=str
-        )
-    )
-
+    if (not EXPECTED_REGIONS or len(EXPECTED_REGIONS) != len(set(EXPECTED_REGIONS))
+            or any("/" in region for region in EXPECTED_REGIONS)):
+        raise ValueError("EXPECTED_REGIONS must contain unique S3 folder names.")
+    if len(CSV_DELIMITER) != 1 or CSV_DELIMITER in ('"', "\r", "\n"):
+        raise ValueError("CSV_DELIMITER must be one valid delimiter character.")
+    requested_type = str(event.get("reportType", "ALL")).strip().upper()
+    if requested_type not in ("ALL", "ACD", "SURVEY"):
+        raise ValueError("reportType must be ALL, ACD or SURVEY.")
+    window = get_rolling_window(event)
+    run_date, start_date, end_date, _, _ = window
+    definitions = [
+        ("ACD", ACD_SOURCE_PREFIX, "btsgsd_abbvieacd.csv"),
+        ("SURVEY", SURVEY_SOURCE_PREFIX, "btsgsd_abbvieacdsurvey.csv")
+    ]
+    plans = []
+    for report_type, prefix, filename in definitions:
+        if requested_type not in ("ALL", report_type):
+            continue
+        snapshots, missing = snapshot_sources(report_type, prefix, filename, window, context)
+        output_key = object_key(OUTPUT_PREFIX, filename)
+        if output_key in {item["key"] for item in snapshots}:
+            raise ValueError("Consolidated output must not overwrite a regional source.")
+        plans.append({"reportType": report_type, "filename": filename,
+                      "outputKey": output_key, "sources": snapshots, "missingRegions": missing})
+    if sum(source["size"] for plan in plans for source in plan["sources"]) > MAX_SOURCE_BYTES:
+        raise RuntimeError("MAX_SOURCE_BYTES guardrail exceeded; review workload sizing.")
+    csv.field_size_limit(10 * 1024 * 1024)
+    with tempfile.TemporaryDirectory(prefix="rolling7-", dir="/tmp") as directory:
+        # Validate and build every selected report before publishing either.
+        for plan in plans:
+            plan["localPath"] = os.path.join(directory, plan["filename"])
+            plan.update(build_csv(plan["reportType"], plan["sources"], plan["localPath"], context))
+        # Abort if any source changed during preparation.
+        for plan in plans:
+            for source in plan["sources"]:
+                check_time(context)
+                head = s3.head_object(Bucket=REPORT_BUCKET, Key=source["key"])
+                if head["ETag"] != source["etag"]:
+                    raise RuntimeError(f"Source changed during consolidation: {source['key']}; retry.")
+        results = []
+        for plan in plans:
+            check_time(context)
+            metadata = {
+                "window-start": start_date.isoformat(), "window-end": end_date.isoformat(),
+                "window-end-exclusive": run_date.isoformat(), "run-date": run_date.isoformat(),
+                "business-timezone": BUSINESS_TIMEZONE, "lookback-days": "7",
+                "report-type": plan["reportType"].lower(),
+                "row-count": str(plan["dataRows"]),
+                "source-file-count": str(len(plan["sources"])),
+                "missing-regions": ",".join(plan["missingRegions"]),
+                "generated-at-utc": datetime.now(timezone.utc).isoformat()
+            }
+            extra = {"ContentType": "text/csv; charset=utf-8", "Metadata": metadata}
+            # Do not override bucket-default KMS encryption with AES256.
+            if SSE_KMS_KEY_ID:
+                extra.update(ServerSideEncryption="aws:kms", SSEKMSKeyId=SSE_KMS_KEY_ID)
+            s3.upload_file(Filename=plan["localPath"], Bucket=REPORT_BUCKET,
+                           Key=plan["outputKey"], ExtraArgs=extra)
+            results.append({key: value for key, value in plan.items()
+                            if key not in ("localPath", "sources", "filename")})
+    response = {"statusCode": 200, "message": "Rolling seven-day regional consolidation completed.",
+                "bucket": REPORT_BUCKET, "windowStart": start_date.isoformat(),
+                "windowEnd": end_date.isoformat(), "windowEndExclusive": run_date.isoformat(),
+                "businessTimezone": BUSINESS_TIMEZONE, "results": results}
+    logger.info("ROLLING_CONSOLIDATION_COMPLETE %s", json.dumps(response))
     return response

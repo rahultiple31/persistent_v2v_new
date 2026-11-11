@@ -87,7 +87,7 @@ COLUMNS = [
     "Wrapup time",
     "Consulting Time",
     "Country",
-    "AbnCallTime",    
+    "AbnCallTime",
 ]
 
 
@@ -1055,7 +1055,7 @@ def build_csv_row(segments, resolver, business_timezone):
 
     service_group = get_service_group(
         service_category
-    )   
+    )
 
     country = attributes.get(
         "country",
@@ -1132,37 +1132,47 @@ def build_csv_row(segments, resolver, business_timezone):
 # LAMBDA HANDLER
 # ============================================================
 
-def lambda_handler(event, context):
-    """
-    Main Lambda entry point.
+def get_rolling_window(event):
+    """Seven complete business-calendar days, excluding the run date.
 
-    When the Lambda runs today, it exports contacts initiated during
-    the previous calendar day in BUSINESS_TIMEZONE.
+    as_of_date: optional run date (YYYY-MM-DD).
+    scheduled_time: optional EventBridge Scheduler ISO timestamp.
+    reportDate/report_date: optional inclusive END date for compatibility.
+    Use at most one override. Empty event uses the current business date.
     """
+    event = event or {}
+    tz = ZoneInfo(BUSINESS_TIMEZONE)
+    choices = [key for key in ("as_of_date", "scheduled_time", "reportDate", "report_date")
+               if event.get(key)]
+    if len(choices) > 1:
+        raise ValueError("Supply only one date override.")
+    if event.get("as_of_date"):
+        run_date = datetime.strptime(str(event["as_of_date"]), "%Y-%m-%d").date()
+    elif event.get("scheduled_time"):
+        stamp = datetime.fromisoformat(str(event["scheduled_time"]).replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            raise ValueError("scheduled_time must include a timezone.")
+        run_date = stamp.astimezone(tz).date()
+    elif event.get("reportDate") or event.get("report_date"):
+        end_date = datetime.strptime(str(event.get("reportDate") or event.get("report_date")), "%Y-%m-%d").date()
+        run_date = end_date + timedelta(days=1)
+    else:
+        run_date = datetime.now(tz).date()
+    start_date = run_date - timedelta(days=7)
+    end_date = run_date - timedelta(days=1)
+    start_local = datetime.combine(start_date, datetime.min.time(), tzinfo=tz)
+    end_local = datetime.combine(run_date, datetime.min.time(), tzinfo=tz)
+    return run_date, start_date, end_date, start_local, end_local
+
+
+def lambda_handler(event, context):
+    """Replace the regional CSV with the last seven complete business days."""
 
     business_timezone = ZoneInfo(
         BUSINESS_TIMEZONE
     )
 
-    current_local_datetime = datetime.now(
-        business_timezone
-    )
-
-    report_date = (
-        current_local_datetime.date()
-        - timedelta(days=1)
-    )
-
-    start_local = datetime.combine(
-        report_date,
-        datetime.min.time(),
-        tzinfo=business_timezone
-    )
-
-    end_local = (
-        start_local
-        + timedelta(days=1)
-    )
+    run_date, window_start_date, report_date, start_local, end_local = get_rolling_window(event)
 
     start_utc = start_local.astimezone(
         timezone.utc
@@ -1196,10 +1206,21 @@ def lambda_handler(event, context):
     # SEARCH CONTACTS
     # --------------------------------------------------------
 
-    contact_summaries = search_contacts(
-        start_utc,
-        end_utc
-    )
+    # Search one local calendar day at a time, then combine all seven days.
+    # Half-open timestamp filtering below removes boundary duplicates.
+    summaries_by_id = {}
+    day_start = start_local
+    while day_start < end_local:
+        day_end = day_start + timedelta(days=1)
+        for summary in search_contacts(
+            day_start.astimezone(timezone.utc),
+            day_end.astimezone(timezone.utc)
+        ):
+            if summary.get("Id"):
+                summaries_by_id[summary["Id"]] = summary
+        day_start = day_end
+    contact_summaries = list(summaries_by_id.values())
+
 
     logger.info(
         "SearchContacts returned %s contacts.",
@@ -1224,9 +1245,11 @@ def lambda_handler(event, context):
                 contact_id
             )
 
-            detailed_contacts.append(
-                contact
-            )
+            initiated_at = to_datetime(contact.get("InitiationTimestamp"))
+            if initiated_at is None:
+                raise ValueError("Contact is missing a valid InitiationTimestamp.")
+            if start_utc <= initiated_at < end_utc:
+                detailed_contacts.append(contact)
 
         except Exception as error:
             logger.exception(
@@ -1410,10 +1433,10 @@ def lambda_handler(event, context):
     # CREATE S3 KEY
     # --------------------------------------------------------
 
-    file_name = f"abbvieacd_{report_date:%Y-%m-%d}.csv"
+    file_name = "btsgsd_abbvieacd.csv"
 
-    s3_key = f"{S3_PREFIX}/{file_name}"
-    
+    s3_key = f"{S3_PREFIX}/{file_name}" if S3_PREFIX else file_name
+
 
     # --------------------------------------------------------
     # UPLOAD CSV TO S3
@@ -1427,6 +1450,11 @@ def lambda_handler(event, context):
         Metadata={
             "business-timezone": BUSINESS_TIMEZONE,
             "report-date": report_date.isoformat(),
+            "window-start": window_start_date.isoformat(),
+            "window-end": report_date.isoformat(),
+            "window-end-exclusive": run_date.isoformat(),
+            "lookback-days": "7",
+            "run-date": run_date.isoformat(),
             "row-count": str(len(rows)),
             "source-contact-count": str(
                 len(contact_summaries)
@@ -1450,6 +1478,10 @@ def lambda_handler(event, context):
         "bucket": S3_BUCKET,
         "key": s3_key,
         "reportDate": report_date.isoformat(),
+        "windowStart": window_start_date.isoformat(),
+        "windowEnd": report_date.isoformat(),
+        "windowEndExclusive": run_date.isoformat(),
+        "lookbackDays": 7,
         "businessTimezone": BUSINESS_TIMEZONE,
         "sourceContacts": len(contact_summaries),
         "describedContacts": len(detailed_contacts),
