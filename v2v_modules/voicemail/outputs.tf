@@ -10,7 +10,7 @@ output "kinesis_kms_key_arn" {
 
 output "recordings_bucket" {
   description = "Voicemail recordings bucket name."
-  value       = aws_s3_bucket.this["recordings"].bucket
+  value       = aws_s3_bucket.this["recording"].bucket
 }
 
 output "transcripts_bucket" {
@@ -21,11 +21,6 @@ output "transcripts_bucket" {
 output "kinesis_stream_arn" {
   description = "Contact trace record stream ARN."
   value       = aws_kinesis_stream.ctr.arn
-}
-
-output "secret_arn" {
-  description = "Presigner credentials secret ARN."
-  value       = aws_secretsmanager_secret.presigner.arn
 }
 
 output "lambda_role_arn" {
@@ -68,5 +63,23 @@ output "flow_module" {
     name = aws_connect_contact_flow_module.main.name
     id   = aws_connect_contact_flow_module.main.contact_flow_module_id
     arn  = aws_connect_contact_flow_module.main.arn
+  }
+}
+
+output "guided_task_flow" {
+  description = "VMX3 guided task flow (agent UI hook of the task flow)."
+  value = {
+    name = aws_connect_contact_flow.guided_task.name
+    id   = aws_connect_contact_flow.guided_task.contact_flow_id
+    arn  = aws_connect_contact_flow.guided_task.arn
+  }
+}
+
+output "task_view" {
+  description = "Voicemail guided task view."
+  value = {
+    name = awscc_connect_view.task.name
+    id   = awscc_connect_view.task.view_id
+    arn  = awscc_connect_view.task.view_arn
   }
 }

@@ -5,6 +5,9 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "amazon-connect-streams";
+// Streams needs TaskJS for task contacts (such as voicemail tasks); without it Streams throws as soon as a task
+// arrives. It must be imported after Streams.
+import "amazon-connect-taskjs";
 
 import {
   getConnectURLS,
@@ -59,7 +62,7 @@ import {
 } from "./utils/translationGuards";
 import { CONNECT_CONFIG } from "./config";
 import { askForTestSignIn, isTestSignInOn } from "./utils/testSignIn";
-import { fetchTranslationMode, pingProxy, warmProxyConnections } from "./utils/proxyTransport";
+import { fetchTranslationMode, fetchVoicemailRecording, pingProxy, warmProxyConnections } from "./utils/proxyTransport";
 import { createAppVersionWatch } from "./utils/appVersionWatch";
 import { createHealthMonitor } from "./utils/healthMonitor";
 import { createMicCheck } from "./utils/micCheck";
@@ -88,9 +91,11 @@ import { AudioInputTestManager } from "./managers/InputTestManager";
 import {
   initConversationTranscript,
   addConversationMessage,
+  addVoicemailMessage,
   appendToBubbleTranslation,
   clearConversationTranscript,
   removeFromRecentTranslations,
+  removeVoicemailMessage,
 } from "./conversationTranscript.js";
 import { TurnAccumulator } from "./utils/turnAccumulator";
 
@@ -2163,6 +2168,12 @@ const bindUIElements = () => {
 
     //Transcript UI ElementsagentNovaSonicVoiceSelect
     divTranscriptContainer: document.getElementById("divTranscriptContainer"),
+
+    // Voicemail player UI elements
+    voicemailPlayerSection:  document.getElementById("voicemailPlayerSection"),
+    voicemailAudioPlayer:    document.getElementById("voicemailAudioPlayer"),
+    voicemailStatus:         document.getElementById("voicemailStatus"),
+    voicemailRetryButton:    document.getElementById("voicemailRetryButton"),
   };
 };
 
@@ -2183,6 +2194,8 @@ const initEventListeners = () => {
   // CCP_V2V.UI.btnStreamFile.addEventListener("click", streamFile);
   // CCP_V2V.UI.btnStreamMic.addEventListener("click", streamMic);
   CCP_V2V.UI.btnRemoveAudioStream.addEventListener("click", removeAudioTrack);
+
+  CCP_V2V.UI.voicemailRetryButton.addEventListener("click", retryVoicemailRecording);
 
   //mic & speaker ui buttons
   CCP_V2V.UI.testAudioButton.addEventListener("click", testAudioOutput);
@@ -2449,6 +2462,12 @@ function subscribeToContactEvents() {
   console.info(`${LOGGER_PREFIX} - subscribing to events for contact`);
   connect.contact((contact) => {
     console.info(`${LOGGER_PREFIX} - new contact`, contact);
+    // Tasks get their own handlers: the voice-call handlers below would stop a live call's translation when
+    // the task ends and overwrite the caller details when it is accepted.
+    if (contact.getType() === connect.ContactType.TASK) {
+      subscribeToTaskEvents(contact);
+      return;
+    }
     if (
       contact.getActiveInitialConnection() &&
       contact.getActiveInitialConnection().getEndpoint()
@@ -2470,11 +2489,156 @@ function subscribeToContactEvents() {
   });
 }
 
+/**
+ * Task contacts, such as VMX3 voicemail tasks: logged when they arrive, are accepted and end. A voicemail
+ * task's details are in its attributes: vmx3_recording_key (the recording's file name in S3),
+ * vmx3_callback_number and vmx3_transcript.
+ *
+ * When the agent accepts a voicemail task, its transcript is shown as a "Voicemail" bubble and its recording
+ * in the voicemail player. Both belong to the task, not to a phone call: they stay until the agent closes the
+ * task (so the agent can replay it during after-contact work), and a phone call ending meanwhile leaves them
+ * alone.
+ */
+function subscribeToTaskEvents(contact) {
+  const contactId = contact.getContactId();
+  const getAttrs = (task) =>
+    Object.fromEntries(Object.entries(task.getAttributes() ?? {}).map(([name, attribute]) => [name, attribute?.value]));
+
+  try {
+    console.info(`${LOGGER_PREFIX} - task received`, {
+      contactId,
+      name: contact.getName(),
+      description: contact.getDescription(),
+      attributes: getAttrs(contact),
+    });
+  } catch (err) {
+    console.error(`${LOGGER_PREFIX} - could not read task on arrival`, err);
+  }
+
+  // Fires when the agent accepts the task, and again when it is resumed after a pause or the page reloads.
+  contact.onConnected((task) => {
+    try {
+      const attrs = getAttrs(task);
+      console.info(`${LOGGER_PREFIX} - task accepted`, { contactId, attributes: attrs });
+      const recordingKey = (attrs.vmx3_recording_key || "").trim();
+      const transcript = (attrs.vmx3_transcript || "").trim();
+      if (recordingKey || transcript) openVoicemail(contactId, { recordingKey, transcript });
+    } catch (err) {
+      console.error(`${LOGGER_PREFIX} - could not handle task onConnected`, err);
+    }
+  });
+  contact.onEnded(() => console.info(`${LOGGER_PREFIX} - task ended`, contactId));
+  // The agent closed the task (after any after-contact work), or it left the agent (transfer).
+  contact.onDestroy(() => {
+    console.info(`${LOGGER_PREFIX} - task closed`, contactId);
+    closeVoicemail(contactId);
+  });
+}
+
 function onContactConnecting(contact) {
   console.info(`${LOGGER_PREFIX} - contact is connecting`, contact);
   // Customer language is now set from the "Customer_Preferred_Language" CCP
   // contact attribute once the call is fully connected (onContactConnected →
   // populateCustomerInfo). Nothing to do here.
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Voicemail player
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Voicemail tasks the agent has open (accepted, not closed yet), oldest first: contactId -> { recordingKey }.
+const OpenVoicemails = new Map();
+// The voicemail in the player: { contactId, recordingKey, abort: AbortController, objectUrl: string|null }, or null.
+let VoicemailInPlayer = null;
+
+function openVoicemail(contactId, { recordingKey, transcript }) {
+  // One bubble and one download per task, however often onConnected fires for it.
+  if (!OpenVoicemails.has(contactId)) {
+    OpenVoicemails.set(contactId, { recordingKey });
+    addVoicemailMessage(contactId, transcript);
+  }
+  if (VoicemailInPlayer?.contactId !== contactId) showVoicemailPlayer(contactId);
+}
+
+function closeVoicemail(contactId) {
+  // Not in the list: a task that is not a voicemail, or one the agent never accepted.
+  if (!OpenVoicemails.delete(contactId)) return;
+  removeVoicemailMessage(contactId);
+  if (VoicemailInPlayer?.contactId !== contactId) return;
+  // The agent has another voicemail open: show the newest.
+  const newest = [...OpenVoicemails.keys()].at(-1);
+  if (newest) showVoicemailPlayer(newest);
+  else resetVoicemailPlayer();
+}
+
+/**
+ * Shows one open voicemail in the player (Customer section) and starts downloading its recording at once, so
+ * Play starts without waiting.
+ */
+function showVoicemailPlayer(contactId) {
+  resetVoicemailPlayer();
+  const { recordingKey } = OpenVoicemails.get(contactId);
+  VoicemailInPlayer = { contactId, recordingKey, abort: new AbortController(), objectUrl: null };
+  CCP_V2V.UI.voicemailPlayerSection.style.display = "";
+  console.info(`${LOGGER_PREFIX} - voicemail player shown`, { contactId, recordingKey });
+  if (recordingKey) loadVoicemailRecording(VoicemailInPlayer);
+  else setVoicemailStatus("This voicemail has no recording.");
+}
+
+/** Downloads the recording through the proxy (GET /api/voicemail) and puts it in the player. */
+async function loadVoicemailRecording(entry) {
+  setVoicemailStatus("Loading the recording…");
+  try {
+    const recording = await fetchVoicemailRecording(entry.recordingKey, { signal: entry.abort.signal });
+    if (VoicemailInPlayer !== entry) return; // closed or replaced meanwhile
+    entry.objectUrl = URL.createObjectURL(recording);
+    CCP_V2V.UI.voicemailAudioPlayer.src = entry.objectUrl;
+    setVoicemailStatus("");
+    console.info(`${LOGGER_PREFIX} - voicemail recording loaded`, { contactId: entry.contactId, bytes: recording.size });
+  } catch (err) {
+    if (VoicemailInPlayer !== entry) return;
+    console.error(`${LOGGER_PREFIX} - voicemail recording could not be loaded`, { contactId: entry.contactId, recordingKey: entry.recordingKey }, err);
+    // Trying again cannot help when playback is off or the file does not exist.
+    const final = err?.code === "voicemailOff" || err?.code === "recordingNotFound";
+    setVoicemailStatus(voicemailErrorText(err), { retry: !final });
+  }
+}
+
+function retryVoicemailRecording() {
+  if (VoicemailInPlayer?.recordingKey) showVoicemailPlayer(VoicemailInPlayer.contactId);
+}
+
+function voicemailErrorText(err) {
+  switch (err?.code) {
+    case "voicemailOff":
+      return "Voicemail playback is not set up.";
+    case "recordingNotFound":
+      return "The recording was not found.";
+    case "rateLimited":
+      return "Too many requests. Try again in a few seconds.";
+    default:
+      return "The recording could not be loaded.";
+  }
+}
+
+function setVoicemailStatus(text, { retry = false } = {}) {
+  CCP_V2V.UI.voicemailStatus.textContent = text;
+  CCP_V2V.UI.voicemailRetryButton.style.display = retry ? "" : "none";
+}
+
+/** Stops and hides the player, stops any download and frees the recording. */
+function resetVoicemailPlayer() {
+  const ui = CCP_V2V.UI;
+  ui.voicemailAudioPlayer.pause();
+  ui.voicemailAudioPlayer.removeAttribute("src");
+  ui.voicemailAudioPlayer.load();
+  if (VoicemailInPlayer) {
+    VoicemailInPlayer.abort.abort();
+    if (VoicemailInPlayer.objectUrl) URL.revokeObjectURL(VoicemailInPlayer.objectUrl);
+    VoicemailInPlayer = null;
+  }
+  setVoicemailStatus("");
+  ui.voicemailPlayerSection.style.display = "none";
 }
 
 function onContactConnected(contact) {
@@ -5985,6 +6149,7 @@ function cleanUpUI() {
   );
 
   enableMicrophoneAndSpeakerSelection();
+  // The voicemail player is not reset here: it belongs to its task (closeVoicemail), not to this call.
 }
 
 function raiseError(errorMessage) {

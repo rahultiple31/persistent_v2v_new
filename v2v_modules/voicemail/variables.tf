@@ -52,26 +52,10 @@ variable "customer_queue_flow_name" {
   default     = "Default customer queue"
 }
 
-variable "presigner_user_name" {
-  description = "Existing IAM user whose access key signs the recording URLs. The user itself is not modified."
-  type        = string
-  default     = "VMX3_Presigner_User_btsgsd-dev-us-east-1"
-}
-
-variable "create_presigner_access_key" {
-  description = "Create a new access key for the existing presigner user and store it in the secret. Set false to supply presigner_credentials instead."
+variable "delete_retired_recordings_bucket" {
+  description = "Run B of the recordings bucket rename: delete the old btsgsd-v2v-us-voicemail bucket (and its objects). Keep false until Run A is applied."
   type        = bool
-  default     = true
-}
-
-variable "presigner_credentials" {
-  description = "Existing presigner access key, used only when create_presigner_access_key is false."
-  type = object({
-    access_key_id     = string
-    secret_access_key = string
-  })
-  default   = null
-  sensitive = true
+  default     = false
 }
 
 variable "connect_recordings_bucket_name" {
@@ -82,6 +66,12 @@ variable "connect_recordings_bucket_name" {
 
 variable "associate_ctr_stream" {
   description = "Stream the instance's contact trace records to the new Kinesis stream. Connect allows one CTR stream; remove the existing association first."
+  type        = bool
+  default     = false
+}
+
+variable "associate_agent_events_stream" {
+  description = "Stream the instance's agent events to the new Kinesis stream. Connect allows one agent events stream; remove the existing association first."
   type        = bool
   default     = false
 }
@@ -110,26 +100,19 @@ variable "recording_expiration_days" {
   default     = 7
 }
 
-variable "url_expiration_days" {
-  description = "Presigned URL validity (days) for task and email delivery."
-  type        = number
-  default     = 7
-}
-
 variable "packager_settings" {
-  description = "Packager environment values copied from voicemail-v2v-Packager."
+  description = "Packager environment values copied from VMX3-Packager-btsgsd-dev-us-east-1 (DEV-SSO, guided-task mode)."
   type = object({
     timezone             = optional(string, "America/New_York")
     do_genai_summary     = optional(string, "false")
-    inference_model      = optional(string, "us.amazon.nova-lite-v1:0")
-    inference_region     = optional(string, "us-east-1")
+    inference_model      = optional(string, "AWS::NoValue")
+    inference_region     = optional(string, "AWS::NoValue")
     agent_email_key      = optional(string, "Email")
-    default_vmx_mode     = optional(string, "task")
+    default_vmx_mode     = optional(string, "guided_task")
     default_email_target = optional(string, "AWS::NoValue")
     default_email_from   = optional(string, "AWS::NoValue")
     agent_email_template = optional(string, "AWS::NoValue")
     queue_email_template = optional(string, "AWS::NoValue")
-    guided_task_flow     = optional(string, "AWS::NoValue")
   })
   default = {}
 }

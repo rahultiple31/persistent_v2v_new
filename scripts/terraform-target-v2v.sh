@@ -73,6 +73,8 @@ btsgsd_support_agent|connect|module.btsgsd_support_agent[0]
 btsgsd_support_agent_tools_access|connect|module.btsgsd_support_agent_tools_access[0]
 destroy_survey_ai|connect|module.connect_ai_agent[0]
 destroy_survey_lex|lex_bot|module.lex_aiagent_survey_bot[0]
+destroy_vmx3_main_vm_module|connect|module.vmx3_main_vm_module[0]
+destroy_primary_routing_profile|connect|module.connect_us_east_1[0].aws_connect_routing_profile.primary
 agentcore_gateway|connect|module.agentcore_gateway[0]
 connect_Integrations|connect|module.connect_Integrations[0]
 lambda_us_east_1|lambda|module.lambda_us_east_1[0]
@@ -191,6 +193,17 @@ case "$DEPLOYMENT_TARGET" in
     # This state belongs to CTR-Raw alone; the plan validator rejects other deletions.
     TERRAFORM_PLAN_ARGS+=("-destroy")
     ;;
+  destroy_vmx3_main_vm_module)
+    # Retired VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1, its timestamper permission and association.
+    TERRAFORM_DESTROY_ONLY=true
+    TERRAFORM_PLAN_ARGS+=("-destroy")
+    ;;
+  destroy_primary_routing_profile)
+    # BTSGSD-V2V-US-primary-routing-profile and the queue only it routes,
+    # both removed from the connect module at QA's request.
+    TERRAFORM_DESTROY_ONLY=true
+    TERRAFORM_PLAN_ARGS+=("-destroy" "-target=module.connect_us_east_1[0].aws_connect_queue.primary")
+    ;;
 esac
 
 # Include both source and destination addresses of moved Connect flows.
@@ -291,6 +304,7 @@ destroy_prefixes = {
     ),
     "destroy_survey_lex": ("module.lex_aiagent_survey_bot[0].",),
     "destroy_ctr_raw": ("module.lambda-ctr-raw[0].",),
+    "destroy_vmx3_main_vm_module": ("module.vmx3_main_vm_module[0].",),
 }
 if target in destroy_prefixes:
     unexpected = [
@@ -320,11 +334,49 @@ if target == "destroy_hr_veeva_transfer_tables":
             + ", ".join(unexpected)
         )
 
-# The voicemail choice only creates resources; deletions are done manually.
+if target == "destroy_primary_routing_profile":
+    allowed = {
+        "module.connect_us_east_1[0].aws_connect_routing_profile.primary",
+        "module.connect_us_east_1[0].aws_connect_queue.primary",
+    }
+    unexpected = [
+        change["address"] for change in changes
+        if change["address"] not in allowed
+        or change.get("change", {}).get("actions") != ["delete"]
+    ]
+    if unexpected:
+        raise SystemExit(
+            "Refusing changes other than deletion of the primary routing profile and queue: "
+            + ", ".join(unexpected)
+        )
+
+# The voicemail choice refuses deletions and replacements, except the plain
+# deletion of the retired user-key Presigner resources and the old
+# recordings bucket (Terraform created them, so Terraform deletes them), and
+# the replacement of the Transcriber S3 permission (new bucket and Sid).
 if target == "voicemail":
+    replaceable = {
+        "module.voicemail[0].aws_lambda_permission.s3[\"Transcriber\"]",
+    }
+    retired = {
+        "module.voicemail[0].aws_lambda_function.this[\"Presigner\"]",
+        "module.voicemail[0].aws_cloudwatch_log_group.function[\"Presigner\"]",
+        "module.voicemail[0].aws_secretsmanager_secret.presigner",
+        "module.voicemail[0].aws_secretsmanager_secret_version.presigner",
+        "module.voicemail[0].aws_iam_access_key.presigner[0]",
+        "module.voicemail[0].aws_s3_bucket.retired_recordings[0]",
+    }
     deleting = [
         change["address"] for change in changes
         if "delete" in change.get("change", {}).get("actions", [])
+        and not (
+            change["address"] in retired
+            and change.get("change", {}).get("actions") == ["delete"]
+        )
+        and not (
+            change["address"] in replaceable
+            and change.get("change", {}).get("actions") in (["delete", "create"], ["create", "delete"])
+        )
     ]
     if deleting:
         raise SystemExit(
@@ -364,6 +416,26 @@ if group == "connect-resources":
             "Refusing changes outside connect_resources: "
             + ", ".join(unexpected)
             + ". Separate the existing Terraform state before applying."
+        )
+
+# The connect-resources choice refuses deletions and replacements, except the
+# plain deletion of the blended routing profile QA asked to remove.
+if target == "connect-resources":
+    retired = {
+        "module.connect_resources[0].aws_connect_routing_profile.us_latam_vm_blended",
+    }
+    deleting = [
+        change["address"] for change in changes
+        if "delete" in change.get("change", {}).get("actions", [])
+        and not (
+            change["address"] in retired
+            and change.get("change", {}).get("actions") == ["delete"]
+        )
+    ]
+    if deleting:
+        raise SystemExit(
+            "Refusing connect-resources plan that deletes or replaces resources: "
+            + ", ".join(deleting)
         )
 
 if group != "connect-resources":

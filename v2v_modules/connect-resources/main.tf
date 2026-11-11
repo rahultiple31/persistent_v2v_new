@@ -10,7 +10,7 @@ locals {
   us_vm_queue_name                 = "${var.name_prefix}-US-VM-QUEUE"
   agent_routing_profile_name       = "${var.name_prefix}-US-AGENT-RP"
   latam_agent_routing_profile_name = "${var.name_prefix}-LATAM-AGENT-RP"
-  latam_vm_blended_routing_profile = "${var.name_prefix}-US-LATAM-VM-BLENDED-RP"
+  vm_agent_routing_profile_name    = "${var.name_prefix}-VM-AGENT-RP"
 
   # awscc resources take tags as a list of key/value objects.
   awscc_tags = [for key, value in var.tags : { key = key, value = value }]

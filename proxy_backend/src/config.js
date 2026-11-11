@@ -59,7 +59,7 @@ const httpsUrl = (env, name) => {
  * a half-filled client fails startup. Secrets (the client secret, the session key) are named here, never
  * given: the proxy reads them from Secrets Manager.
  */
-function bffConfig(env, allowedGroups, bedrockRegion) {
+function bffConfig(env, allowedGroups) {
   const sessionKeySecretId = env.SESSION_KEY_SECRET_ID?.trim();
   if (!sessionKeySecretId) throw new Error("AUTH_MODE=bff needs SESSION_KEY_SECRET_ID (the session key in Secrets Manager)");
   const settings = {
@@ -68,7 +68,6 @@ function bffConfig(env, allowedGroups, bedrockRegion) {
     // re-checked with Ping. A user removed at Ping loses access within about two checks.
     sessionMs: positiveInt(env, "SESSION_HOURS", 12) * 60 * 60_000,
     checkMs: positiveInt(env, "SESSION_CHECK_MINUTES", 30) * 60_000,
-    secretsRegion: env.SECRETS_REGION?.trim() || env.AWS_REGION?.trim() || bedrockRegion,
     secretsRefreshMs: positiveInt(env, "SECRETS_REFRESH_MS", 300_000),
   };
   const issuer = env.OIDC_ISSUER?.trim();
@@ -134,6 +133,17 @@ function siteConfig(env) {
 }
 
 /**
+ * Voicemail playback: the VMX3 recordings bucket, which the proxy reads recordings from (GET /api/voicemail).
+ * Not set: there is no voicemail playback.
+ */
+function voicemailConfig(env, bedrockRegion) {
+  const bucket = env.VOICEMAIL_BUCKET?.trim();
+  if (!bucket) return null;
+  if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) throw new Error(`VOICEMAIL_BUCKET is not a valid bucket name: "${bucket}"`);
+  return Object.freeze({ bucket, region: env.VOICEMAIL_REGION?.trim() || env.AWS_REGION?.trim() || bedrockRegion });
+}
+
+/**
  * Reads and validates the proxy configuration from environment variables.
  * Fails fast on anything missing so a misconfigured task never becomes healthy.
  */
@@ -161,7 +171,7 @@ export function loadConfig(env = process.env) {
     logLevel: env.LOG_LEVEL || "info",
     authMode,
     oidc: authMode === "oidc" ? oidcConfig(env, allowedGroups) : null,
-    bff: authMode === "bff" ? bffConfig(env, allowedGroups, bedrockRegion) : null,
+    bff: authMode === "bff" ? bffConfig(env, allowedGroups) : null,
     allowedGroups,
     site: siteConfig(env),
     allowedOrigins,
@@ -172,14 +182,18 @@ export function loadConfig(env = process.env) {
     pollyRegion: env.POLLY_REGION?.trim() || bedrockRegion,
     // fix 6: the forceBackupTranslation switch in Parameter Store (full name). Not set: the switch is off.
     forceBackupParameter: env.FORCE_BACKUP_PARAMETER?.trim() || null,
-    // The temporary test sign-in's switch in Parameter Store (services/testSignIn.js). Not set: there is no
-    // test sign-in.
-    testSignInParameter: env.TEST_SIGN_IN_PARAMETER?.trim() || null,
+    // The temporary test sign-in's secret in Secrets Manager, its password (services/testSignIn.js). Not set:
+    // there is no test sign-in.
+    testSignInSecretId: env.TEST_SIGN_IN_SECRET_ID?.trim() || null,
     ssmRegion: env.SSM_REGION?.trim() || env.AWS_REGION?.trim() || bedrockRegion,
+    // Secrets Manager: the test sign-in password, and with AUTH_MODE=bff the client secret and the session key.
+    secretsRegion: env.SECRETS_REGION?.trim() || env.AWS_REGION?.trim() || bedrockRegion,
+    voicemail: voicemailConfig(env, bedrockRegion),
     limits: Object.freeze({
       maxConnections: positiveInt(env, "MAX_CONNECTIONS", 2000),
       maxConnectionsPerUser: positiveInt(env, "MAX_CONNECTIONS_PER_USER", 12),
       fallbackRequestsPerMinute: positiveInt(env, "FALLBACK_REQUESTS_PER_MINUTE", 60),
+      voicemailRequestsPerMinute: positiveInt(env, "VOICEMAIL_REQUESTS_PER_MINUTE", 30),
     }),
     timeouts: Object.freeze({
       authMs: positiveInt(env, "AUTH_TIMEOUT_MS", 10_000),

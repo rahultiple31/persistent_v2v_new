@@ -42,7 +42,11 @@
  *       Append one bubble. Called by the per-channel TurnAccumulator.
  *
  *   clearConversationTranscript()
- *       Remove all bubbles (called by clearTranscriptCards on disconnect).
+ *       Remove all call bubbles (called by clearTranscriptCards on disconnect). Voicemail bubbles stay.
+ *
+ *   addVoicemailMessage(contactId, text) / removeVoicemailMessage(contactId)
+ *       Show / remove a voicemail task's transcript. It belongs to the task, not to a phone call, so it is
+ *       removed only when its task is closed.
  */
 
 import './conversationTranscript.css';
@@ -116,6 +120,26 @@ export function addConversationMessage(
 }
 
 /**
+ * Show a voicemail task's transcript (vmx3_transcript) as a customer bubble labelled "Voicemail", with no
+ * translation part. One bubble per task: a second call for the same task does nothing.
+ *
+ * @param {string} contactId  the task's contact ID
+ * @param {string} text
+ */
+export function addVoicemailMessage(contactId, text) {
+  if (!_container) return;
+  const t = (text || '').trim();
+  if (!t || _voicemailRow(contactId)) return;
+  const row = _insertBubble(t, '', 'toAgent', 'Voicemail', { voicemail: true });
+  row.dataset.voicemailContactId = contactId;
+}
+
+/** Remove the voicemail bubble of one task, if it is shown. */
+export function removeVoicemailMessage(contactId) {
+  _voicemailRow(contactId)?.remove();
+}
+
+/**
  * Take sentences out of the translation of the latest bubbles of one type (2026-10-15: a chatbot reply
  * shown before it was recognised, and already saved as a bubble). Looks at the last `maxBubbles` bubbles
  * of that type, newest first, and removes each sentence from the newest bubble that has it exactly, so
@@ -129,7 +153,7 @@ export function addConversationMessage(
 export function removeFromRecentTranslations(type, sentences, maxBubbles = 3) {
   if (!_container) return null;
   const rowClass = type === 'toAgent' ? 'ct-row--customer' : 'ct-row--agent';
-  const rows = [..._container.querySelectorAll(`.ct-row.${rowClass}`)].slice(-maxBubbles).reverse();
+  const rows = [..._container.querySelectorAll(`.ct-row.${rowClass}:not(.ct-row--voicemail)`)].slice(-maxBubbles).reverse();
   // Longest first, so a FINAL copy that contains a shorter SPECULATIVE copy is removed whole.
   let texts = [...new Set(sentences.map((s) => (s || '').trim()).filter(Boolean))].sort((a, b) => b.length - a.length);
   let newest = null;
@@ -167,14 +191,19 @@ export function appendToBubbleTranslation(el, text) {
 }
 
 /**
- * Remove every conversation bubble from the panel.
+ * Remove every call bubble from the panel. Voicemail bubbles belong to their task and stay until it is
+ * closed (removeVoicemailMessage), so a phone call ending does not remove an open voicemail's transcript.
  */
 export function clearConversationTranscript() {
   if (!_container) return;
-  _container.querySelectorAll('.ct-row').forEach((el) => el.remove());
+  _container.querySelectorAll('.ct-row:not(.ct-row--voicemail)').forEach((el) => el.remove());
 }
 
 // ── private helpers ──────────────────────────────────────────────
+
+function _voicemailRow(contactId) {
+  return [..._container.querySelectorAll('.ct-row--voicemail')].find((row) => row.dataset.voicemailContactId === contactId) ?? null;
+}
 
 /**
  * Build and insert one chat bubble into #divTranscriptContainer.
@@ -182,9 +211,11 @@ export function clearConversationTranscript() {
  * @param {string} original
  * @param {string} translated
  * @param {string} type              'toAgent' | 'fromAgent'
- * @param {string} translationLabel  e.g. 'Translation (to English)'
+ * @param {string} translationLabel  e.g. 'Translation (to English)'; for a voicemail, the label above the text
+ * @param {{ voicemail?: boolean }} [options]  voicemail: label on top, no translation part
+ * @returns {HTMLElement|undefined} the bubble's row
  */
-function _insertBubble(original, translated, type, translationLabel) {
+function _insertBubble(original, translated, type, translationLabel, { voicemail = false } = {}) {
   if (!_container) return;
 
   const isCustomer = type === 'toAgent';
@@ -194,14 +225,16 @@ function _insertBubble(original, translated, type, translationLabel) {
 
   // Row
   const row = document.createElement('div');
-  row.className = `ct-row ${isCustomer ? 'ct-row--customer' : 'ct-row--agent'}`;
+  row.className = `ct-row ${isCustomer ? 'ct-row--customer' : 'ct-row--agent'}${voicemail ? ' ct-row--voicemail' : ''}`;
 
   // Avatar
   const avatar = document.createElement('div');
   avatar.className = `ct-avatar ${isCustomer ? 'ct-avatar--customer' : 'ct-avatar--agent'}`;
-  avatar.innerHTML = isCustomer
-    ? '<i class="bi bi-telephone-inbound"></i>'
-    : '<i class="bi bi-headset"></i>';
+  avatar.innerHTML = voicemail
+    ? '<i class="bi bi-voicemail"></i>'
+    : isCustomer
+      ? '<i class="bi bi-telephone-inbound"></i>'
+      : '<i class="bi bi-headset"></i>';
 
   // Bubble
   const bubble = document.createElement('div');
@@ -233,10 +266,16 @@ function _insertBubble(original, translated, type, translationLabel) {
   transEl.className = 'ct-translated';
   transEl.textContent = translated;
 
-  bubble.appendChild(origRow);
-  bubble.appendChild(divider);
-  bubble.appendChild(labelEl);
-  bubble.appendChild(transEl);
+  if (voicemail) {
+    // "VOICEMAIL" above the caller's words; there is no translation.
+    bubble.appendChild(labelEl);
+    bubble.appendChild(origRow);
+  } else {
+    bubble.appendChild(origRow);
+    bubble.appendChild(divider);
+    bubble.appendChild(labelEl);
+    bubble.appendChild(transEl);
+  }
 
   // Assemble row
   if (isCustomer) {
@@ -256,4 +295,5 @@ function _insertBubble(original, translated, type, translationLabel) {
 
   // Auto-scroll
   _container.scrollTop = _container.scrollHeight;
+  return row;
 }

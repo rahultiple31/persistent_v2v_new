@@ -10,6 +10,7 @@ credentials.
 | `GET /ws` (WebSocket) | One Nova Sonic or Transcribe stream per connection |
 | `POST /api/fallback` | One Translate + Polly request (the backup translation) |
 | `GET /api/translation-mode` | The `forceBackupTranslation` switch, as `{"forceBackup": true}` or `false` |
+| `GET /api/voicemail?key=<vmx3_recording_key>` | One VMX3 voicemail recording (WAV), read from `VOICEMAIL_BUCKET`; `404 voicemailOff` without it |
 | `GET`, `POST /api/test-sign-in` | The temporary test sign-in, only while it is switched on |
 | `GET /healthz` | Health check for the load balancer and the container |
 
@@ -26,7 +27,12 @@ with `{"type":"end"}` or `{"type":"error",...}`.
   header, never in a URL. The test sign-in's tokens are checked against the test password's key.
 - **Permissions.** The task role can call only `bedrock:InvokeModel` on the configured Nova Sonic model, plus
   Transcribe streaming, `translate:TranslateText` and `polly:SynthesizeSpeech` in the configured Region, and
-  read its two Parameter Store values.
+  read the `forceBackupTranslation` parameter and its secrets (the test sign-in password; with `bff` the
+  session key and client secret). With voicemail playback: `s3:GetObject` on the recordings bucket's
+  `.wav` files only, and `kms:Decrypt` only through S3 (for a bucket with its own KMS key).
+- **Voicemail.** The recording's name comes from the page, so only VMX3 names (`YYYY/MM/DD/<contact ID>.wav`)
+  are read, and only from the one bucket. Any signed-in agent can play a voicemail whose name they have; every
+  read is logged with the user and the name. Recordings are sent with `Cache-Control: no-store`.
 - **Input.** Only the Nova Sonic event types the web app sends are accepted, and the model ID comes from the
   configuration, never from the client. WebSocket frames are capped at 256 KB and backup request bodies at
   16 KB. The WebSocket `Origin` must be the site's address.
@@ -52,21 +58,24 @@ All set by the CDK stack (`cdk-stacks/lib/private-poc-stack.ts`); listed here fo
 | `SESSION_KEY_SECRET_ID` (Secrets Manager secret: the session cookie key) | `bff` | |
 | `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET_ID` (Secrets Manager secret), `OIDC_REDIRECT_URI` (the site's root), `OIDC_AUTHORIZATION_ENDPOINT`, `OIDC_TOKEN_ENDPOINT`, `OIDC_JWKS_URI` | `bff`: all or none; none means only the test sign-in works | |
 | `OIDC_REVOCATION_ENDPOINT`, `OIDC_END_SESSION_ENDPOINT`, `OIDC_USERINFO_ENDPOINT`, `OIDC_POST_LOGOUT_REDIRECT_URI`, `OIDC_SCOPE` | no (`bff`) | none; `OIDC_REDIRECT_URI`; `openid` |
-| `SESSION_HOURS`, `SESSION_CHECK_MINUTES`, `SECRETS_REGION`, `SECRETS_REFRESH_MS` | no (`bff`) | `12`, `30`, the task's Region, `300000` |
+| `SESSION_HOURS`, `SESSION_CHECK_MINUTES`, `SECRETS_REFRESH_MS` | no (`bff`) | `12`, `30`, `300000` |
 | `ALLOWED_ORIGINS` (comma-separated) | yes when `NODE_ENV=production` | any origin |
 | `WEBAPP_DIR` (the built web app; set by the Dockerfile) | no | no files served |
 | `WEBAPP_CONFIG` (JSON object served as `/frontend-config.js`) | when `WEBAPP_DIR` is set | |
 | `CONTENT_SECURITY_POLICY`, `CSP_REPORT_ONLY` | no | no policy; report-only |
 | `TRANSCRIBE_REGION`, `TRANSLATE_REGION`, `POLLY_REGION` | no | `BEDROCK_REGION` |
 | `FORCE_BACKUP_PARAMETER` (Parameter Store name of the backup switch) | no | switch off |
-| `TEST_SIGN_IN_PARAMETER` (Parameter Store name of the test sign-in switch) | no | no test sign-in |
+| `TEST_SIGN_IN_SECRET_ID` (Secrets Manager secret: the test sign-in password, 12+ characters, or `off`) | no | no test sign-in |
+| `SECRETS_REGION` (Secrets Manager) | no | `AWS_REGION`, else `BEDROCK_REGION` |
+| `VOICEMAIL_BUCKET` (the VMX3 recordings bucket), `VOICEMAIL_REGION` | no | no voicemail playback; `AWS_REGION`, else `BEDROCK_REGION` |
 | `SSM_REGION` | no | `AWS_REGION`, else `BEDROCK_REGION` |
 | `SERVER_TLS` (`self-signed`: HTTPS with a certificate the proxy makes at start-up, so the load balancer reaches the tasks over HTTPS; the stack sets it) | no | `off` (plain HTTP) |
 | `PORT`, `LOG_LEVEL` | no | `8080` (`8443` with `SERVER_TLS=self-signed`), `info` |
-| `MAX_CONNECTIONS`, `MAX_CONNECTIONS_PER_USER`, `FALLBACK_REQUESTS_PER_MINUTE` | no | `2000`, `12`, `60` |
+| `MAX_CONNECTIONS`, `MAX_CONNECTIONS_PER_USER`, `FALLBACK_REQUESTS_PER_MINUTE`, `VOICEMAIL_REQUESTS_PER_MINUTE` | no | `2000`, `12`, `60`, `30` |
 | `DRAIN_TIMEOUT_MS`, `HEARTBEAT_INTERVAL_MS`, `AUTH_TIMEOUT_MS` | no | `100000`, `25000`, `10000` |
 
-The two switches are read every 30 seconds, so changing them needs no deployment. With `forceBackupTranslation`
+The two switches (the backup parameter and the test sign-in secret) are read every 30 seconds, so changing them
+needs no deployment. With `forceBackupTranslation`
 = `true`, new calls start on Transcribe + Translate + Polly and calls in progress move to it within about a
 minute.
 

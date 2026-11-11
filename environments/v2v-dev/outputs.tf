@@ -43,12 +43,10 @@ output "regional_connect_instances" {
   description = "Amazon Connect deployment outputs by region."
   value = {
     "us-east-1" = {
-      region             = "us-east-1"
-      instance_id        = try(module.connect_us_east_1[0].instance_id, null)
-      instance_arn       = try(module.connect_us_east_1[0].instance_arn, null)
-      queue_id           = try(module.connect_us_east_1[0].queue_id, null)
-      routing_profile_id = try(module.connect_us_east_1[0].routing_profile_id, null)
-      admin_user_id      = try(module.connect_us_east_1[0].admin_user_id, null)
+      region        = "us-east-1"
+      instance_id   = try(module.connect_us_east_1[0].instance_id, null)
+      instance_arn  = try(module.connect_us_east_1[0].instance_arn, null)
+      admin_user_id = try(module.connect_us_east_1[0].admin_user_id, null)
     }
   }
 }
@@ -297,14 +295,6 @@ output "customer_queue_text_log_group_name" {
   value = try(module.customer_queue_lex_log_group[0].name, null)
 }
 
-output "vmx3_main_vm_module" {
-  value = try({
-    name = module.vmx3_main_vm_module[0].name
-    arn  = module.vmx3_main_vm_module[0].arn
-    id   = module.vmx3_main_vm_module[0].contact_flow_module_id
-  }, null)
-}
-
 output "voicemail" {
   description = "New VMX3 voicemail stack (module.voicemail)."
   value = try({
@@ -313,12 +303,13 @@ output "voicemail" {
     recordings_bucket  = module.voicemail[0].recordings_bucket
     transcripts_bucket = module.voicemail[0].transcripts_bucket
     kinesis_stream_arn = module.voicemail[0].kinesis_stream_arn
-    secret_arn         = module.voicemail[0].secret_arn
     lambda_role_arn    = module.voicemail[0].lambda_role_arn
     layer_version_arn  = module.voicemail[0].layer_version_arn
     function_arns      = module.voicemail[0].function_arns
     event_rule_arns    = module.voicemail[0].event_rule_arns
     task_flow          = module.voicemail[0].task_flow
+    guided_task_flow   = module.voicemail[0].guided_task_flow
+    task_view          = module.voicemail[0].task_view
     flow_module        = module.voicemail[0].flow_module
   }, null)
 }

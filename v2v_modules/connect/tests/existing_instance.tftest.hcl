@@ -28,9 +28,7 @@ run "resources_use_the_existing_poc_instance" {
       data.aws_connect_instance.this.instance_alias == "btsgsd-dev-v2v-poc-us-east-1" &&
       output.instance_id == "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" &&
       output.instance_arn == var.expected_instance_arn &&
-      aws_connect_queue.primary.instance_id == output.instance_id &&
       aws_connect_security_profile.agent.instance_id == output.instance_id &&
-      aws_connect_routing_profile.primary.instance_id == output.instance_id &&
       aws_connect_contact_flow.placeholder.instance_id == output.instance_id
     )
     error_message = "Look up the existing POC alias and use its returned ID for every managed Connect resource."
@@ -38,12 +36,35 @@ run "resources_use_the_existing_poc_instance" {
 
   assert {
     condition = alltrue([
-      startswith(aws_connect_queue.primary.name, "BTSGSD-V2V-US-"),
       startswith(aws_connect_security_profile.agent.name, "BTSGSD-V2V-US-"),
-      startswith(aws_connect_routing_profile.primary.name, "BTSGSD-V2V-US-"),
       startswith(aws_connect_contact_flow.placeholder.name, "BTSGSD-V2V-US-")
     ])
     error_message = "Name new resources with the V2V prefix while reusing the existing instance alias."
+  }
+}
+
+run "admin_user_uses_us_agent_routing_profile" {
+  command = plan
+
+  variables {
+    admin_user_enabled    = true
+    admin_user_first_name = "Admin"
+    admin_user_last_name  = "User"
+    admin_user_username   = "admin@example.com"
+    admin_user_email      = "admin@example.com"
+  }
+
+  override_data {
+    target = data.aws_connect_routing_profile.admin[0]
+    values = { routing_profile_id = "48a9cf8d-1538-4184-a03e-c04912acdc3f" }
+  }
+
+  assert {
+    condition = (
+      data.aws_connect_routing_profile.admin[0].name == "BTSGSD-V2V-US-AGENT-RP" &&
+      aws_connect_user.admin[0].routing_profile_id == "48a9cf8d-1538-4184-a03e-c04912acdc3f"
+    )
+    error_message = "The optional admin user must use BTSGSD-V2V-US-AGENT-RP (the primary routing profile is retired)."
   }
 }
 

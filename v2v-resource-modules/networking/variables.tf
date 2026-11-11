@@ -37,3 +37,9 @@ variable "listener_port" {
   description = "ALB listener port (80 for HTTP, 443 for HTTPS)."
   type        = number
 }
+
+variable "secretsmanager_endpoint" {
+  description = "true: also create a Secrets Manager interface endpoint (server-side sign-in, test sign-in password). Only one per VPC is allowed with private DNS."
+  type        = bool
+  default     = false
+}

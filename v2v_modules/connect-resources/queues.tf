@@ -36,8 +36,8 @@ resource "aws_connect_queue" "latam_main" {
   status                = "ENABLED"
 
   # Only the help-desk quick connects. The user quick connects (Mahendra,
-  # Smita, Govind) would create a dependency cycle: those users are on the
-  # blended and LATAM agent routing profiles, which route this queue.
+  # Smita, Govind) would create a dependency cycle if those users were on a
+  # routing profile that routes this queue (LATAM agent).
   quick_connect_ids = var.help_desk_quick_connect_ids
 
   outbound_caller_config {

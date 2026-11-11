@@ -1,14 +1,13 @@
 locals {
-  service_name_prefix          = "BTSGSD-V2V-US"
-  instance_name                = lower(replace(coalesce(var.instance_alias, "${local.service_name_prefix}-${var.service_name_suffix}"), "_", "-"))
-  primary_queue_name           = "${local.service_name_prefix}-primary-queue"
-  agent_security_profile_name  = "${local.service_name_prefix}-agent-security-profile"
-  primary_routing_profile_name = "${local.service_name_prefix}-primary-routing-profile"
-  placeholder_flow_name        = "${local.service_name_prefix}-placeholder-inbound-flow"
-  customer_queue_flow_name     = "${local.service_name_prefix}-transfer-to-agent-customer-queue-flow"
-  outbound_whisper_flow_name   = "${local.service_name_prefix}-outbound-whisper-flow"
-  agent_transfer_flow_name     = "${local.service_name_prefix}-agent-to-agent-transfer-flow"
-  hr_flow_name                 = "${local.service_name_prefix}-HR"
+  service_name_prefix         = "BTSGSD-V2V-US"
+  instance_name               = lower(replace(coalesce(var.instance_alias, "${local.service_name_prefix}-${var.service_name_suffix}"), "_", "-"))
+  agent_security_profile_name = "${local.service_name_prefix}-agent-security-profile"
+  admin_routing_profile_name  = "${local.service_name_prefix}-AGENT-RP"
+  placeholder_flow_name       = "${local.service_name_prefix}-placeholder-inbound-flow"
+  customer_queue_flow_name    = "${local.service_name_prefix}-transfer-to-agent-customer-queue-flow"
+  outbound_whisper_flow_name  = "${local.service_name_prefix}-outbound-whisper-flow"
+  agent_transfer_flow_name    = "${local.service_name_prefix}-agent-to-agent-transfer-flow"
+  hr_flow_name                = "${local.service_name_prefix}-HR"
   tags = merge(var.common_tags, {
     Name       = local.instance_name
     RegionCode = var.region_code
@@ -38,18 +37,9 @@ removed {
   }
 }
 
-data "aws_connect_hours_of_operation" "basic" {
-  instance_id = data.aws_connect_instance.this.id
-  name        = "Basic Hours"
-}
-
-resource "aws_connect_queue" "primary" {
-  instance_id           = data.aws_connect_instance.this.id
-  name                  = local.primary_queue_name
-  description           = "Primary queue for ${upper(var.region_code)} ${var.environment} contact center."
-  hours_of_operation_id = data.aws_connect_hours_of_operation.basic.hours_of_operation_id
-  tags                  = merge(local.tags, { Name = local.primary_queue_name })
-}
+# BTSGSD-V2V-US-primary-queue and BTSGSD-V2V-US-primary-routing-profile were
+# retired (unused; QA, Nov 2026). They are deleted with the pipeline choice
+# destroy_primary_routing_profile.
 
 resource "aws_connect_security_profile" "agent" {
   instance_id = data.aws_connect_instance.this.id
@@ -61,25 +51,12 @@ resource "aws_connect_security_profile" "agent" {
   tags = merge(local.tags, { Name = local.agent_security_profile_name })
 }
 
-resource "aws_connect_routing_profile" "primary" {
-  instance_id               = data.aws_connect_instance.this.id
-  name                      = local.primary_routing_profile_name
-  description               = "Primary routing profile for ${upper(var.region_code)} ${var.environment} agents."
-  default_outbound_queue_id = aws_connect_queue.primary.queue_id
-
-  queue_configs {
-    channel  = "VOICE"
-    delay    = 0
-    priority = 1
-    queue_id = aws_connect_queue.primary.queue_id
-  }
-
-  media_concurrencies {
-    channel     = "VOICE"
-    concurrency = 1
-  }
-
-  tags = merge(local.tags, { Name = local.primary_routing_profile_name })
+# The optional admin user (disabled in V2V) uses the US agent routing profile,
+# created by connect-resources (separate state), looked up by name.
+data "aws_connect_routing_profile" "admin" {
+  count       = var.admin_user_enabled ? 1 : 0
+  instance_id = data.aws_connect_instance.this.id
+  name        = local.admin_routing_profile_name
 }
 
 data "aws_connect_security_profile" "admin" {
@@ -92,7 +69,7 @@ resource "aws_connect_user" "admin" {
   count              = var.admin_user_enabled ? 1 : 0
   instance_id        = data.aws_connect_instance.this.id
   name               = var.admin_user_username
-  routing_profile_id = aws_connect_routing_profile.primary.routing_profile_id
+  routing_profile_id = data.aws_connect_routing_profile.admin[0].routing_profile_id
 
   security_profile_ids = [
     data.aws_connect_security_profile.admin[0].security_profile_id

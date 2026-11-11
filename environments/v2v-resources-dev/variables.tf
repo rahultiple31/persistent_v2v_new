@@ -22,7 +22,7 @@ variable "stack_name" {
 }
 
 variable "nova_sonic_model_id" {
-  description = "Amazon Bedrock model ID for Nova Sonic (e.g. amazon.nova-2-5-sonic)."
+  description = "Amazon Bedrock model ID for Nova Sonic (e.g. amazon.nova-2-sonic-v1:0 or amazon.nova-2-5-sonic)."
   type        = string
   default     = "amazon.nova-2-5-sonic"
 }
@@ -38,10 +38,21 @@ variable "ssm_hierarchy" {
   }
 }
 
-variable "test_sign_in" {
-  description = "true: the temporary password-based sign-in feature is available (switched in Parameter Store). false: it is removed completely."
-  type        = bool
-  default     = true
+variable "test_sign_in_secret_name" {
+  description = "Name of the Secrets Manager secret that holds the temporary test sign-in password (12+ characters, or \"off\"). Created by hand in the console; Terraform only grants read access. Empty: the test sign-in is removed completely."
+  type        = string
+  default     = ""
+}
+
+variable "voicemail_recordings_bucket" {
+  description = "Voicemail playback in the page: the bucket VMX3 writes recordings to (its recording processor's vmx3_recordings_bucket). The proxy reads them with its task role through the VPC's S3 gateway endpoint. Empty: no playback, no S3 access."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.voicemail_recordings_bucket == "" || can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.voicemail_recordings_bucket))
+    error_message = "voicemail_recordings_bucket must be an S3 bucket name (lowercase), or empty."
+  }
 }
 
 variable "tags" {
@@ -199,9 +210,52 @@ variable "oidc_revocation_endpoint" {
 }
 
 variable "oidc_session_hours" {
-  description = "Refresh-token lifetime in hours. 0: unknown — the webapp shows no session-expiry warning."
+  description = "Session length in hours. oidc: the refresh-token lifetime (0 = unknown, no session-expiry warning). bff: how long a sign-in lasts (0 = the proxy's default, 12)."
   type        = number
   default     = 0
+}
+
+# ── Server-side sign-in (auth_mode = "bff") ───────────────────────────────────
+
+variable "auth_mode" {
+  description = "oidc: the page signs in with the identity provider itself (public client). bff: the proxy signs agents in with the client secret and the browser holds only a session cookie (confidential client, such as Ping dev). bff needs HTTPS."
+  type        = string
+  default     = "oidc"
+
+  validation {
+    condition     = contains(["oidc", "bff"], var.auth_mode)
+    error_message = "auth_mode must be \"oidc\" or \"bff\"."
+  }
+}
+
+variable "oidc_userinfo_endpoint" {
+  description = "bff only: OIDC userinfo endpoint (optional)."
+  type        = string
+  default     = ""
+}
+
+variable "oidc_client_secret_name" {
+  description = "bff only: name of the Secrets Manager secret that holds the identity provider's client secret. Created by hand; Terraform only grants read access."
+  type        = string
+  default     = ""
+}
+
+variable "session_key_secret_name" {
+  description = "bff only: name of the Secrets Manager secret that holds the session-cookie key. Created by hand; Terraform only grants read access."
+  type        = string
+  default     = ""
+}
+
+variable "session_check_minutes" {
+  description = "bff only: how often (minutes) the proxy re-checks a signed-in agent with the identity provider."
+  type        = number
+  default     = 30
+}
+
+variable "secretsmanager_endpoint" {
+  description = "bff or test sign-in only: true creates a Secrets Manager interface endpoint. Set false in a VPC that already has one with private DNS (only one is allowed per VPC); that endpoint's security group must then allow 443 from the proxy tasks."
+  type        = bool
+  default     = true
 }
 
 # ── WAF ───────────────────────────────────────────────────────────────────────

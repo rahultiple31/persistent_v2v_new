@@ -20,7 +20,7 @@ output "hours_of_operation_id" {
 }
 
 output "routing_profile_ids" {
-  description = "Routing profile IDs keyed by routing profile key (basic, us_agent, latam_agent, us_latam_vm_blended)."
+  description = "Routing profile IDs keyed by routing profile key (basic, us_agent, latam_agent, vm_agent)."
   value       = local.routing_profile_ids
 }
 

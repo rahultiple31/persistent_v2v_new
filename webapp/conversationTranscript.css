@@ -189,3 +189,11 @@
     max-width: 84%;
   }
 }
+
+/* ── Voicemail bubble ─────────────────────────────────────────
+   A voicemail task's transcript: "VOICEMAIL" label on top, no
+   translation part.
+   ─────────────────────────────────────────────────────────── */
+.ct-row--voicemail .ct-trans-label {
+  color: var(--agent-accent, #2980b9);
+}

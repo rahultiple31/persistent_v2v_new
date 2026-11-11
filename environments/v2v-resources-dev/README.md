@@ -150,18 +150,57 @@ aws ssm put-parameter \
   --overwrite
 ```
 
-### Create the test sign-in SecureString (one-time, manual)
+### Create the test sign-in secret (one-time, manual)
 
-The `testSignIn` parameter **cannot** be created by Terraform because it is a
-`SecureString` encrypted by the default SSM KMS key.  
-Create it by hand once, then set `test_sign_in = true` in your tfvars:
+The test sign-in password is a Secrets Manager secret, created by hand in the
+console; it is never in Terraform, tfvars or the state. Terraform only passes
+its name (`test_sign_in_secret_name`, `/BTSGSD/V2V/US/POC/testSignIn`) to the tasks and
+lets the task role read it. The tasks re-read it every 30 seconds, so changing
+it needs no deployment, and switching off (or a new password) ends every test
+session. Create it **before** the deploy, in this account and Region:
 
-```bash
-aws ssm put-parameter \
-  --name  "/V2V/POC/testSignIn" \
-  --type  "SecureString"        \
-  --value '{"users":[{"username":"agent1","password":"changeme"}]}'
-```
+1. Secrets Manager console > Store a new secret > Other type of secret.
+2. Key/value pairs: key `password`, value the test password (12 characters or
+   more). The Plaintext tab with only the password works too.
+3. Encryption key: `aws/secretsmanager` (the default).
+4. Secret name: `/BTSGSD/V2V/US/POC/testSignIn` (exactly, with the leading `/`).
+   No rotation. Store. (The old Parameter Store value of the same name is no
+   longer read; delete it by hand.)
+
+New password, or off: open the secret > Retrieve secret value > Edit, and enter
+the new password, or `off`. Deleting the secret switches it off too. If the
+password form does not appear on the site, the proxy log says why (search the
+log group for `test sign-in`). Empty `test_sign_in_secret_name` removes the
+test sign-in completely.
+
+### Voicemail playback (`voicemail_recordings_bucket`)
+
+When an agent accepts a VMX3 voicemail task, the page shows its transcript and
+plays its recording until the task is closed. The proxy reads the recording
+from `voicemail_recordings_bucket` (GET `/api/voicemail`) through the VPC's S3
+gateway endpoint; the browser needs no S3 access. Terraform passes the bucket
+name to the tasks (`VOICEMAIL_BUCKET`) and lets the task role read only that
+bucket's `.wav` files, plus `kms:Decrypt` only through S3 (for a bucket with
+its own KMS key). Empty = off. If plays fail and the proxy log shows
+`AccessDenied`, check the bucket policy, its KMS key policy, and the S3 gateway
+endpoint's policy.
+
+### Server-side sign-in with Ping (`auth_mode = "bff"`)
+
+Ping dev is a confidential client (it needs a client secret), so the proxy signs
+agents in itself and the browser holds only a session cookie. Terraform:
+
+- passes the Ping settings (`oidc_*`) and the two secret **names** to the tasks;
+- lets the task role read those two secrets (`secretsmanager:GetSecretValue`);
+- creates a Secrets Manager interface endpoint when `secretsmanager_endpoint = true`.
+  Only one is allowed per VPC: set it to `false` in a VPC that already has one, and
+  allow 443 from the proxy tasks' security group on that endpoint.
+
+The secrets themselves are created by hand, never in Terraform or tfvars:
+`v2v/poc/ping-client-secret` (Ping client secret) and `v2v/poc/session-key`
+(session-cookie key). Needs HTTPS (`certificate_arn`), and the tasks must reach
+`federationdev.abbvie.com` on 443. Empty `oidc_allowed_groups`: every Ping user
+can sign in.
 
 ---
 
@@ -173,7 +212,7 @@ aws ssm put-parameter \
 | `aws_security_group.alb` | Ingress from VDI CIDRs → port 80/443; egress to service SG → 8443 |
 | `aws_security_group.service` | Ingress from ALB SG → 8443; egress HTTPS to anywhere |
 | `aws_security_group.endpoint` | Ingress HTTPS from service SG + extra CIDRs |
-| `aws_vpc_endpoint.interface[*]` | bedrock-runtime, transcribestreaming, translate, polly, ssm, ecr.api, ecr.dkr, logs |
+| `aws_vpc_endpoint.interface[*]` | bedrock-runtime, transcribestreaming, translate, polly, ssm, ecr.api, ecr.dkr, logs; + secretsmanager when `secretsmanager_endpoint = true` (bff or test sign-in) |
 
 ### `alb`
 | Resource | Description |

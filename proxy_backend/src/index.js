@@ -49,9 +49,9 @@ const translationMode = createTranslationModeSource({
   logger,
 });
 translationMode.start();
-// The temporary test sign-in, switched on and off in Parameter Store.
-const testSignIn = config.testSignInParameter
-  ? createTestSignIn({ ssm: clients.ssm, parameterName: config.testSignInParameter, refreshMs: config.timeouts.testSignInRefreshMs, logger })
+// The temporary test sign-in, switched on and off with its secret in Secrets Manager.
+const testSignIn = config.testSignInSecretId
+  ? createTestSignIn({ secrets: clients.secrets, secretId: config.testSignInSecretId, refreshMs: config.timeouts.testSignInRefreshMs, logger })
   : null;
 if (testSignIn) {
   await testSignIn.start();
@@ -103,7 +103,8 @@ logger.info("proxy listening", {
       }
     : {}),
   groupRestricted: config.allowedGroups.length > 0,
-  testSignInParameter: config.testSignInParameter,
+  testSignInSecret: config.testSignInSecretId,
+  voicemailBucket: config.voicemail?.bucket ?? null,
   siteFiles: proxy.siteFileCount,
 });
 

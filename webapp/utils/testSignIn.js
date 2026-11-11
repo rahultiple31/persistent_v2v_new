@@ -1,4 +1,4 @@
-// Temporary test sign-in. While its switch in Parameter Store is on, the proxy
+// Temporary test sign-in. While its secret in Secrets Manager holds a password, the proxy
 // says so at GET /api/test-sign-in, and the app asks for the test password instead of sending the agent to
 // the identity provider. See proxy/src/services/testSignIn.js.
 import { LOGGER_PREFIX } from "../constants";

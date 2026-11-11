@@ -18,6 +18,7 @@ import { recordHealthEvent, recordSendBacklog } from "./healthMonitor";
 const WS_PATH = "/ws";
 const FALLBACK_PATH = "/api/fallback";
 const TRANSLATION_MODE_PATH = "/api/translation-mode";
+const VOICEMAIL_PATH = "/api/voicemail";
 
 // Start opens three streams at once: the customer and agent Nova Sonic sessions and the agent's
 // Transcribe stream.
@@ -451,6 +452,47 @@ export async function pingProxy({ timeoutMs = 3000 } = {}) {
     return { reached: false, ms: clock() - startedAt, status: null };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * Downloads a voicemail recording through the proxy, which reads it from the VMX3 bucket. The whole file is
+ * fetched (not streamed into the player) because the proxy needs the sign-in headers, which an <audio> element
+ * cannot send.
+ *
+ * @param {string} recordingKey  the voicemail task's vmx3_recording_key
+ * @param {{ signal?: AbortSignal, timeoutMs?: number }} [options]
+ * @returns {Promise<Blob>} the WAV file. On failure the error has `code` (the proxy's error, such as
+ *   "voicemailOff" or "recordingNotFound", or null) and `status` (HTTP status, or null).
+ */
+export async function fetchVoicemailRecording(recordingKey, { signal, timeoutMs = 60_000 } = {}) {
+  const auth = await getProxyAuth();
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
+  const onAbort = () => abort.abort();
+  if (signal?.aborted) abort.abort();
+  signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    const url = new URL(VOICEMAIL_PATH, window.location.origin);
+    url.searchParams.set("key", recordingKey);
+    const response = await fetch(url, {
+      method: "GET",
+      headers: auth.headers,
+      credentials: auth.credentials,
+      cache: "no-store",
+      signal: abort.signal,
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      const error = new Error(`Voicemail request failed: HTTP ${response.status}${body?.error ? ` (${body.error})` : ""}`);
+      error.code = typeof body?.error === "string" ? body.error : null;
+      error.status = response.status;
+      throw error;
+    }
+    return await response.blob();
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onAbort);
   }
 }
 

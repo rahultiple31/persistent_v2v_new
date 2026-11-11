@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "amazon-connect-streams": "^2.18.0",
+    "amazon-connect-taskjs": "^2.0.0",
     "bootstrap": "^5.3.3",
     "bootstrap-icons": "^1.11.3",
     "buffer": "^6.0.3",

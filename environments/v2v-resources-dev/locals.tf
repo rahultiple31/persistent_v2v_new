@@ -15,13 +15,29 @@ locals {
   # ── OIDC audience (defaults to client_id) ────────────────────────────────
   oidc_audience = var.oidc_audience != "" ? var.oidc_audience : var.oidc_client_id
 
-  # ── Test sign-in SSM parameter (created by hand as SecureString) ─────────
-  test_sign_in_parameter_name = "${var.ssm_hierarchy}testSignIn"
-  test_sign_in_parameter_arn  = "arn:${data.aws_partition.current.partition}:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.test_sign_in_parameter_name, "/")}"
+  # ── Sign-in mode ─────────────────────────────────────────────────────────
+  # bff: the proxy signs agents in itself with the client secret; the page
+  # holds only a session cookie and never calls the identity provider.
+  bff = var.auth_mode == "bff"
+
+  # The test sign-in: its password is a Secrets Manager 
+  test_sign_in = var.test_sign_in_secret_name != ""
+
+  # The Secrets Manager secrets the tasks may read: bff's session key and client
+  # secret (the client secret only once the identity provider is set), and the
+  # test sign-in password.
+  sign_in_secret_names = compact(concat(
+    local.bff ? [
+      var.session_key_secret_name,
+      var.oidc_issuer != "" ? var.oidc_client_secret_name : "",
+    ] : [],
+    [var.test_sign_in_secret_name],
+  ))
 
   # ── Content-Security-Policy computation (mirrors CDK's contentSecurityPolicy()) ──
   # Extract scheme+host origin from a URL; returns "" on empty/invalid input.
-  oidc_raw_urls         = compact([var.oidc_issuer, var.oidc_token_endpoint, var.oidc_revocation_endpoint])
+  # Only the browser sign-in (oidc) calls the identity provider from the page.
+  oidc_raw_urls         = local.bff ? [] : compact([var.oidc_issuer, var.oidc_token_endpoint, var.oidc_revocation_endpoint])
   oidc_origins          = distinct(compact([for u in local.oidc_raw_urls : try(regex("^(https?://[^/?#]+)", u)[0], "")]))
   identity_provider_csp = join(" ", local.oidc_origins)
 
@@ -51,7 +67,12 @@ locals {
   content_security_policy = join("; ", concat(local.csp_base_directives, local.csp_upgrade_directive))
 
   # ── Webapp frontend config JSON (served by proxy as /frontend-config.js) ─
-  webapp_config_base = {
+  webapp_config_connect = {
+    connectInstanceURL    = var.connect_instance_url
+    connectInstanceRegion = var.connect_region
+  }
+  # oidc: the page needs the identity provider's settings. bff: it needs none.
+  webapp_config_oidc = {
     oidcIssuer                = var.oidc_issuer
     oidcClientId              = var.oidc_client_id
     oidcScope                 = var.oidc_scope
@@ -59,14 +80,13 @@ locals {
     oidcTokenEndpoint         = var.oidc_token_endpoint
     oidcEndSessionEndpoint    = var.oidc_end_session_endpoint
     oidcRevocationEndpoint    = var.oidc_revocation_endpoint
-    connectInstanceURL        = var.connect_instance_url
-    connectInstanceRegion     = var.connect_region
   }
-  # refreshTokenValidityHours only when session lifetime is known (sessionHours > 0)
-  webapp_config_session = var.oidc_session_hours > 0 ? { refreshTokenValidityHours = tostring(var.oidc_session_hours) } : {}
+  webapp_config_sign_in = local.bff ? { authMode = "bff" } : local.webapp_config_oidc
+  # refreshTokenValidityHours only for oidc, when session lifetime is known (sessionHours > 0)
+  webapp_config_session = !local.bff && var.oidc_session_hours > 0 ? { refreshTokenValidityHours = tostring(var.oidc_session_hours) } : {}
   # connectLoginUrl only for SAML/SSO Connect instances
   webapp_config_login = var.connect_login_url != "" ? { connectLoginUrl = var.connect_login_url } : {}
-  webapp_config       = merge(local.webapp_config_base, local.webapp_config_session, local.webapp_config_login)
+  webapp_config       = merge(local.webapp_config_sign_in, local.webapp_config_connect, local.webapp_config_session, local.webapp_config_login)
   webapp_config_json  = jsonencode(local.webapp_config)
 
   # ── Container environment variables ──────────────────────────────────────
@@ -79,10 +99,6 @@ locals {
     # HTTPS from the load balancer: the proxy makes its own certificate at start-up
     { name = "SERVER_TLS", value = "self-signed" },
     { name = "LOG_LEVEL", value = "info" },
-    { name = "OIDC_ISSUER", value = var.oidc_issuer },
-    { name = "OIDC_AUDIENCE", value = local.oidc_audience },
-    { name = "OIDC_JWKS_URI", value = var.oidc_jwks_uri },
-    { name = "OIDC_GROUP_CLAIM", value = var.oidc_group_claim },
     { name = "ALLOWED_GROUPS", value = join(",", var.oidc_allowed_groups) },
     { name = "ALLOWED_ORIGINS", value = local.site_origin },
     { name = "WEBAPP_CONFIG", value = local.webapp_config_json },
@@ -100,10 +116,57 @@ locals {
     { name = "FORCE_BACKUP_PARAMETER", value = "${var.ssm_hierarchy}forceBackupTranslation" },
     { name = "SSM_REGION", value = var.aws_region },
   ]
-  # TEST_SIGN_IN_PARAMETER only when the feature is enabled
-  container_env_test_sign_in = var.test_sign_in ? [
-    { name = "TEST_SIGN_IN_PARAMETER", value = local.test_sign_in_parameter_name }
+  # Sign-in settings (mirrors the CDK stack's signInEnvironment).
+  # oidc: the proxy checks the identity provider's access tokens.
+  container_env_oidc = [
+    { name = "AUTH_MODE", value = "oidc" },
+    { name = "OIDC_ISSUER", value = var.oidc_issuer },
+    { name = "OIDC_AUDIENCE", value = local.oidc_audience },
+    { name = "OIDC_JWKS_URI", value = var.oidc_jwks_uri },
+    { name = "OIDC_GROUP_CLAIM", value = var.oidc_group_claim },
+  ]
+  # bff: the secrets are named, never given; the proxy reads them from Secrets
+  # Manager. The redirect URI is the site's root, as registered at the identity
+  # provider. Without oidc_issuer only the test sign-in works.
+  container_env_bff = concat(
+    [
+      { name = "AUTH_MODE", value = "bff" },
+      { name = "SESSION_KEY_SECRET_ID", value = var.session_key_secret_name },
+      { name = "SESSION_CHECK_MINUTES", value = tostring(var.session_check_minutes) },
+      { name = "SECRETS_REGION", value = var.aws_region },
+    ],
+    var.oidc_session_hours > 0 ? [
+      { name = "SESSION_HOURS", value = tostring(var.oidc_session_hours) },
+    ] : [],
+    var.oidc_issuer != "" ? [
+      { name = "OIDC_ISSUER", value = var.oidc_issuer },
+      { name = "OIDC_CLIENT_ID", value = var.oidc_client_id },
+      { name = "OIDC_CLIENT_SECRET_ID", value = var.oidc_client_secret_name },
+      { name = "OIDC_SCOPE", value = var.oidc_scope },
+      { name = "OIDC_REDIRECT_URI", value = local.site_origin },
+      { name = "OIDC_AUTHORIZATION_ENDPOINT", value = var.oidc_authorization_endpoint },
+      { name = "OIDC_TOKEN_ENDPOINT", value = var.oidc_token_endpoint },
+      { name = "OIDC_JWKS_URI", value = var.oidc_jwks_uri },
+      { name = "OIDC_REVOCATION_ENDPOINT", value = var.oidc_revocation_endpoint },
+      { name = "OIDC_END_SESSION_ENDPOINT", value = var.oidc_end_session_endpoint },
+      { name = "OIDC_USERINFO_ENDPOINT", value = var.oidc_userinfo_endpoint },
+      { name = "OIDC_GROUP_CLAIM", value = var.oidc_group_claim },
+    ] : [],
+  )
+  container_env_sign_in = local.bff ? local.container_env_bff : local.container_env_oidc
+
+  # TEST_SIGN_IN_SECRET_ID only when the test sign-in secret is named
+  # (SECRETS_REGION is already set by bff).
+  container_env_test_sign_in = local.test_sign_in ? concat(
+    [{ name = "TEST_SIGN_IN_SECRET_ID", value = var.test_sign_in_secret_name }],
+    local.bff ? [] : [{ name = "SECRETS_REGION", value = var.aws_region }],
+  ) : []
+
+  # Voicemail playback (GET /api/voicemail) only when a recordings bucket is set
+  container_env_voicemail = var.voicemail_recordings_bucket != "" ? [
+    { name = "VOICEMAIL_BUCKET", value = var.voicemail_recordings_bucket },
+    { name = "VOICEMAIL_REGION", value = var.aws_region },
   ] : []
 
-  container_environment = concat(local.container_env_base, local.container_env_test_sign_in)
+  container_environment = concat(local.container_env_base, local.container_env_sign_in, local.container_env_test_sign_in, local.container_env_voicemail)
 }

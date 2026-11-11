@@ -3,8 +3,8 @@
   "StartAction": "Turn on logging",
   "Metadata": {
     "entryPointPosition": {
-      "x": -208,
-      "y": 19.2
+      "x": -777.6,
+      "y": 56
     },
     "ActionMetadata": {
       "End flow": {
@@ -30,7 +30,7 @@
         "conditions": [],
         "conditionMetadata": [
           {
-            "id": "2922f921-d677-49ad-adb9-b983f35ca245",
+            "id": "2c6f764d-1acd-48d7-9274-73d3aaf98fc8",
             "operator": {
               "name": "Equals",
               "value": "Equals",
@@ -60,17 +60,10 @@
         },
         "useDynamic": true
       },
-      "Turn on logging": {
-        "position": {
-          "x": -98.4,
-          "y": 18.4
-        },
-        "isFriendlyName": true
-      },
       "6a435cc2-c524-4a01-b10a-defa584508c2": {
         "position": {
-          "x": -14.4,
-          "y": 234.4
+          "x": -123.2,
+          "y": 14.4
         },
         "parameters": {
           "EventHooks": {
@@ -84,6 +77,27 @@
           "id": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/contact-flow/017c14ad-7e10-46c7-85ac-2ef820de24be"
         },
         "customerOrAgent": true
+      },
+      "Turn on logging": {
+        "position": {
+          "x": -624.8,
+          "y": 28.8
+        },
+        "isFriendlyName": true
+      },
+      "126c4d7b-61fe-4442-9f78-8a27abb731ad": {
+        "position": {
+          "x": -395.2,
+          "y": 10.4
+        },
+        "parameters": {
+          "EventHooks": {
+            "DefaultAgentUI": {
+              "displayName": "VMX3_Guided_Task_Flow_btsgsd-dev-us-east-1",
+              "useSetEventHook": true
+            }
+          }
+        }
       }
     },
     "Annotations": []
@@ -191,16 +205,6 @@
     },
     {
       "Parameters": {
-        "FlowLoggingBehavior": "Enabled"
-      },
-      "Identifier": "Turn on logging",
-      "Type": "UpdateFlowLoggingBehavior",
-      "Transitions": {
-        "NextAction": "6a435cc2-c524-4a01-b10a-defa584508c2"
-      }
-    },
-    {
-      "Parameters": {
         "EventHooks": {
           "CustomerQueue": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/contact-flow/017c14ad-7e10-46c7-85ac-2ef820de24be"
         }
@@ -212,6 +216,34 @@
         "Errors": [
           {
             "NextAction": "Set the target queue",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "Turn on logging",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "126c4d7b-61fe-4442-9f78-8a27abb731ad"
+      }
+    },
+    {
+      "Parameters": {
+        "EventHooks": {
+          "DefaultAgentUI": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/contact-flow/1f8a0718-5abd-40fa-8a97-f2ee6483c1f2"
+        }
+      },
+      "Identifier": "126c4d7b-61fe-4442-9f78-8a27abb731ad",
+      "Type": "UpdateContactEventHooks",
+      "Transitions": {
+        "NextAction": "6a435cc2-c524-4a01-b10a-defa584508c2",
+        "Errors": [
+          {
+            "NextAction": "6a435cc2-c524-4a01-b10a-defa584508c2",
             "ErrorType": "NoMatchingError"
           }
         ]

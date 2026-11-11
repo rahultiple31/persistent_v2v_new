@@ -1,21 +1,26 @@
 // Temporary test sign-in, so the whole path can be tested before the identity
-// provider's client exists. One Parameter Store value (SecureString) is the switch, read every refreshMs
-// like the forceBackupTranslation switch:
+// provider's client exists. One Secrets Manager secret, created by hand in the console, is the switch, read
+// every refreshMs:
 //
 //   the test password (12 characters or more)   on
-//   "off", or no parameter                       off; every test token stops working within refreshMs
+//   "off", or no secret                          off; every test token stops working within refreshMs
 //
+// The secret is either plaintext (the password alone) or the console's key/value form with the key
+// "password". A secret scheduled for deletion counts as no secret.
 // A correct password gets an access token for 8 hours, signed with a key derived from the password, so
 // every task accepts it, and a new password also ends every test session. The password is never logged.
 // With the server-side sign-in (AUTH_MODE=bff) it gets a session cookie instead (sessionAuth.js), which
 // carries keyId and so ends the same way.
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { GetParameterCommand } from "@aws-sdk/client-ssm";
+import { GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
 import { errorFields } from "../logger.js";
 
 export const TEST_ISSUER = "v2v-test-sign-in";
 const MIN_PASSWORD_CHARS = 12;
 const TOKEN_LIFETIME_MS = 8 * 60 * 60_000;
+// No secret, or one scheduled for deletion: deleting the secret switches the test sign-in off at once, not
+// at the end of the recovery window.
+const SECRET_GONE = new Set(["ResourceNotFoundException", "InvalidRequestException"]);
 
 const base64url = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
 const derive = (password) => createHmac("sha256", TEST_ISSUER).update(password).digest();
@@ -35,47 +40,60 @@ function decodePart(part) {
   }
 }
 
+/** The password in the secret: its plaintext, or the "password" key of a key/value secret (null: no such key). */
+function passwordIn(secretString) {
+  const text = String(secretString ?? "").trim();
+  if (!text.startsWith("{")) return text;
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return text; // not key/value: a password that starts with "{"
+  }
+  return typeof value?.password === "string" ? value.password.trim() : null;
+}
+
 /**
  * @param {object} opts
- * @param {{send(command): Promise<any>}} opts.ssm
- * @param {string} opts.parameterName
+ * @param {{send(command): Promise<any>}} opts.secrets - SecretsManagerClient
+ * @param {string} opts.secretId - name or ARN
  */
-export function createTestSignIn({ ssm, parameterName, refreshMs = 30_000, logger, now = () => Date.now() }) {
+export function createTestSignIn({ secrets, secretId, refreshMs = 30_000, logger, now = () => Date.now() }) {
   let key = null; // set while the switch is on
   let timer = null;
   let failing = false;
-  let reportedShort = false;
+  let reported = null; // the last warning about the secret's value, so it is logged once
 
-  function apply(value) {
-    const password = String(value ?? "").trim();
+  function apply(secretString) {
+    const password = passwordIn(secretString);
     let next = null;
-    if (password && password.toLowerCase() !== "off") {
-      if (password.length >= MIN_PASSWORD_CHARS) {
-        next = derive(password);
-        reportedShort = false;
-      } else if (!reportedShort) {
-        logger.warn(`test sign-in password is shorter than ${MIN_PASSWORD_CHARS} characters: test sign-in stays off`, { parameterName });
-        reportedShort = true;
-      }
+    let problem = null;
+    if (password == null) {
+      problem = 'the test sign-in secret has no "password" key: test sign-in stays off';
+    } else if (password && password.toLowerCase() !== "off") {
+      if (password.length >= MIN_PASSWORD_CHARS) next = derive(password);
+      else problem = `test sign-in password is shorter than ${MIN_PASSWORD_CHARS} characters: test sign-in stays off`;
     }
-    if (Boolean(next) !== Boolean(key)) logger.info("test sign-in switched", { parameterName, on: Boolean(next) });
-    else if (next && !next.equals(key)) logger.info("test sign-in password changed: earlier test sessions end", { parameterName });
+    if (problem && problem !== reported) logger.warn(problem, { secretId });
+    reported = problem;
+    if (Boolean(next) !== Boolean(key)) logger.info("test sign-in switched", { secretId, on: Boolean(next) });
+    else if (next && !next.equals(key)) logger.info("test sign-in password changed: earlier test sessions end", { secretId });
     key = next;
   }
 
   async function refresh() {
     try {
-      const result = await ssm.send(new GetParameterCommand({ Name: parameterName, WithDecryption: true }));
-      apply(result?.Parameter?.Value);
-      if (failing) logger.info("test sign-in parameter readable again", { parameterName });
+      const result = await secrets.send(new GetSecretValueCommand({ SecretId: secretId }));
+      apply(result?.SecretString);
+      if (failing) logger.info("test sign-in secret readable again", { secretId });
       failing = false;
     } catch (err) {
-      if (err?.name === "ParameterNotFound") {
+      if (SECRET_GONE.has(err?.name)) {
         apply("off");
         failing = false;
       } else {
-        // A failed read keeps the last state, so a Parameter Store hiccup never signs testers out.
-        if (!failing) logger.warn("could not read the test sign-in parameter; keeping the last state", { parameterName, ...errorFields(err) });
+        // A failed read keeps the last state, so a Secrets Manager hiccup never signs testers out.
+        if (!failing) logger.warn("could not read the test sign-in secret; keeping the last state", { secretId, ...errorFields(err) });
         failing = true;
       }
     }

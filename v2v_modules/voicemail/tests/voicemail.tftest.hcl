@@ -13,16 +13,38 @@ mock_provider "aws" {
     values = { partition = "aws" }
   }
   override_data {
-    target = data.aws_iam_user.presigner
-    values = {
-      arn       = "arn:aws:iam::518902362956:user/VMX3_Presigner_User_btsgsd-dev-us-east-1"
-      user_name = "VMX3_Presigner_User_btsgsd-dev-us-east-1"
-    }
-  }
-  override_data {
     target = data.aws_connect_contact_flow.customer_queue
     values = {
       arn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/contact-flow/5a91146a-e655-4e69-98e9-c0f54c3e38e1"
+    }
+  }
+  override_data {
+    target = data.aws_security_group.lambda_core
+    values = { id = "sg-00000000000000000" }
+  }
+  override_resource {
+    target          = aws_connect_contact_flow.guided_task
+    override_during = plan
+    values = {
+      arn             = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/contact-flow/99999999-9999-4999-8999-999999999999"
+      contact_flow_id = "99999999-9999-4999-8999-999999999999"
+    }
+  }
+  override_resource {
+    target          = aws_connect_contact_flow.task
+    override_during = plan
+    values = {
+      contact_flow_id = "88888888-8888-4888-8888-888888888888"
+    }
+  }
+}
+
+mock_provider "awscc" {
+  override_resource {
+    target          = awscc_connect_view.task
+    override_during = plan
+    values = {
+      view_arn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/view/77777777-7777-4777-8777-777777777777"
     }
   }
 }
@@ -74,14 +96,15 @@ run "names_follow_convention" {
 
   assert {
     condition = (
-      aws_s3_bucket.this["recordings"].bucket == "btsgsd-v2v-us-voicemail" &&
+      aws_s3_bucket.this["recording"].bucket == "btsgsd-v2v-us-voicemail-recording" &&
       aws_s3_bucket.this["transcripts"].bucket == "btsgsd-v2v-us-voicemail-transcript" &&
       aws_kinesis_stream.ctr.name == "BTSGSD-V2V-US-voiceMail" &&
-      aws_secretsmanager_secret.presigner.name == "BTSGSD-V2V-US-voicemail" &&
       aws_iam_role.lambda.name == "BTSGSD-V2V-US-voicemail-lambdaRole" &&
       aws_lambda_layer_version.vmx3.layer_name == "BTSGSD-V2V-US-VMX3-Python-Layer" &&
       aws_kms_alias.voicemail.name == "alias/BTSGSD-V2V-US-voicemail" &&
       aws_connect_contact_flow.task.name == "BTSGSD-V2V-US-VMX3_Basic_Task_Flow" &&
+      aws_connect_contact_flow.guided_task.name == "BTSGSD-V2V-US-VMX3_Guided_Task_Flow" &&
+      awscc_connect_view.task.name == "BTSGSD-V2V-US-Voicemail Task View" &&
       aws_connect_contact_flow_module.main.name == "BTSGSD-V2V-US-VMX3_Main_VM_Module"
     )
     error_message = "Resource names must follow BTSGSD-V2V-US-<name>."
@@ -93,10 +116,10 @@ run "names_follow_convention" {
       "BTSGSD-V2V-US-voicemail-RecordingProcessor",
       "BTSGSD-V2V-US-voicemail-Transcriber",
       "BTSGSD-V2V-US-voicemail-TranscribeErrorHandler",
-      "BTSGSD-V2V-US-voicemail-Presigner",
+      "BTSGSD-V2V-US-voicemail-GuidedTaskPresigner",
       "BTSGSD-V2V-US-voicemail-Packager",
     ])
-    error_message = "All six functions must be created with the new names."
+    error_message = "The six functions must include GuidedTaskPresigner and not the user-key Presigner."
   }
 
   assert {
@@ -114,8 +137,9 @@ run "buckets_match_existing_configuration" {
 
   assert {
     condition = alltrue([
-      for key in ["recordings", "transcripts"] :
+      for key in ["recording", "transcripts"] :
       aws_s3_bucket.this[key].object_lock_enabled &&
+      !aws_s3_bucket.this[key].force_destroy &&
       aws_s3_bucket_ownership_controls.this[key].rule[0].object_ownership == "BucketOwnerPreferred" &&
       aws_s3_bucket_acl.this[key].acl == "private" &&
       aws_s3_bucket_versioning.this[key].versioning_configuration[0].status == "Enabled" &&
@@ -134,34 +158,117 @@ run "buckets_match_existing_configuration" {
   }
 }
 
-run "flows_reference_only_the_target_instance" {
+run "retired_recordings_bucket_is_kept_with_force_destroy_in_run_a" {
   command = plan
 
   assert {
     condition = (
-      !strcontains(aws_connect_contact_flow_module.main.content, "c227a737-3e4f-4c64-8397-2d37e318801d") &&
-      !strcontains(aws_connect_contact_flow_module.main.content, "abbvie-sd-contactcenter") &&
-      !strcontains(aws_connect_contact_flow_module.main.content, "0c2359aa-9062-43ec-9d0d-abc5861c2197") &&
-      !strcontains(aws_connect_contact_flow.task.content, "c227a737-3e4f-4c64-8397-2d37e318801d")
+      length(aws_s3_bucket.retired_recordings) == 1 &&
+      aws_s3_bucket.retired_recordings[0].bucket == "btsgsd-v2v-us-voicemail" &&
+      aws_s3_bucket.retired_recordings[0].force_destroy
     )
-    error_message = "No SSO-instance reference may remain."
+    error_message = "Run A must keep the old bucket with force_destroy = true."
+  }
+}
+
+run "retired_recordings_bucket_is_removed_in_run_b" {
+  command = plan
+
+  variables {
+    delete_retired_recordings_bucket = true
+  }
+
+  assert {
+    condition     = length(aws_s3_bucket.retired_recordings) == 0
+    error_message = "Run B must remove the old bucket."
+  }
+}
+
+run "guided_task_lambdas_use_no_user_keys" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_lambda_function.this["Packager"].environment[0].variables["default_vmx_mode"] == "guided_task" &&
+      aws_lambda_function.this["Packager"].environment[0].variables["default_guided_task_flow"] == "88888888-8888-4888-8888-888888888888" &&
+      aws_lambda_function.this["Packager"].environment[0].variables["default_task_flow"] == "AWS::NoValue" &&
+      aws_lambda_function.this["Packager"].environment[0].variables["presigner_function_arn"] == "AWS::NoValue" &&
+      aws_lambda_function.this["Packager"].environment[0].variables["s3_recordings_bucket"] == "btsgsd-v2v-us-voicemail-recording" &&
+      aws_lambda_function.this["RecordingProcessor"].environment[0].variables["vmx3_recordings_bucket"] == "btsgsd-v2v-us-voicemail-recording" &&
+      aws_lambda_function.this["GuidedTaskPresigner"].environment[0].variables["s3_recordings_bucket"] == "btsgsd-v2v-us-voicemail-recording" &&
+      aws_lambda_function.this["GuidedTaskPresigner"].timeout == 7 &&
+      !contains(keys(aws_lambda_function.this), "Presigner")
+    )
+    error_message = "The Packager must use guided tasks without a presigner, and every function must use the new recordings bucket."
   }
 
   assert {
     condition = (
-      one([for a in jsondecode(aws_connect_contact_flow_module.main.content).Actions : a if a.Type == "UpdateContactTargetQueue"]).Parameters.QueueId == var.voicemail_queue_arn &&
+      aws_lambda_permission.connect_guided_presigner.principal == "connect.amazonaws.com" &&
+      aws_lambda_permission.connect_guided_presigner.source_arn == var.instance_arn &&
+      aws_lambda_permission.connect_guided_presigner.function_name == "BTSGSD-V2V-US-voicemail-GuidedTaskPresigner" &&
+      aws_connect_lambda_function_association.guided_presigner.instance_id == "bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
+    )
+    error_message = "The guided presigner must be invocable by, and associated with, the target instance."
+  }
+}
+
+run "flows_reference_only_the_target_instance" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      for content in [
+        aws_connect_contact_flow_module.main.content,
+        aws_connect_contact_flow.task.content,
+        aws_connect_contact_flow.guided_task.content,
+      ] :
+      !strcontains(content, "c227a737-3e4f-4c64-8397-2d37e318801d") &&
+      !strcontains(content, "abbvie-sd-contactcenter") &&
+      !strcontains(content, "btsgsd-dev-us-east-1") &&
+      !strcontains(content, "0c2359aa-9062-43ec-9d0d-abc5861c2197")
+    ])
+    error_message = "No DEV-SSO reference may remain in the module or flows."
+  }
+
+  assert {
+    condition = (
+      length([for a in jsondecode(aws_connect_contact_flow_module.main.content).Actions : a if a.Type == "UpdateContactTargetQueue"]) == 0 &&
       one([for a in jsondecode(aws_connect_contact_flow_module.main.content).Actions : a if a.Identifier == "voicemail attributes"]).Parameters.Attributes.vmx3_queue_arn == var.voicemail_queue_arn &&
+      one([for a in jsondecode(aws_connect_contact_flow_module.main.content).Actions : a if a.Identifier == "voicemail attributes"]).Parameters.Attributes.vmx3_mode == "guided_task" &&
       one([for a in jsondecode(aws_connect_contact_flow_module.main.content).Actions : a if a.Identifier == "Play the start recording beep using SSML"]).Parameters.PromptId == var.beep_prompt_arn &&
       one([for a in jsondecode(aws_connect_contact_flow_module.main.content).Actions : a if a.Type == "EvaluateDataTableValues"]).Parameters.DataTableId == var.prompt_data_table_id &&
       one([for a in jsondecode(aws_connect_contact_flow_module.main.content).Actions : a if a.Identifier == "Set Timestamp Function"]).Parameters.FlowAttributes.vmx3_timestamper_function.Value == "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-V2V-US-voicemail-VoicemailTimestamper" &&
       length(jsondecode(aws_connect_contact_flow_module.main.content).Actions) == length(jsondecode(file("${path.module}/assets/VMX3_Main_VM_Module.json")).Actions)
     )
-    error_message = "The flow module must point at the target queue, prompt, data table and new timestamper."
+    error_message = "The flow module must match the latest DEV-SSO export with V2V queue, prompt, data table and timestamper."
   }
 
   assert {
-    condition     = one([for a in jsondecode(aws_connect_contact_flow.task.content).Actions : a if a.Type == "UpdateContactEventHooks"]).Parameters.EventHooks.CustomerQueue == "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/contact-flow/5a91146a-e655-4e69-98e9-c0f54c3e38e1"
-    error_message = "The task flow must use the target instance's customer queue flow."
+    condition = (
+      one([for a in jsondecode(aws_connect_contact_flow.task.content).Actions : a if a.Type == "UpdateContactEventHooks" && can(a.Parameters.EventHooks.CustomerQueue)]).Parameters.EventHooks.CustomerQueue == "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/contact-flow/5a91146a-e655-4e69-98e9-c0f54c3e38e1" &&
+      one([for a in jsondecode(aws_connect_contact_flow.task.content).Actions : a if a.Type == "UpdateContactEventHooks" && can(a.Parameters.EventHooks.DefaultAgentUI)]).Parameters.EventHooks.DefaultAgentUI == "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/contact-flow/99999999-9999-4999-8999-999999999999"
+    )
+    error_message = "The task flow must use the V2V customer queue flow and open the new guided task flow."
+  }
+
+  assert {
+    condition = (
+      one([for a in jsondecode(aws_connect_contact_flow.guided_task.content).Actions : a if a.Type == "ShowView"]).Parameters.ViewResource.Id == "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/view/77777777-7777-4777-8777-777777777777:$LATEST" &&
+      one([for a in jsondecode(aws_connect_contact_flow.guided_task.content).Actions : a if a.Identifier == "Set Presigner ARN"]).Parameters.FlowAttributes.vmx3_presigner_arn.Value == "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-V2V-US-voicemail-GuidedTaskPresigner" &&
+      jsondecode(aws_connect_contact_flow.guided_task.content).Metadata.ActionMetadata["Show VMX Guided Task view"].parameters.ViewResource.Id.displayName == "BTSGSD-V2V-US-Voicemail Task View"
+    )
+    error_message = "The guided task flow must show the new view and call the new guided presigner."
+  }
+
+  assert {
+    condition     = jsondecode(awscc_connect_view.task.template) == jsondecode(file("${path.module}/assets/Voicemail_Task_View.json")).Template
+    error_message = "The view template must match the DEV-SSO export."
+  }
+
+  assert {
+    condition     = length(awscc_connect_view.task.actions) > 0
+    error_message = "Cloud Control requires at least one view action."
   }
 }
 
@@ -185,6 +292,69 @@ run "ctr_association_is_opt_in" {
   assert {
     condition     = length(aws_connect_instance_storage_config.ctr) == 0
     error_message = "The CTR stream association must stay off by default."
+  }
+}
+
+run "agent_events_association_is_opt_in_and_uses_the_stream" {
+  command = plan
+
+  assert {
+    condition     = length(aws_connect_instance_storage_config.agent_events) == 0
+    error_message = "The agent events association must stay off by default."
+  }
+}
+
+run "agent_events_association_when_enabled" {
+  command = plan
+
+  variables {
+    associate_agent_events_stream = true
+  }
+
+  assert {
+    condition = (
+      aws_connect_instance_storage_config.agent_events[0].resource_type == "AGENT_EVENTS" &&
+      aws_connect_instance_storage_config.agent_events[0].instance_id == "bcc989e5-cd9d-494f-9cd4-434f39ccc90e" &&
+      one(aws_connect_instance_storage_config.agent_events[0].storage_config).storage_type == "KINESIS_STREAM"
+    )
+    error_message = "Enabling the association must stream agent events from the target instance to Kinesis."
+  }
+}
+
+run "s3_invoke_permissions_use_module_buckets" {
+  command = plan
+
+  # Bucket ARNs are computed; pin them during plan to check source_arn.
+  override_resource {
+    target          = aws_s3_bucket.this["transcripts"]
+    override_during = plan
+    values = {
+      arn = "arn:aws:s3:::btsgsd-v2v-us-voicemail-transcript"
+    }
+  }
+
+  override_resource {
+    target          = aws_s3_bucket.this["recording"]
+    override_during = plan
+    values = {
+      arn = "arn:aws:s3:::btsgsd-v2v-us-voicemail-recording"
+    }
+  }
+
+  assert {
+    condition = (
+      aws_lambda_permission.s3["Transcriber"].statement_id == "AllowS3-TranscriptBucket" &&
+      aws_lambda_permission.s3["Transcriber"].function_name == "BTSGSD-V2V-US-voicemail-Transcriber" &&
+      aws_lambda_permission.s3["Transcriber"].principal == "s3.amazonaws.com" &&
+      aws_lambda_permission.s3["Transcriber"].source_account == "518902362956" &&
+      aws_lambda_permission.s3["Packager"].statement_id == "AllowS3-TranscriptBucket" &&
+      aws_lambda_permission.s3["Packager"].function_name == "BTSGSD-V2V-US-voicemail-Packager" &&
+      aws_lambda_permission.s3["Packager"].source_account == "518902362956" &&
+      length(aws_lambda_permission.s3) == 2 &&
+      aws_lambda_permission.s3["Transcriber"].source_arn == "arn:aws:s3:::btsgsd-v2v-us-voicemail-transcript" &&
+      aws_lambda_permission.s3["Packager"].source_arn == "arn:aws:s3:::btsgsd-v2v-us-voicemail-transcript"
+    )
+    error_message = "Transcriber and Packager must both allow the transcript bucket, in this account."
   }
 }
 

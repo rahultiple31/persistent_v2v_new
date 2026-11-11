@@ -177,17 +177,19 @@ main_ib_phone_lookup_function_name = "SNOW_Abbvie"
 
 
 # VMX3 voicemail module dependencies in V2V instance bcc989e5-cd9d-494f-9cd4-434f39ccc90e.
-vmx3_voicemail_queue_arn    = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/queue/257cafaf-87c4-4e32-9f0b-3fbb8b942433"
-vmx3_beep_prompt_arn        = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/prompt/ccf6f51f-b39a-4ccd-aa65-80349b07bf65"
-vmx3_timestamper_lambda_arn = "arn:aws:lambda:us-east-1:518902362956:function:voicemail-v2v-VoicemailTimestamper"
+vmx3_voicemail_queue_arn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/queue/257cafaf-87c4-4e32-9f0b-3fbb8b942433"
+vmx3_beep_prompt_arn     = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e/prompt/ccf6f51f-b39a-4ccd-aa65-80349b07bf65"
 
 # New VMX3 voicemail stack (module.voicemail, pipeline choice "voicemail").
 # Instance call-recording bucket from the CALL_RECORDINGS storage config.
 voicemail_connect_recordings_bucket_name = "amazon-connect-e9a2e832a017"
-voicemail_presigner_user_name            = "VMX3_Presigner_User_btsgsd-dev-us-east-1"
-voicemail_create_presigner_access_key    = true
 # Keep false until the console CTR association to voiceMail-v2v is removed.
 voicemail_associate_ctr_stream = true
+# Agent events to the same stream. Remove the console AGENT_EVENTS association
+# (to voiceMail-v2v) just before applying the voicemail choice.
+voicemail_associate_agent_events_stream = true
+# Recordings bucket rename, Run B: set true only after Run A is applied.
+voicemail_delete_retired_recordings_bucket = true
 
 enable_external_vms = true
 

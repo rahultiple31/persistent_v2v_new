@@ -44,53 +44,8 @@ removed {
   }
 }
 
-resource "aws_connect_routing_profile" "us_latam_vm_blended" {
-  instance_id               = local.instance_id
-  name                      = local.latam_vm_blended_routing_profile
-  description               = local.latam_vm_blended_routing_profile
-  default_outbound_queue_id = aws_connect_queue.us_out.queue_id
-
-  media_concurrencies {
-    channel     = "TASK"
-    concurrency = 1
-  }
-
-  media_concurrencies {
-    channel     = "VOICE"
-    concurrency = 1
-  }
-
-  queue_configs {
-    channel  = "TASK"
-    delay    = 0
-    priority = 1
-    queue_id = aws_connect_queue.us_vm.queue_id
-  }
-
-  queue_configs {
-    channel  = "VOICE"
-    delay    = 0
-    priority = 1
-    queue_id = aws_connect_queue.us_vm.queue_id
-  }
-
-  # Main queue managed by the connect-queue module.
-  queue_configs {
-    channel  = "VOICE"
-    delay    = 0
-    priority = 1
-    queue_id = var.connect_queue_queue_id
-  }
-
-  queue_configs {
-    channel  = "VOICE"
-    delay    = 0
-    priority = 1
-    queue_id = aws_connect_queue.latam_main.queue_id
-  }
-
-  tags = merge(var.tags, { Name = local.latam_vm_blended_routing_profile })
-}
+# BTSGSD-V2V-US-LATAM-VM-BLENDED-RP was removed at QA's request (testing only).
+# Terraform deletes it after moving its users to the US agent profile.
 
 resource "aws_connect_routing_profile" "latam_agent" {
   instance_id               = local.instance_id
@@ -118,6 +73,29 @@ resource "aws_connect_routing_profile" "latam_agent" {
   tags = merge(var.tags, { Name = local.latam_agent_routing_profile_name })
 }
 
+# Voicemail agents: tasks only (VMX3 voicemail tasks land in US-VM-QUEUE).
+# Same concurrency as the US and LATAM agent profiles; no voice channel.
+resource "aws_connect_routing_profile" "vm_agent" {
+  instance_id               = local.instance_id
+  name                      = local.vm_agent_routing_profile_name
+  description               = local.vm_agent_routing_profile_name
+  default_outbound_queue_id = aws_connect_queue.us_out.queue_id
+
+  media_concurrencies {
+    channel     = "TASK"
+    concurrency = 1
+  }
+
+  queue_configs {
+    channel  = "TASK"
+    delay    = 0
+    priority = 1
+    queue_id = aws_connect_queue.us_vm.queue_id
+  }
+
+  tags = merge(var.tags, { Name = local.vm_agent_routing_profile_name })
+}
+
 # Default routing profile created by Connect with every instance.
 data "aws_connect_routing_profile" "basic" {
   instance_id = local.instance_id
@@ -140,16 +118,16 @@ locals {
   routing_profile_ids = {
     basic = data.aws_connect_routing_profile.basic.routing_profile_id
     # awscc exposes the ARN only: .../instance/<instance-id>/routing-profile/<id>
-    us_agent            = element(split("/", awscc_connect_routing_profile.us_agent.routing_profile_arn), 3)
-    latam_agent         = aws_connect_routing_profile.latam_agent.routing_profile_id
-    us_latam_vm_blended = aws_connect_routing_profile.us_latam_vm_blended.routing_profile_id
+    us_agent    = element(split("/", awscc_connect_routing_profile.us_agent.routing_profile_arn), 3)
+    latam_agent = aws_connect_routing_profile.latam_agent.routing_profile_id
+    vm_agent    = aws_connect_routing_profile.vm_agent.routing_profile_id
   }
 
   # Map used by aws_connect_user; avoids the us_agent cycle described above.
   user_routing_profile_ids = {
-    basic               = data.aws_connect_routing_profile.basic.routing_profile_id
-    us_agent            = try(data.aws_connect_routing_profile.us_agent_lookup[0].routing_profile_id, null)
-    latam_agent         = aws_connect_routing_profile.latam_agent.routing_profile_id
-    us_latam_vm_blended = aws_connect_routing_profile.us_latam_vm_blended.routing_profile_id
+    basic       = data.aws_connect_routing_profile.basic.routing_profile_id
+    us_agent    = try(data.aws_connect_routing_profile.us_agent_lookup[0].routing_profile_id, null)
+    latam_agent = aws_connect_routing_profile.latam_agent.routing_profile_id
+    vm_agent    = aws_connect_routing_profile.vm_agent.routing_profile_id
   }
 }

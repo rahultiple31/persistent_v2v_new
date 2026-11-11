@@ -171,24 +171,9 @@ module "customer_queue_flow" {
   })
 }
 
-module "vmx3_main_vm_module" {
-  count  = local.deploy_connect ? 1 : 0
-  source = "../../v2v_modules/connect_contact_flow_module"
-
-  providers = {
-    aws = aws.us_east_1
-  }
-
-  instance_arn = module.connect_us_east_1[0].instance_arn
-  name         = "VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1"
-  content_file = "${path.module}/metadata/contact-flow-modules/VMX3_Main_VM_Module_btsgsd-dev-us-east-1.json"
-
-  voicemail_queue_arn    = var.vmx3_voicemail_queue_arn
-  beep_prompt_arn        = var.vmx3_beep_prompt_arn
-  survey_data_table_id   = local.survey_data_table_id
-  timestamper_lambda_arn = var.vmx3_timestamper_lambda_arn
-  tags                   = local.common_tags
-}
+# module "vmx3_main_vm_module" (VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1) was
+# retired: no flow used it. Its resources stay addressable in state and are
+# deleted with the destroy_vmx3_main_vm_module pipeline choice.
 
 # Create the Lambda and interface-endpoint security groups in the Connect state.
 # Attachment to Lambda functions and endpoints is managed separately.
@@ -226,23 +211,23 @@ module "voicemail" {
   providers = {
     aws     = aws.us_east_1
     archive = archive
+    awscc   = awscc.us_east_1
   }
 
   name_prefix  = local.name_prefix
   instance_arn = local.connect_target_instance_arn
 
-  # Same queue, prompt and data table the existing VMX3 module uses.
+  # V2V voicemail queue, Beep.wav prompt and prompt data table.
   voicemail_queue_arn  = var.vmx3_voicemail_queue_arn
   beep_prompt_arn      = var.vmx3_beep_prompt_arn
   prompt_data_table_id = local.voicemail_prompt_data_table_id
 
-  presigner_user_name            = var.voicemail_presigner_user_name
-  create_presigner_access_key    = var.voicemail_create_presigner_access_key
-  presigner_credentials          = var.voicemail_presigner_credentials
-  connect_recordings_bucket_name = var.voicemail_connect_recordings_bucket_name
-  associate_ctr_stream           = var.voicemail_associate_ctr_stream
-  code_signing_config_arn        = var.lambda_code_signing_config_arn
-  tags                           = local.common_tags
+  delete_retired_recordings_bucket = var.voicemail_delete_retired_recordings_bucket
+  connect_recordings_bucket_name   = var.voicemail_connect_recordings_bucket_name
+  associate_ctr_stream             = var.voicemail_associate_ctr_stream
+  associate_agent_events_stream    = var.voicemail_associate_agent_events_stream
+  code_signing_config_arn          = var.lambda_code_signing_config_arn
+  tags                             = local.common_tags
 }
 
 module "btsgsd-Main-IB-Flow" {

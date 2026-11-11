@@ -23,7 +23,7 @@ output "target_group_arn" {
 
   # The ECS service moves to this target group only after the listener
   # forwards to it.
-  depends_on = [aws_lb_listener.http, aws_lb_listener.https]
+  depends_on = [aws_lb_listener.https]
 }
 
 output "alb_log_bucket_name" {

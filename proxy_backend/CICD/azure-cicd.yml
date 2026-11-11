@@ -22,18 +22,8 @@ parameters:
     default: plan
     values: [plan, apply]
 
-# Automatic runs (main only) use the defaults above, so they plan but never apply.
-trigger:
-  batch: true
-  branches:
-    include: [main]
-  paths:
-    include:
-      - proxy_backend/**
-      - webapp/**
-      - v2v-resource-modules/**
-      - environments/v2v-resources-dev/**
-      - scripts/aws-oidc.sh
+
+trigger: none
 pr: none
 
 variables:

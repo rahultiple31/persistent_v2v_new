@@ -3,7 +3,10 @@
 # Creates:
 #   • ECS Task Execution Role  (pull from ECR, write CloudWatch logs)
 #   • ECS Task Role            (call Bedrock / Transcribe / Translate / Polly /
-#                               SSM — never exposed to the browser)
+#                               SSM, read the sign-in secrets in Secrets
+#                               Manager (bff, test sign-in password), and the
+#                               voicemail recordings in S3 — never exposed to
+#                               the browser)
 #
 # Mirrors CDK: PrivatePocStack > Service > taskDefinition + addToPrincipalPolicy
 ################################################################################
@@ -145,68 +148,87 @@ resource "aws_iam_role_policy" "ssm_force_backup" {
   policy = data.aws_iam_policy_document.ssm_force_backup.json
 }
 
-# ── Policy 4 (optional): SSM — testSignIn SecureString parameter ──────────────
-# Only created when test_sign_in = true. The parameter itself is created by
-# hand as a SecureString; Terraform only grants read access to it.
+# ── Policy 4 (optional): Secrets Manager — sign-in secrets ────────────────────
+# Only created when secret_names is not empty (auth_mode = "bff", or the test
+# sign-in). The secrets (the identity provider's client secret, the session
+# key, the test sign-in password) are created by hand; Terraform only grants
+# read access, by name: Secrets Manager adds 6 random characters to each
+# secret's ARN.
 
-data "aws_iam_policy_document" "ssm_test_sign_in" {
-  count = var.test_sign_in ? 1 : 0
-
-  statement {
-    sid     = "ReadTestSignInParameter"
-    effect  = "Allow"
-    actions = ["ssm:GetParameter"]
-
-    resources = [var.test_sign_in_parameter_arn]
-  }
-}
-
-resource "aws_iam_role_policy" "ssm_test_sign_in" {
-  count = var.test_sign_in ? 1 : 0
-
-  name   = "ssm-test-sign-in"
-  role   = aws_iam_role.task.id
-  policy = data.aws_iam_policy_document.ssm_test_sign_in[0].json
-}
-
-# ── Policy 5 (optional): KMS Decrypt for the testSignIn SecureString ──────────
-# SSM SecureString parameters are encrypted with a KMS key; the task role must
-# be able to call kms:Decrypt scoped to that parameter ARN via the SSM VPC
-# endpoint to avoid any cleartext exposure.
-
-data "aws_iam_policy_document" "kms_test_sign_in" {
-  count = var.test_sign_in ? 1 : 0
+data "aws_iam_policy_document" "sign_in_secrets" {
+  count = length(var.secret_names) > 0 ? 1 : 0
 
   statement {
-    sid     = "DecryptTestSignInKey"
+    sid     = "ReadSignInSecrets"
     effect  = "Allow"
-    actions = ["kms:Decrypt"]
+    actions = ["secretsmanager:GetSecretValue"]
 
-    # The KMS key ARN is not known at deploy time (it is the default SSM key or
-    # a manually created key). Scope to the account's keys and restrict via
-    # ViaService + EncryptionContext so no other secret can be decrypted.
     resources = [
-      "arn:${var.partition}:kms:${var.aws_region}:${var.account_id}:key/*",
+      for name in var.secret_names :
+      "arn:${var.partition}:secretsmanager:${var.aws_region}:${var.account_id}:secret:${name}-??????"
     ]
+  }
+
+  # Only needed if a secret is encrypted with a customer managed key; only
+  # through Secrets Manager.
+  statement {
+    sid       = "DecryptSignInSecrets"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = ["arn:${var.partition}:kms:${var.aws_region}:${var.account_id}:key/*"]
 
     condition {
       test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["ssm.${var.aws_region}.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "kms:EncryptionContext:PARAMETER_ARN"
-      values   = [var.test_sign_in_parameter_arn]
+      values   = ["secretsmanager.${var.aws_region}.amazonaws.com"]
     }
   }
 }
 
-resource "aws_iam_role_policy" "kms_test_sign_in" {
-  count = var.test_sign_in ? 1 : 0
+resource "aws_iam_role_policy" "sign_in_secrets" {
+  count = length(var.secret_names) > 0 ? 1 : 0
 
-  name   = "kms-test-sign-in"
+  name   = "secretsmanager-sign-in"
   role   = aws_iam_role.task.id
-  policy = data.aws_iam_policy_document.kms_test_sign_in[0].json
+  policy = data.aws_iam_policy_document.sign_in_secrets[0].json
+}
+
+# ── Policy 5 (optional): S3 — voicemail recordings ────────────────────────────
+# Only created when voicemail_recordings_bucket is set. The proxy plays VMX3
+# voicemail recordings in the page (GET /api/voicemail): read-only, and only
+# the recordings (VMX3 names them <date>/<contact ID>.wav).
+# Mirrors CDK: PrivatePocStack > if (voicemailBucket).
+
+data "aws_iam_policy_document" "voicemail" {
+  count = var.voicemail_recordings_bucket != "" ? 1 : 0
+
+  statement {
+    sid       = "ReadVoicemailRecordings"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = ["arn:${var.partition}:s3:::${var.voicemail_recordings_bucket}/*.wav"]
+  }
+
+  # The bucket's KMS key, if it has one (its key policy must let IAM grant
+  # access); only through S3, where s3:GetObject above limits it to this bucket.
+  statement {
+    sid       = "DecryptVoicemailRecordings"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = ["arn:${var.partition}:kms:${var.aws_region}:${var.account_id}:key/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["s3.${var.aws_region}.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "voicemail" {
+  count = var.voicemail_recordings_bucket != "" ? 1 : 0
+
+  name   = "s3-voicemail-recordings"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.voicemail[0].json
 }

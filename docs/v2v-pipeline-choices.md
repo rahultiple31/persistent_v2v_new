@@ -11,19 +11,21 @@ The pipeline choices map to the existing Terraform roots: `v2v-dev` uses
 The internal environment values remain `v2v` and `v2v-resources`, respectively,
 so backend state keys, module sources, and AWS resource names are preserved.
 
-The retired survey resources have two destruction-only `targetModule` choices
+The retired resources have these destruction-only `targetModule` choices
 under `targetEnvironment=v2v-dev`:
 
 | Choice | Resources | Existing state |
 | --- | --- | --- |
 | `destroy_survey_ai` | `BTSGSD-V2V-US-AI-Survey-Agent`, `BTSGSD-V2V-US-AI-Survey-Prompt`, and their module-owned versions/helpers | `terraform-state/v2v/us-east-1/connect/terraform.tfstate` |
 | `destroy_survey_lex` | `BTSGSD-V2V-US-AIAgent-Survey` and its module-owned locales/IAM resources | `terraform-state/v2v/us-east-1/lex_bot/terraform.tfstate` |
+| `destroy_vmx3_main_vm_module` | Unused flow module `VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1`, its `AllowConnectVMX3-<instance>` permission on `voicemail-v2v-VoicemailTimestamper`, and that Lambda's instance association | `terraform-state/v2v/us-east-1/connect/terraform.tfstate` |
+| `destroy_primary_routing_profile` | `BTSGSD-V2V-US-primary-routing-profile` and `BTSGSD-V2V-US-primary-queue` (`module.connect_us_east_1[0]`), removed from the connect module; the disabled SAML admin user now looks up `BTSGSD-V2V-US-AGENT-RP` | `terraform-state/v2v/us-east-1/connect/terraform.tfstate` |
 
 Run each choice with `terraformAction=plan` to review its destruction plan.
 Use the same choice with `terraformAction=apply` to create and apply a new
-destruction plan. Both choices use `-destroy` with explicit module targets.
-Plan and Apply reject any managed changes except deletions inside those exact
-retired module instances. An empty plan means no matching resources remain in
+destruction plan. The choices use `-destroy` with explicit module or resource
+targets. Plan and Apply reject any managed changes except deletions inside those
+exact retired module instances or of those exact resources. An empty plan means no matching resources remain in
 the selected state; verify state ownership if the resources still exist in AWS.
 The lowercase survey agent and prompt are retired through
 `environments/v2v-dev/remove_survey_ai.tf` using the `connect` choice.
@@ -77,6 +79,12 @@ Apply separately for each choice before deploying the Lambda attachments.
 ARN variables. An individual Lambda choice does not require those unrelated
 VMX3 inputs. `connect-resources` retains its separate backend key and requires
 `connect_resources_dependencies` containing the existing V2V resource UUIDs.
+The `connect-resources` choice rejects any deletion or replacement except the
+plain deletion of `aws_connect_routing_profile.us_latam_vm_blended`
+(`BTSGSD-V2V-US-LATAM-VM-BLENDED-RP`, removed at QA's request). Move every
+console-managed user off that profile before applying. The module also
+creates `BTSGSD-V2V-VM-AGENT-RP` (task channel, `BTSGSD-V2V-US-VM-QUEUE`) and
+users take a `security_profiles` list.
 
 The `secrets_manager` choice also creates the `BTSGSD-V2V-US-Datalake/dev`
 secret through `v2v_modules/datalake_secret`. Terraform manages the secret
@@ -281,11 +289,18 @@ identified and reconciled with its owning Terraform state.
 | BTSGSD-V2V-US-lex-yesNo | `BTSGSD-V2V-US-lex-yesNo` or `lex_yesno` |
 
 The `voicemail` choice plans `module.voicemail[0]` in the existing Connect
-state: two KMS keys, both voicemail buckets, the encrypted Kinesis stream, the presigner
-secret, the Lambda role, the VMX3 layer, the six functions, three EventBridge
-rules, the task flow and the flow module. Plan and Apply reject any deletion
-or replacement; the console-built `voicemail-v2v*` resources are removed
-manually. See `v2v_modules/voicemail/README.md`.
+state: two KMS keys, both voicemail buckets, the encrypted Kinesis stream, the
+Lambda role, the VMX3 layer, the six functions (including GuidedTaskPresigner),
+three EventBridge rules, the task flow, the guided task flow, the voicemail task
+view and the flow module. With `voicemail_associate_agent_events_stream`, it
+also associates the Kinesis stream with the instance's Agent Events, and it
+grants S3 invoke permissions on the Transcriber and Packager (both from the
+transcripts bucket). Plan and Apply reject any deletion or replacement,
+except plain deletion of the retired user-key Presigner resources (Lambda, log
+group, secret, secret version, access key) and of the old recordings bucket
+`aws_s3_bucket.retired_recordings[0]`, and the replacement of
+`aws_lambda_permission.s3["Transcriber"]` (moved to the transcripts bucket). The console-built `voicemail-v2v*`
+resources are removed manually. See `v2v_modules/voicemail/README.md`.
 
 The V2V CTR-Raw Lambda is retired. Select `targetModule=destroy_ctr_raw` with
 `targetEnvironment=v2v-dev` and `terraformAction=apply` to delete its Terraform

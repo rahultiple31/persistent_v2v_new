@@ -67,8 +67,12 @@ parameters:
       - BTSGSD-V2V-US-UpdateSessionAttributes
       - silence_guard-dev
       - conversion_of_queue_metrics
-      # VMX3 voicemail stack in the connect state; create-only (no deletions).
+      # VMX3 voicemail stack in the connect state; deletions limited to the retired Presigner and old recordings bucket.
       - voicemail
+      # Deletes the retired VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1 flow module.
+      - destroy_vmx3_main_vm_module
+      # Deletes BTSGSD-V2V-US-primary-routing-profile and BTSGSD-V2V-US-primary-queue.
+      - destroy_primary_routing_profile
       - lex_queueflow_callback
       - lex_yesno
       - BTSGSD-V2V-US-lex-QueueFlow-Callback

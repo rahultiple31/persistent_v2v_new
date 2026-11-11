@@ -107,7 +107,7 @@ run "names_use_v2v_prefix" {
       aws_connect_queue.us_vm.name == "BTSGSD-V2V-US-VM-QUEUE" &&
       awscc_connect_routing_profile.us_agent.name == "BTSGSD-V2V-US-AGENT-RP" &&
       aws_connect_routing_profile.latam_agent.name == "BTSGSD-V2V-LATAM-AGENT-RP" &&
-      aws_connect_routing_profile.us_latam_vm_blended.name == "BTSGSD-V2V-US-LATAM-VM-BLENDED-RP" &&
+      aws_connect_routing_profile.vm_agent.name == "BTSGSD-V2V-VM-AGENT-RP" &&
       aws_connect_hours_of_operation.v2v.name == "BTSGSD-V2V-HoursOfOperation_EN_ES_PT"
     )
     error_message = "Queue, routing profile and hours of operation names must use the BTSGSD-V2V prefix."
@@ -189,12 +189,9 @@ run "routing_profiles_reference_module_queues" {
       aws_connect_routing_profile.latam_agent.default_outbound_queue_id == aws_connect_queue.latam_out.queue_id &&
       length(aws_connect_routing_profile.latam_agent.media_concurrencies) == 2 &&
       [for qc in aws_connect_routing_profile.latam_agent.queue_configs : [qc.queue_id, qc.channel, qc.priority, qc.delay]] == [[aws_connect_queue.latam_main.queue_id, "VOICE", 1, 0]] &&
-      aws_connect_routing_profile.us_latam_vm_blended.default_outbound_queue_id == aws_connect_queue.us_out.queue_id &&
-      length(aws_connect_routing_profile.us_latam_vm_blended.media_concurrencies) == 2 &&
-      length(aws_connect_routing_profile.us_latam_vm_blended.queue_configs) == 4 &&
-      toset([for qc in aws_connect_routing_profile.us_latam_vm_blended.queue_configs : qc.queue_id]) == toset([
-        aws_connect_queue.us_vm.queue_id, aws_connect_queue.latam_main.queue_id, var.connect_queue_queue_id,
-      ])
+      aws_connect_routing_profile.vm_agent.default_outbound_queue_id == aws_connect_queue.us_out.queue_id &&
+      [for mc in aws_connect_routing_profile.vm_agent.media_concurrencies : [mc.channel, mc.concurrency]] == [["TASK", 1]] &&
+      [for qc in aws_connect_routing_profile.vm_agent.queue_configs : [qc.queue_id, qc.channel, qc.priority, qc.delay]] == [[aws_connect_queue.us_vm.queue_id, "TASK", 1, 0]]
     )
     error_message = "Routing profiles must match the source configuration and reference the module and connect-queue queues."
   }
@@ -205,9 +202,9 @@ run "us_agent_user_uses_profile_lookup" {
   variables {
     users = {
       "test.user@example.com"        = { first_name = "Test", last_name = "User", security_profile = "Agent", routing_profile = "us_agent" }
-      "mahendra.kumar@abbvie.com"    = { first_name = "Mahendra", last_name = "Kumar", security_profile = "Admin", routing_profile = "us_latam_vm_blended" }
-      "smita.kulkarni@abbvie.com"    = { first_name = "Smita", last_name = "Kulkarni", security_profile = "Admin", routing_profile = "us_latam_vm_blended" }
-      "govind.khandelwal@abbvie.com" = { first_name = "Govind", last_name = "Khandelwal", security_profile = "Admin", routing_profile = "us_latam_vm_blended" }
+      "mahendra.kumar@abbvie.com"    = { first_name = "Mahendra", last_name = "Kumar", security_profile = "Admin", routing_profile = "latam_agent" }
+      "smita.kulkarni@abbvie.com"    = { first_name = "Smita", last_name = "Kulkarni", security_profile = "Admin", routing_profile = "latam_agent" }
+      "govind.khandelwal@abbvie.com" = { first_name = "Govind", last_name = "Khandelwal", security_profile = "Admin", routing_profile = "latam_agent" }
     }
   }
 
@@ -259,16 +256,35 @@ run "agent_statuses_are_custom_and_enabled" {
 run "users_and_quick_connects_created_by_default" {
   command = apply
 
+  # Distinct from the Basic profile mock so only the us_agent users match.
+  override_data {
+    target = data.aws_connect_routing_profile.us_agent_lookup[0]
+    values = {
+      routing_profile_id = "48a9cf8d-1538-4184-a03e-c04912acdc3f"
+    }
+  }
+
   assert {
     condition = (
       length(aws_connect_user.this) == 13 &&
-      aws_connect_user.this["smita.kulkarni@abbvie.com"].routing_profile_id == aws_connect_routing_profile.us_latam_vm_blended.routing_profile_id &&
+      aws_connect_user.this["smita.kulkarni@abbvie.com"].routing_profile_id == data.aws_connect_routing_profile.us_agent_lookup[0].routing_profile_id &&
+      length([for u in aws_connect_user.this : u if u.routing_profile_id == data.aws_connect_routing_profile.us_agent_lookup[0].routing_profile_id]) == 5 &&
       aws_connect_user.this["bharat.patchigolla@abbvie.com"].routing_profile_id == "66666666-6666-6666-6666-666666666666" &&
       one(aws_connect_quick_connect.smita_kulkarni.quick_connect_config[0].user_config).user_id == aws_connect_user.this["smita.kulkarni@abbvie.com"].user_id &&
       one(aws_connect_quick_connect.smita_kulkarni.quick_connect_config[0].user_config).contact_flow_id == var.quick_connect_flow_id
     )
     error_message = "Users must be created with their routing profiles and quick connects must reference them and the connect transfer flow."
   }
+}
+
+run "reject_removed_blended_routing_profile" {
+  command = plan
+  variables {
+    users = {
+      "x@example.com" = { first_name = "X", last_name = "Y", security_profile = "Agent", routing_profile = "us_latam_vm_blended" }
+    }
+  }
+  expect_failures = [var.users]
 }
 
 run "moh_prompt_skipped_without_s3_uri" {

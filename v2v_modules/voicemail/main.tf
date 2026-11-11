@@ -12,33 +12,21 @@ locals {
   prefix = "${var.name_prefix}-voicemail"
 
   # S3 bucket names must be lowercase.
-  recordings_bucket_name  = lower("${var.name_prefix}-voicemail")
+  recordings_bucket_name  = lower("${var.name_prefix}-voicemail-recording")
   transcripts_bucket_name = lower("${var.name_prefix}-voicemail-transcript")
 
   kinesis_stream_name = "${var.name_prefix}-voiceMail"
-  secret_name         = local.prefix
   kms_alias           = "alias/${local.prefix}"
 
-  presigner_user_arn = data.aws_iam_user.presigner.arn
-
-  presigner_credentials = var.create_presigner_access_key ? {
-    access_key_id     = aws_iam_access_key.presigner[0].id
-    secret_access_key = aws_iam_access_key.presigner[0].secret
-  } : var.presigner_credentials
-
+  # "recording" replaces the earlier "recordings" bucket (see retired.tf).
   buckets = {
-    recordings  = local.recordings_bucket_name
+    recording   = local.recordings_bucket_name
     transcripts = local.transcripts_bucket_name
   }
 }
 
-# Existing presigner user; read only, never modified by this module.
-data "aws_iam_user" "presigner" {
-  user_name = var.presigner_user_name
-}
-
 # -----------------------------------------------------------------------------
-# KMS key for the buckets and the secret
+# KMS key for the buckets
 # -----------------------------------------------------------------------------
 data "aws_iam_policy_document" "kms" {
   statement {
@@ -49,24 +37,6 @@ data "aws_iam_policy_document" "kms" {
     principals {
       type        = "AWS"
       identifiers = ["arn:${local.partition}:iam::${local.account_id}:root"]
-    }
-  }
-
-  # The presigner user signs GET URLs; the caller downloads through S3.
-  statement {
-    sid       = "AllowPresignerUserDecryptViaS3"
-    actions   = ["kms:Decrypt"]
-    resources = ["*"]
-
-    principals {
-      type        = "AWS"
-      identifiers = [local.presigner_user_arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "kms:ViaService"
-      values   = ["s3.${local.region}.amazonaws.com"]
     }
   }
 }
@@ -204,22 +174,6 @@ data "aws_iam_policy_document" "bucket" {
       values   = ["false"]
     }
   }
-
-  # Presigned recording URLs are signed by the existing presigner user.
-  dynamic "statement" {
-    for_each = each.key == "recordings" ? [1] : []
-
-    content {
-      sid       = "AllowPresignerUserGetObject"
-      actions   = ["s3:GetObject"]
-      resources = ["${each.value.arn}/*"]
-
-      principals {
-        type        = "AWS"
-        identifiers = [local.presigner_user_arn]
-      }
-    }
-  }
 }
 
 resource "aws_s3_bucket_policy" "this" {
@@ -316,37 +270,22 @@ resource "aws_connect_instance_storage_config" "ctr" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# Secret holding the presigner user's access key
-# -----------------------------------------------------------------------------
-resource "aws_iam_access_key" "presigner" {
-  count = var.create_presigner_access_key ? 1 : 0
-  user  = data.aws_iam_user.presigner.user_name
-}
+# Agent events go to the same stream. Connect also allows one Kinesis stream
+# for agent events: remove the console association to voiceMail-v2v first.
+resource "aws_connect_instance_storage_config" "agent_events" {
+  count = var.associate_agent_events_stream ? 1 : 0
 
-resource "aws_secretsmanager_secret" "presigner" {
-  name                    = local.secret_name
-  description             = "Stores user credentials for the presigner function"
-  kms_key_id              = aws_kms_key.voicemail.arn
-  recovery_window_in_days = 30
-  tags                    = merge(var.tags, { Name = local.secret_name })
+  instance_id   = local.instance_id
+  resource_type = "AGENT_EVENTS"
 
-  lifecycle {
-    prevent_destroy = true
-  }
-}
+  storage_config {
+    storage_type = "KINESIS_STREAM"
 
-resource "aws_secretsmanager_secret_version" "presigner" {
-  secret_id = aws_secretsmanager_secret.presigner.id
-  secret_string = jsonencode({
-    vmx_iam_key_id     = local.presigner_credentials.access_key_id
-    vmx_iam_key_secret = local.presigner_credentials.secret_access_key
-  })
-
-  lifecycle {
-    precondition {
-      condition     = local.presigner_credentials != null
-      error_message = "Set create_presigner_access_key = true or supply presigner_credentials."
+    kinesis_stream_config {
+      stream_arn = aws_kinesis_stream.ctr.arn
     }
   }
 }
+
+# The presigner access key and its secret (BTSGSD-V2V-US-voicemail) were
+# removed: user access keys are not allowed. Terraform deletes both.

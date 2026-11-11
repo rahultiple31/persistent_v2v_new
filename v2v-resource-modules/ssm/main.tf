@@ -5,9 +5,8 @@
 #     switch every V2V call to the Transcribe+Translate+Polly backup path.
 #   • /V2V/POC/bedrockRegion           — records the AI region at deploy time.
 #
-# NOTE: The testSignIn SecureString parameter is created BY HAND (CloudFormation
-# and Terraform cannot create SSM SecureString parameters without a KMS key
-# resource). See PRIVATE-POC.md for instructions.
+# NOTE: The test sign-in password is not in Parameter Store: it is a Secrets
+# Manager secret created by hand (see environments/v2v-resources-dev/README.md).
 #
 # Mirrors CDK: PrivatePocStack > Service > forceBackupParameter + BedrockRegionParameter
 ################################################################################

@@ -53,9 +53,24 @@ DESTROY_CHOICES = {
     "destroy_survey_ai": ("connect", ("connect_ai_agent", "survey_ai_prompt")),
     "destroy_survey_lex": ("lex_bot", ("lex_aiagent_survey_bot",)),
     "destroy_ctr_raw": ("lambda-ctr-raw", ("lambda-ctr-raw",)),
+    "destroy_vmx3_main_vm_module": ("connect", ("vmx3_main_vm_module",)),
 }
+VOICEMAIL_RETIRED_ADDRESSES = (
+    'module.voicemail[0].aws_lambda_function.this["Presigner"]',
+    'module.voicemail[0].aws_cloudwatch_log_group.function["Presigner"]',
+    "module.voicemail[0].aws_secretsmanager_secret.presigner",
+    "module.voicemail[0].aws_secretsmanager_secret_version.presigner",
+    "module.voicemail[0].aws_iam_access_key.presigner[0]",
+    "module.voicemail[0].aws_s3_bucket.retired_recordings[0]",
+)
 TRANSFER_TABLE_DESTROY_CHOICE = "destroy_hr_veeva_transfer_tables"
 STATE_MIGRATION_CHOICE = "migrate_data_table_state"
+PRIMARY_RP_DESTROY_CHOICE = "destroy_primary_routing_profile"
+PRIMARY_RP_TARGETS = (
+    "module.connect_us_east_1[0].aws_connect_routing_profile.primary",
+    "module.connect_us_east_1[0].aws_connect_queue.primary",
+)
+BLENDED_RP_ADDRESS = "module.connect_resources[0].aws_connect_routing_profile.us_latam_vm_blended"
 TRANSFER_TABLE_TARGETS = (
     "aws_cloudformation_stack.hr_transfer_data_table[0]",
     "aws_cloudformation_stack.veeva_transfer_data_table[0]",
@@ -181,6 +196,16 @@ fi
                     for address in TRANSFER_TABLE_TARGETS:
                         self.assertIn(tuple(address.split("[", 1)[0].split(".")), resources)
                     continue
+                if choice == PRIMARY_RP_DESTROY_CHOICE:
+                    self.assertEqual(group, "connect")
+                    self.assertIn("-destroy", arguments)
+                    self.assertEqual(targets, [f"-target={address}" for address in PRIMARY_RP_TARGETS])
+                    # Both resources were removed from the connect module.
+                    module_source = (ROOT / "v2v_modules/connect/main.tf").read_text(encoding="utf-8")
+                    for address in PRIMARY_RP_TARGETS:
+                        resource_type, name = address.split(".")[1:3]
+                        self.assertNotIn(f'resource "{resource_type}" "{name}"', module_source)
+                    continue
                 if choice in DESTROY_CHOICES:
                     expected_group, retired_modules = DESTROY_CHOICES[choice]
                     self.assertEqual(group, expected_group)
@@ -296,6 +321,57 @@ fi
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("Refusing changes other than deletion of the HR and Veeva", result.stderr)
 
+    def test_primary_rp_destroy_accepts_both_one_or_no_deletions(self):
+        for targets in (PRIMARY_RP_TARGETS, PRIMARY_RP_TARGETS[:1], PRIMARY_RP_TARGETS[1:], ()):
+            with self.subTest(targets=targets):
+                result = self.run_selector(PRIMARY_RP_DESTROY_CHOICE, plan(group="connect", changes=[
+                    *(change(address, ["delete"]) for address in targets),
+                    change("module.connect_queue[0].aws_connect_queue.queue", ["no-op"]),
+                    change("data.aws_connect_instance.target[0]", ["read"], mode="data"),
+                ]))
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_primary_rp_destroy_rejects_other_addresses_and_non_delete_actions(self):
+        for address, actions in (
+            ("module.connect_us_east_1[0].aws_connect_user.admin[0]", ["delete"]),
+            ("module.connect_us_east_1[0].aws_connect_instance.this", ["delete"]),
+            ("module.connect_us_east_1[1].aws_connect_queue.primary", ["delete"]),
+            ("module.connect_resources[0].aws_connect_routing_profile.latam_agent", ["delete"]),
+            (PRIMARY_RP_TARGETS[0], ["update"]),
+            (PRIMARY_RP_TARGETS[1], ["delete", "create"]),
+            (PRIMARY_RP_TARGETS[0], ["create", "delete"]),
+        ):
+            with self.subTest(address=address, actions=actions):
+                result = self.run_selector(PRIMARY_RP_DESTROY_CHOICE, plan(group="connect", changes=[
+                    change(PRIMARY_RP_TARGETS[0], ["delete"]),
+                    change(address, actions),
+                ]))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing changes other than deletion of the primary routing profile", result.stderr)
+
+    def test_connect_resources_allows_plain_deletion_of_blended_routing_profile(self):
+        result = self.run_selector("connect-resources", plan(changes=[
+            change(BLENDED_RP_ADDRESS, ["delete"]),
+            change("module.connect_resources[0].aws_connect_routing_profile.vm_agent", ["create"]),
+            change('module.connect_resources[0].aws_connect_user.this["smita.kulkarni@abbvie.com"]', ["update"]),
+        ]))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_connect_resources_rejects_other_deletions_and_replacements(self):
+        for address, actions in (
+            ('module.connect_resources[0].aws_connect_user.this["smita.kulkarni@abbvie.com"]', ["delete"]),
+            ("module.connect_resources[0].aws_connect_routing_profile.latam_agent", ["delete", "create"]),
+            ("module.external_vms[0].aws_connect_quick_connect.external_vms", ["delete"]),
+            (BLENDED_RP_ADDRESS, ["delete", "create"]),
+            (BLENDED_RP_ADDRESS, ["create", "delete"]),
+        ):
+            with self.subTest(address=address, actions=actions):
+                result = self.run_selector("connect-resources", plan(changes=[
+                    change(address, actions),
+                ]))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing connect-resources plan that deletes or replaces", result.stderr)
+
     def test_retired_deployment_choices_remain_unavailable(self):
         for target in (
             "connect_ai_agent", "survey_ai_prompt", "lex_aiagent_survey_bot", "lambda-ctr-raw",
@@ -406,6 +482,49 @@ fi
             with self.subTest(actions=actions):
                 result = self.run_selector("voicemail", plan(group="connect", changes=[
                     change("module.voicemail[0].aws_kinesis_stream.ctr", actions),
+                ]))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing voicemail plan that deletes", result.stderr)
+
+    def test_voicemail_allows_plain_deletion_of_retired_resources_and_forgets(self):
+        result = self.run_selector("voicemail", plan(group="connect", changes=[
+            *(change(address, ["delete"]) for address in VOICEMAIL_RETIRED_ADDRESSES),
+            change("module.voicemail[0].aws_s3_bucket_policy.retired_recordings", ["forget"]),
+            change('module.voicemail[0].aws_s3_bucket.this["recording"]', ["create"]),
+        ]))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_voicemail_allows_replacing_transcriber_s3_permission_only(self):
+        transcriber = 'module.voicemail[0].aws_lambda_permission.s3["Transcriber"]'
+        for actions in (["delete", "create"], ["create", "delete"]):
+            with self.subTest(actions=actions):
+                result = self.run_selector("voicemail", plan(group="connect", changes=[
+                    change(transcriber, actions),
+                ]))
+                self.assertEqual(result.returncode, 0, result.stderr)
+        for address, actions in (
+            (transcriber, ["delete"]),
+            ('module.voicemail[0].aws_lambda_permission.s3["Packager"]', ["delete", "create"]),
+            ('module.voicemail[1].aws_lambda_permission.s3["Transcriber"]', ["delete", "create"]),
+        ):
+            with self.subTest(address=address, actions=actions):
+                result = self.run_selector("voicemail", plan(group="connect", changes=[
+                    change(address, actions),
+                ]))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing voicemail plan that deletes", result.stderr)
+
+    def test_voicemail_rejects_replacing_retired_or_deleting_other_resources(self):
+        for address, actions in (
+            ('module.voicemail[0].aws_lambda_function.this["Presigner"]', ["delete", "create"]),
+            ("module.voicemail[0].aws_s3_bucket.retired_recordings[0]", ["create", "delete"]),
+            ('module.voicemail[0].aws_s3_bucket.this["transcripts"]', ["delete"]),
+            ('module.voicemail[0].aws_lambda_function.this["Packager"]', ["delete"]),
+            ("module.voicemail[1].aws_secretsmanager_secret.presigner", ["delete"]),
+        ):
+            with self.subTest(address=address, actions=actions):
+                result = self.run_selector("voicemail", plan(group="connect", changes=[
+                    change(address, actions),
                 ]))
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("Refusing voicemail plan that deletes", result.stderr)

@@ -6,7 +6,8 @@ import { TranslateClient } from "@aws-sdk/client-translate";
 import { PollyClient } from "@aws-sdk/client-polly";
 import { SSMClient } from "@aws-sdk/client-ssm";
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { NodeHttp2Handler } from "@smithy/node-http-handler";
+import { S3Client } from "@aws-sdk/client-s3";
+import { NodeHttp2Handler, NodeHttpHandler } from "@smithy/node-http-handler";
 
 /**
  * One long-lived client per service, shared by every session on the task. Credentials come from the
@@ -33,8 +34,13 @@ export function createAwsClients(config) {
     translate: new TranslateClient({ region: config.translateRegion }),
     polly: new PollyClient({ region: config.pollyRegion }),
     // fix 6: reads the forceBackupTranslation switch; only when a parameter name is configured.
-    ssm: config.forceBackupParameter || config.testSignInParameter ? new SSMClient({ region: config.ssmRegion }) : null,
-    // The server-side sign-in (AUTH_MODE=bff): the identity provider's client secret and the session key.
-    secrets: config.bff ? new SecretsManagerClient({ region: config.bff.secretsRegion }) : null,
+    ssm: config.forceBackupParameter ? new SSMClient({ region: config.ssmRegion }) : null,
+    // The test sign-in password, and the server-side sign-in's (AUTH_MODE=bff) client secret and session key.
+    secrets: config.bff || config.testSignInSecretId ? new SecretsManagerClient({ region: config.secretsRegion }) : null,
+    // Voicemail playback: reads recordings from the VMX3 bucket (through the VPC's S3 gateway endpoint). A
+    // stalled read gives up after 30 s without data, so the agent sees an error rather than waiting forever.
+    s3: config.voicemail
+      ? new S3Client({ region: config.voicemail.region, requestHandler: new NodeHttpHandler({ connectionTimeout: 5_000, socketTimeout: 30_000 }) })
+      : null,
   };
 }

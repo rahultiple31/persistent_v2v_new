@@ -40,9 +40,10 @@ module "iam" {
 
   nova_sonic_model_id        = var.nova_sonic_model_id
   force_backup_parameter_arn = module.ssm.force_backup_parameter_arn
-  test_sign_in               = var.test_sign_in
-  test_sign_in_parameter_arn = local.test_sign_in_parameter_arn
   log_group_arn              = module.cloudwatch.log_group_arn
+  secret_names               = local.sign_in_secret_names
+
+  voicemail_recordings_bucket = var.voicemail_recordings_bucket
 }
 
 
@@ -58,6 +59,40 @@ module "networking" {
   allowed_cidrs        = var.allowed_cidrs
   endpoint_extra_cidrs = var.endpoint_extra_cidrs
   listener_port        = local.listener_port
+
+  # bff and the test sign-in read their secrets at runtime through a Secrets
+  # Manager endpoint.
+  secretsmanager_endpoint = (local.bff || local.test_sign_in) && var.secretsmanager_endpoint
+}
+
+# ── Sign-in settings check ────────────────────────────────────────────────────
+# Fails the plan, before anything changes, when the bff settings are incomplete
+# (the proxy would otherwise fail at start-up and never become healthy).
+resource "terraform_data" "sign_in_settings" {
+  input = var.auth_mode
+
+  lifecycle {
+    precondition {
+      condition     = !local.bff || local.https
+      error_message = "auth_mode = \"bff\" needs HTTPS (certificate_arn): its cookies are Secure-only."
+    }
+    precondition {
+      condition     = !local.bff || var.session_key_secret_name != ""
+      error_message = "auth_mode = \"bff\" needs session_key_secret_name."
+    }
+    precondition {
+      condition = !local.bff || var.oidc_issuer == "" || alltrue([
+        for value in [
+          var.oidc_client_id,
+          var.oidc_client_secret_name,
+          var.oidc_authorization_endpoint,
+          var.oidc_token_endpoint,
+          var.oidc_jwks_uri,
+        ] : value != ""
+      ])
+      error_message = "auth_mode = \"bff\" with oidc_issuer set also needs oidc_client_id, oidc_client_secret_name, oidc_authorization_endpoint, oidc_token_endpoint and oidc_jwks_uri."
+    }
+  }
 }
 
 # ── Application Load Balancer ─────────────────────────────────────────────────

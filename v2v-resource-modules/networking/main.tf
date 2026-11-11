@@ -126,10 +126,15 @@ locals {
     ecr_dkr               = "com.amazonaws.${var.aws_region}.ecr.dkr"
     logs                  = "com.amazonaws.${var.aws_region}.logs"
   }
+
+  # The server-side sign-in (auth_mode = "bff") reads its secrets at runtime.
+  optional_endpoints = var.secretsmanager_endpoint ? {
+    secretsmanager = "com.amazonaws.${var.aws_region}.secretsmanager"
+  } : {}
 }
 
 resource "aws_vpc_endpoint" "interface" {
-  for_each = local.interface_endpoints
+  for_each = merge(local.interface_endpoints, local.optional_endpoints)
 
   vpc_id              = var.vpc_id
   service_name        = each.value

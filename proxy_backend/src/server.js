@@ -28,6 +28,7 @@ import { parseControlMessage, validateFallbackRequest, validateTranscribeStart }
 import { createNovaSession } from "./services/nova.js";
 import { createTranscribeSession } from "./services/transcribe.js";
 import { runFallback } from "./services/fallback.js";
+import { isRecordingKey, sendRecording } from "./services/voicemail.js";
 import { createSite } from "./site.js";
 
 export const CLOSE_CODES = Object.freeze({
@@ -44,6 +45,7 @@ const WS_PATH = "/ws";
 const FALLBACK_PATH = "/api/fallback";
 const TRANSLATION_MODE_PATH = "/api/translation-mode";
 const TEST_SIGN_IN_PATH = "/api/test-sign-in";
+const VOICEMAIL_PATH = "/api/voicemail";
 const HEALTH_PATH = "/healthz";
 const API_PREFIX = "/api/";
 const MAX_WS_PAYLOAD_BYTES = 256 * 1024;
@@ -322,7 +324,8 @@ function readBody(req, limit) {
  * @param {object} deps
  * @param {object} deps.config   - from loadConfig()
  * @param {{verify(token: string): Promise<{userId: string, expiresAt: number}>}} deps.verifier
- * @param {{bedrock, transcribe, translate, polly}} deps.clients - AWS SDK v3 clients
+ * @param {{bedrock, transcribe, translate, polly, s3}} deps.clients - AWS SDK v3 clients (s3: voicemail playback,
+ *   only with config.voicemail)
  * @param {object} deps.logger   - from createLogger()
  * @param {{current(): {forceBackup: boolean}}} [deps.translationMode] - fix 6: the forceBackupTranslation
  *   switch (services/translationMode.js). Without it the switch is off.
@@ -340,6 +343,7 @@ export function createProxyServer({ config, verifier, clients, logger, translati
   });
   const fallbackLimiter = new RateLimiter({ perMinute: config.limits.fallbackRequestsPerMinute });
   const testSignInLimiter = new RateLimiter({ perMinute: TEST_SIGN_IN_ATTEMPTS_PER_MINUTE });
+  const voicemailLimiter = new RateLimiter({ perMinute: config.limits.voicemailRequestsPerMinute });
   const connections = new Set();
   const connectionDeps = { config, verifier, clients, logger, limiter };
   // The proxy also serves the webapp (config.site), on the same origin as /ws and /api.
@@ -427,6 +431,24 @@ export function createProxyServer({ config, verifier, clients, logger, translati
     return sendJson(res, 200, { forceBackup });
   }
 
+  // Voicemail playback: GET /api/voicemail?key=<vmx3_recording_key> streams the recording (services/voicemail.js),
+  // for any signed-in user of the webapp. Every read is logged with the user and the recording.
+  async function handleVoicemail(req, res, url) {
+    const startedAt = performance.now();
+    const identity = await authenticate(req, res, "voicemail");
+    if (!identity) return;
+    if (!voicemailLimiter.tryTake(identity.userId)) return sendJson(res, 429, { error: "rateLimited" }, { "Retry-After": "10" });
+    if (!config.voicemail || !clients.s3) return sendJson(res, 404, { error: "voicemailOff" });
+    const key = url.searchParams.get("key");
+    if (!isRecordingKey(key)) return sendJson(res, 400, { error: "invalidRecordingKey" });
+
+    const result = await sendRecording({ s3: clients.s3, bucket: config.voicemail.bucket, key, res, sendJson });
+    const fields = { userId: identity.userId, recordingKey: key, status: result.status, durationMs: Math.round(performance.now() - startedAt) };
+    if (result.status === 200) logger.info("voicemail recording sent", { ...fields, bytes: result.bytes });
+    else if (result.status === 499) logger.info("voicemail recording not finished: the browser went away", fields);
+    else logger.warn("voicemail recording failed", { ...fields, error: result.error, ...errorFields(result.cause) });
+  }
+
   // The temporary test sign-in: GET says whether it is on (the webapp then shows the password form), POST
   // exchanges the test password for an access token (AUTH_MODE=bff: for a session cookie).
   async function handleTestSignIn(req, res) {
@@ -485,6 +507,10 @@ export function createProxyServer({ config, verifier, clients, logger, translati
       if (req.method !== "GET") return sendJson(res, 405, { error: "methodNotAllowed" }, { Allow: "GET" });
       return handleTranslationMode(req, res);
     }
+    if (pathname === VOICEMAIL_PATH) {
+      if (req.method !== "GET") return sendJson(res, 405, { error: "methodNotAllowed" }, { Allow: "GET" });
+      return handleVoicemail(req, res, url);
+    }
     if (pathname === TEST_SIGN_IN_PATH && testSignIn) {
       if (req.method !== "GET" && req.method !== "POST") return sendJson(res, 405, { error: "methodNotAllowed" }, { Allow: "GET, POST" });
       return handleTestSignIn(req, res);
@@ -541,6 +567,7 @@ export function createProxyServer({ config, verifier, clients, logger, translati
     for (const conn of connections) conn.heartbeat();
     fallbackLimiter.prune();
     testSignInLimiter.prune();
+    voicemailLimiter.prune();
   }, config.timeouts.heartbeatMs);
   heartbeat.unref();
 

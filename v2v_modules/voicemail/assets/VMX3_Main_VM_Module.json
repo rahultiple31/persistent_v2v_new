@@ -62,7 +62,7 @@
         "conditions": [],
         "conditionMetadata": [
           {
-            "id": "a83f69fb-c06f-4f49-a895-3f6e13f24780",
+            "id": "ab9b9a37-4f0c-4dc4-b090-9c1bfec68b2c",
             "operator": {
               "name": "Is greater than",
               "value": "GreaterThan",
@@ -114,27 +114,6 @@
         },
         "promptName": "Beep.wav"
       },
-      "Turn on flow logging.": {
-        "position": {
-          "x": -240,
-          "y": 320
-        },
-        "isFriendlyName": true
-      },
-      "5a0d88a8-c2e7-4781-9081-8c8a9b23fe52": {
-        "position": {
-          "x": 3.2,
-          "y": 310.4
-        },
-        "parameters": {
-          "QueueId": {
-            "displayName": "BTSGSD-DEV-SSO-US-VM-QUEUE"
-          }
-        },
-        "queue": {
-          "text": "BTSGSD-DEV-SSO-US-VM-QUEUE"
-        }
-      },
       "d5262c6a-7ba0-4b61-8222-13b2d47ae42f": {
         "position": {
           "x": 2766.4,
@@ -168,23 +147,6 @@
         },
         "isFriendlyName": true
       },
-      "voicemail attributes": {
-        "position": {
-          "x": 231.2,
-          "y": 305.6
-        },
-        "isFriendlyName": true,
-        "parameters": {
-          "Attributes": {
-            "vmx3_from": {
-              "useDynamic": true
-            }
-          }
-        },
-        "dynamicParams": [
-          "vmx3_from"
-        ]
-      },
       "f1a21826-b523-4b94-aa2a-c1e075171b07": {
         "position": {
           "x": 528.8,
@@ -195,6 +157,34 @@
             "displayName": "BTSGSD-Survey-DataTable"
           }
         }
+      },
+      "Turn on flow logging.": {
+        "position": {
+          "x": -240,
+          "y": 320
+        },
+        "isFriendlyName": true
+      },
+      "voicemail attributes": {
+        "position": {
+          "x": 104.8,
+          "y": 302.4
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "Attributes": {
+            "vmx3_from": {
+              "useDynamic": true
+            },
+            "dialledNumber": {
+              "useDynamic": true
+            }
+          }
+        },
+        "dynamicParams": [
+          "vmx3_from",
+          "dialledNumber"
+        ]
       }
     },
     "Annotations": [
@@ -437,32 +427,6 @@
     },
     {
       "Parameters": {
-        "FlowLoggingBehavior": "Enabled"
-      },
-      "Identifier": "Turn on flow logging.",
-      "Type": "UpdateFlowLoggingBehavior",
-      "Transitions": {
-        "NextAction": "5a0d88a8-c2e7-4781-9081-8c8a9b23fe52"
-      }
-    },
-    {
-      "Parameters": {
-        "QueueId": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/queue/713f62d2-6348-45ad-988a-bb6f1ef221b1"
-      },
-      "Identifier": "5a0d88a8-c2e7-4781-9081-8c8a9b23fe52",
-      "Type": "UpdateContactTargetQueue",
-      "Transitions": {
-        "NextAction": "voicemail attributes",
-        "Errors": [
-          {
-            "NextAction": "voicemail attributes",
-            "ErrorType": "NoMatchingError"
-          }
-        ]
-      }
-    },
-    {
-      "Parameters": {
         "RecordingBehavior": {
           "RecordedParticipants": [],
           "IVRRecordingBehavior": "Disabled"
@@ -529,29 +493,6 @@
     },
     {
       "Parameters": {
-        "Attributes": {
-          "vmx3_mode": "task",
-          "vmx3_target": "queue",
-          "vmx3_from": "$.CustomerEndpoint.Address",
-          "vmx3_lang": "$.Attributes.Customer_Prefferred_Language",
-          "vmx3_queue_arn": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/queue/713f62d2-6348-45ad-988a-bb6f1ef221b1"
-        },
-        "TargetContact": "Current"
-      },
-      "Identifier": "voicemail attributes",
-      "Type": "UpdateContactAttributes",
-      "Transitions": {
-        "NextAction": "f1a21826-b523-4b94-aa2a-c1e075171b07",
-        "Errors": [
-          {
-            "NextAction": "Error messaging.",
-            "ErrorType": "NoMatchingError"
-          }
-        ]
-      }
-    },
-    {
-      "Parameters": {
         "DataTableId": "0c2359aa-9062-43ec-9d0d-abc5861c2197",
         "Queries": [
           {
@@ -573,6 +514,40 @@
       "Type": "EvaluateDataTableValues",
       "Transitions": {
         "NextAction": "Enable Automated Interaction Recording",
+        "Errors": [
+          {
+            "NextAction": "Error messaging.",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "Turn on flow logging.",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "voicemail attributes"
+      }
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "vmx3_mode": "guided_task",
+          "vmx3_target": "queue",
+          "vmx3_from": "$.CustomerEndpoint.Address",
+          "vmx3_lang": "$.Attributes.Customer_Prefferred_Language",
+          "vmx3_queue_arn": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/queue/713f62d2-6348-45ad-988a-bb6f1ef221b1",
+          "dialledNumber": "$.SystemEndpoint.Address"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "voicemail attributes",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "f1a21826-b523-4b94-aa2a-c1e075171b07",
         "Errors": [
           {
             "NextAction": "Error messaging.",

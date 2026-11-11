@@ -1,0 +1,197 @@
+{
+  "Template": {
+    "Head": {
+      "Configuration": {},
+      "Integrations": [],
+      "Title": "Voicemail Task View"
+    },
+    "Body": [
+      {
+        "_id": "Container_1",
+        "Type": "Container",
+        "Props": {
+          "HideBorder": true
+        },
+        "Content": [
+          {
+            "_id": "TemplateStringComponent_header",
+            "Type": "TemplateStringComponent",
+            "Props": {
+              "TemplateString": "<div style=\"background-color:#415266;padding:20px;display:flex;align-items:center;gap:20px\"><img src=\"https://raw.githubusercontent.com/amazon-connect/voicemail-express-amazon-connect/refs/heads/main/Docs/Img/connect.png\" alt=\"Logo\" style=\"height:50px;width:auto;object-fit:contain\"/><h1 style=\"color:white;font-size:24px;margin:0\">Amazon Connect Voicemail</h1></div>"
+            },
+            "Content": []
+          }
+        ],
+        "Configuration": {
+          "Style": {
+            "--container-padding-top": "0px",
+            "--container-padding-right": "0px",
+            "--container-padding-bottom": "0px",
+            "--container-padding-left": "0px"
+          },
+          "Layout": {
+            "Columns": 12
+          }
+        }
+      },
+      {
+        "_id": "Section_1",
+        "Type": "Section",
+        "Props": {
+          "Heading": "Customer Information",
+          "Visibility": true
+        },
+        "Content": [
+          {
+            "_id": "AttributeSection_1734568002",
+            "Type": "AttributeSection",
+            "Props": {
+              "Columns": "2",
+              "Items": [
+                {
+                  "Label": "Caller Name",
+                  "Value": "$.CallerName"
+                },
+                {
+                  "Label": "User Status",
+                  "Value": "$.UserStatus"
+                },
+                {
+                  "Label": "User ID",
+                  "Value": "$.UserId"
+                },
+                {
+                  "Label": "Email",
+                  "Value": "$.Email"
+                },
+                {
+                  "Label": "UPI",
+                  "Value": "$.UPI"
+                },
+                {
+                  "Label": "Dialed Number",
+                  "Value": "$.DialedNumber"
+                },
+                {
+                  "Label": "Verification Status",
+                  "Value": "$.VerificationStatus"
+                },
+                {
+                  "Label": "Verified Via",
+                  "Value": "$.VerifiedVia"
+                },
+                {
+                  "Label": "Intent",
+                  "Value": "$.Intent"
+                },
+                {
+                  "Label": "Preferred Language",
+                  "Value": "$.Customer_Prefferred_Language"
+                }
+              ]
+            },
+            "Content": [],
+            "Configuration": {
+              "Layout": {
+                "Columns": 3
+              }
+            }
+          }
+        ]
+      },
+      {
+        "_id": "ExpandableSection_CallSummary",
+        "Type": "ExpandableSection",
+        "Props": {
+          "header": "Call Summary",
+          "variant": "default"
+        },
+        "Content": [
+          {
+            "_id": "call_summary_box",
+            "Type": "TemplateStringComponent",
+            "Props": {
+              "TemplateString": "$.call_summary.TemplateString"
+            },
+            "Content": []
+          }
+        ]
+      },
+      {
+        "_id": "media_player",
+        "Type": "TemplateStringComponent",
+        "Props": {
+          "TemplateString": "$.media_player.TemplateString"
+        },
+        "Content": []
+      },
+      {
+        "_id": "ExpandableSection_1",
+        "Type": "ExpandableSection",
+        "Props": {
+          "header": "Voicemail Transcript",
+          "variant": "default"
+        },
+        "Content": [
+          {
+            "_id": "transcript_box",
+            "Type": "TemplateStringComponent",
+            "Props": {
+              "TemplateString": "$.transcript_box.TemplateString"
+            },
+            "Content": []
+          }
+        ]
+      },
+      {
+        "_id": "ExpandableSection_2",
+        "Type": "ExpandableSection",
+        "Props": {
+          "header": "Voicemail Info",
+          "variant": "default"
+        },
+        "Content": [
+          {
+            "_id": "DataSection_1",
+            "Type": "DataSection",
+            "Props": {
+              "Heading": "",
+              "Items": [
+                {
+                  "Label": "Voicemail Queue",
+                  "Value": "$.customer_data.Items[0].Value"
+                },
+                {
+                  "Label": "Destination",
+                  "Value": "$.customer_data.Items[1].Value"
+                },
+                {
+                  "Label": "From",
+                  "Value": "$.customer_data.Items[2].Value"
+                },
+                {
+                  "Label": "Date/Time",
+                  "Value": "$.customer_data.Items[3].Value"
+                },
+                {
+                  "Label": "Voicemail Via",
+                  "Value": "$.customer_data.Items[4].Value",
+                  "AutoOpen": true,
+                  "Copyable": true
+                }
+              ],
+              "IsEditable": false
+            },
+            "Content": [],
+            "Configuration": {
+              "Layout": {
+                "Columns": 12
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "Actions": []
+}

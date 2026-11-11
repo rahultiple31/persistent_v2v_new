@@ -16,6 +16,7 @@
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "3.1141.0",
     "@aws-sdk/client-polly": "3.1141.0",
+    "@aws-sdk/client-s3": "3.1141.0",
     "@aws-sdk/client-secrets-manager": "3.1141.0",
     "@aws-sdk/client-ssm": "3.1141.0",
     "@aws-sdk/client-transcribe-streaming": "3.1141.0",
@@ -23,5 +24,9 @@
     "@smithy/node-http-handler": "4.12.1",
     "aws-jwt-verify": "5.2.1",
     "ws": "8.22.0"
+  },
+  "overrides": {
+    "@aws-sdk/checksums": "3.1001.1",
+    "@aws-sdk/middleware-sdk-s3": "3.972.77"
   }
 }

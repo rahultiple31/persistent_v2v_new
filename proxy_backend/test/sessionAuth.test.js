@@ -364,8 +364,8 @@ test("Sign-out: revokes the refresh token with the secret, deletes the cookie an
 });
 
 test("Test sign-in (bff): the password gives a session cookie, which ends when the password changes", async () => {
-  const ssm = { value: "test-password-1", async send() { return { Parameter: { Value: this.value } }; } };
-  const testSignIn = createTestSignIn({ ssm, parameterName: "/V2V/POC/testSignIn", logger: silentLogger });
+  const secrets = { value: "test-password-1", async send() { return { SecretString: this.value }; } };
+  const testSignIn = createTestSignIn({ secrets, secretId: "v2v/poc/test-sign-in", logger: silentLogger });
   await testSignIn.start();
   testSignIn.stop();
   const ctx = await setup({ testSignIn });
@@ -382,7 +382,7 @@ test("Test sign-in (bff): the password gives a session cookie, which ends when t
   const out = await request(`${ctx.server.httpUrl}/auth/logout`, { method: "POST", headers: { ...PAGE, cookie } });
   assert.equal(out.json.logoutUrl, "/", "a tester signs out back to the app, not to Ping");
 
-  ssm.value = "test-password-2";
+  secrets.value = "test-password-2";
   await testSignIn.refresh();
   assert.equal((await request(`${ctx.server.httpUrl}/auth/session`, { headers: { ...PAGE, cookie } })).status, 401);
   await ctx.server.close();

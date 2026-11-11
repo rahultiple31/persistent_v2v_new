@@ -1,11 +1,10 @@
 # Shared execution role for the six functions, mirroring voicemail-v2v-lambdaRole
-# with every reference pointed at the new resources.
+# with every reference pointed at the new resources. SES, Secrets Manager and
+# Lambda (invoke Presigner) permissions were removed with the user-key Presigner.
+# GuidedTaskPresigner signs recording URLs with this role (s3objects + kms).
 
 locals {
   role_name = "${local.prefix}-lambdaRole"
-
-  # Built from the name to avoid a role -> function -> policy cycle.
-  presigner_function_arn = "arn:${local.partition}:lambda:${local.region}:${local.account_id}:function:${local.function_names["Presigner"]}"
 }
 
 data "aws_iam_policy_document" "lambda_assume" {
@@ -50,12 +49,6 @@ data "aws_iam_policy_document" "lambda" {
   }
 
   statement {
-    sid       = "ses"
-    actions   = ["ses:SendEmail", "ses:SendTemplatedEmail"]
-    resources = ["*"]
-  }
-
-  statement {
     sid       = "transcribe"
     actions   = ["transcribe:DeleteTranscriptionJob", "transcribe:StartTranscriptionJob"]
     resources = ["*"]
@@ -95,18 +88,6 @@ data "aws_iam_policy_document" "lambda" {
       "kinesis:SubscribeToShard",
     ]
     resources = [aws_kinesis_stream.ctr.arn]
-  }
-
-  statement {
-    sid       = "secretsmanager"
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.presigner.arn]
-  }
-
-  statement {
-    sid       = "lambda"
-    actions   = ["lambda:InvokeFunction"]
-    resources = [local.presigner_function_arn]
   }
 
   statement {

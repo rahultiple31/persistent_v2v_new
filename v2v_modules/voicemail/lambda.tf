@@ -1,5 +1,6 @@
-# Six VMX3 functions. Source code is the code currently deployed in the
-# voicemail-v2v-* functions; settings are copied from those functions.
+# Six VMX3 functions. Source code is the code deployed in the voicemail-v2v-*
+# functions, plus GuidedTaskPresigner from DEV-SSO. The user-key Presigner was
+# removed (security guidelines); guided tasks use role-signed URLs instead.
 
 locals {
   # Static list so names never depend on other resources.
@@ -9,7 +10,7 @@ locals {
       "RecordingProcessor",
       "Transcriber",
       "TranscribeErrorHandler",
-      "Presigner",
+      "GuidedTaskPresigner",
       "Packager",
     ] : key => "${local.prefix}-${key}"
   }
@@ -30,7 +31,7 @@ locals {
       environment = {
         aws_region             = local.region
         package_version        = var.package_version
-        vmx3_recordings_bucket = aws_s3_bucket.this["recordings"].bucket
+        vmx3_recordings_bucket = aws_s3_bucket.this["recording"].bucket
       }
     }
     Transcriber = {
@@ -49,14 +50,16 @@ locals {
         s3_transcripts_bucket = aws_s3_bucket.this["transcripts"].bucket
       })
     }
-    Presigner = {
-      timeout = 330
+    # Settings from VMX3-GuidedTaskPresigner-btsgsd-dev-us-east-1. Signs a
+    # 1-hour GET URL with the function role (the code ignores presigned_url_expiry).
+    GuidedTaskPresigner = {
+      timeout = 7
       layers  = [var.otel_layer_arn]
       environment = merge(local.otel_environment, {
-        aws_region       = local.region
-        secrets_key_id   = aws_secretsmanager_secret.presigner.arn
-        email_url_expire = tostring(var.url_expiration_days)
-        tasks_url_expire = tostring(var.url_expiration_days)
+        aws_region           = local.region
+        package_version      = var.package_version
+        s3_recordings_bucket = aws_s3_bucket.this["recording"].bucket
+        presigned_url_expiry = "2"
       })
     }
     Packager = {
@@ -66,11 +69,11 @@ locals {
         aws_region                   = local.region
         package_version              = var.package_version
         TZ                           = var.packager_settings.timezone
-        s3_recordings_bucket         = aws_s3_bucket.this["recordings"].bucket
+        s3_recordings_bucket         = aws_s3_bucket.this["recording"].bucket
         s3_transcripts_bucket        = aws_s3_bucket.this["transcripts"].bucket
-        presigner_function_arn       = local.function_names["Presigner"]
-        default_task_flow            = aws_connect_contact_flow.task.contact_flow_id
-        default_guided_task_flow     = var.packager_settings.guided_task_flow
+        presigner_function_arn       = "AWS::NoValue"
+        default_task_flow            = "AWS::NoValue"
+        default_guided_task_flow     = aws_connect_contact_flow.task.contact_flow_id
         default_vmx_mode             = var.packager_settings.default_vmx_mode
         vmx3_do_genai_summary        = var.packager_settings.do_genai_summary
         inference_model              = var.packager_settings.inference_model

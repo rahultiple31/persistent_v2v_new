@@ -20,7 +20,7 @@ variable "name_prefix" {
 }
 
 variable "connect_queue_queue_id" {
-  description = "Main queue ID supplied by the connect-queue module."
+  description = "Main queue ID supplied by the connect-queue module. Unused since the blended routing profile was removed; kept so the root wiring is unchanged."
   type        = string
 }
 
@@ -314,7 +314,7 @@ variable "quick_connect_govind_username" {
 
 # --------------------------------------------------------------------------
 # Users (the SAML admin user is managed by the connect module)
-# routing_profile keys: basic, us_agent, latam_agent, us_latam_vm_blended
+# routing_profile keys: basic, us_agent, latam_agent, vm_agent
 # --------------------------------------------------------------------------
 variable "create_users" {
   description = "Whether to create Connect users. SAML usernames must match the IdP."
@@ -332,24 +332,24 @@ variable "users" {
   }))
   default = {
     "bharat.patchigolla@abbvie.com"      = { first_name = "test", last_name = "bharath", security_profile = "Agent", routing_profile = "basic" }
-    "smita.kulkarni@abbvie.com"          = { first_name = "Smita", last_name = "Kulkarni", security_profile = "Admin", routing_profile = "us_latam_vm_blended" }
+    "smita.kulkarni@abbvie.com"          = { first_name = "Smita", last_name = "Kulkarni", security_profile = "Admin", routing_profile = "us_agent" }
     "argha.kamaldey@abbvie.com"          = { first_name = "Argha", last_name = "Kamal Dey", security_profile = "Admin", routing_profile = "basic" }
-    "vinay.kumarsingamsetti@abbvie.com"  = { first_name = "Vinaykumar", last_name = "Singamsetti", security_profile = "Admin", routing_profile = "us_latam_vm_blended" }
-    "mahendra.kumar@abbvie.com"          = { first_name = "Mahendra", last_name = "Kumar", security_profile = "Admin", routing_profile = "us_latam_vm_blended" }
-    "muneer.pallakkan@abbvie.com"        = { first_name = "Muneer", last_name = "Pallakkan", security_profile = "Admin", routing_profile = "us_latam_vm_blended" }
+    "vinay.kumarsingamsetti@abbvie.com"  = { first_name = "Vinaykumar", last_name = "Singamsetti", security_profile = "Admin", routing_profile = "us_agent" }
+    "mahendra.kumar@abbvie.com"          = { first_name = "Mahendra", last_name = "Kumar", security_profile = "Admin", routing_profile = "us_agent" }
+    "muneer.pallakkan@abbvie.com"        = { first_name = "Muneer", last_name = "Pallakkan", security_profile = "Admin", routing_profile = "us_agent" }
     "akashdeep.awasthi@abbvie.com"       = { first_name = "Akashdeep", last_name = "Awasthi", security_profile = "Admin", routing_profile = "basic" }
     "amitkumar.patel@abbvie.com"         = { first_name = "Amitkumar", last_name = "Patel", security_profile = "Admin", routing_profile = "basic" }
     "rohit.paranjape@abbvie.com"         = { first_name = "Rohit", last_name = "Paranjape", security_profile = "Agent", routing_profile = "basic" }
     "shwetha.chandavar@abbvie.com"       = { first_name = "Shwetha", last_name = "Chandavar", security_profile = "Admin", routing_profile = "basic" }
     "joel.delatorrecontreras@abbvie.com" = { first_name = "Joel", last_name = "delatorrecontreras", security_profile = "Admin", routing_profile = "basic" }
-    "govind.khandelwal@abbvie.com"       = { first_name = "Govind", last_name = "Khandelwal", security_profile = "Admin", routing_profile = "us_latam_vm_blended" }
+    "govind.khandelwal@abbvie.com"       = { first_name = "Govind", last_name = "Khandelwal", security_profile = "Admin", routing_profile = "us_agent" }
     "rahul.tiple@abbvie.com"             = { first_name = "Rahul", last_name = "Tiple", security_profile = "Admin", routing_profile = "basic" }
   }
 
   validation {
     condition = alltrue([
-      for user in values(var.users) : contains(["basic", "us_agent", "latam_agent", "us_latam_vm_blended"], user.routing_profile)
+      for user in values(var.users) : contains(["basic", "us_agent", "latam_agent", "vm_agent"], user.routing_profile)
     ])
-    error_message = "Each user's routing_profile must be one of: basic, us_agent, latam_agent, us_latam_vm_blended."
+    error_message = "Each user's routing_profile must be one of: basic, us_agent, latam_agent, vm_agent."
   }
 }

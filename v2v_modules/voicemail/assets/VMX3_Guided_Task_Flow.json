@@ -1,0 +1,268 @@
+{
+  "Version": "2019-10-30",
+  "StartAction": "5aa58466-9012-4121-9eb9-e0db0d4dbe9c",
+  "Metadata": {
+    "entryPointPosition": {
+      "x": -107.2,
+      "y": 22.4
+    },
+    "ActionMetadata": {
+      "Generate Presigned URL": {
+        "position": {
+          "x": 484,
+          "y": 47.2
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "LambdaFunctionARN": {
+            "useDynamic": true
+          }
+        },
+        "dynamicMetadata": {},
+        "useDynamic": true
+      },
+      "Set Presigner ARN": {
+        "position": {
+          "x": 260.8,
+          "y": 20
+        },
+        "isFriendlyName": true
+      },
+      "5aa58466-9012-4121-9eb9-e0db0d4dbe9c": {
+        "position": {
+          "x": 22.4,
+          "y": 21.6
+        }
+      },
+      "f8c10e30-fd62-4d86-a275-9a0c1cfbc086": {
+        "position": {
+          "x": 1260.8,
+          "y": 97.6
+        }
+      },
+      "834e2278-c1b1-445b-b1f1-b5307ab06c12": {
+        "position": {
+          "x": 700.8,
+          "y": 61.6
+        },
+        "parameters": {
+          "Attributes": {
+            "vmx3_presigned_url": {
+              "useDynamic": true
+            }
+          }
+        },
+        "dynamicParams": [
+          "vmx3_presigned_url"
+        ]
+      },
+      "Show VMX Guided Task view": {
+        "position": {
+          "x": 935.2,
+          "y": 31.2
+        },
+        "isFriendlyName": true,
+        "parameters": {
+          "ViewResource": {
+            "Id": {
+              "displayName": "Voicemail Task View"
+            }
+          },
+          "InvocationTimeLimitSeconds": {
+            "unit": 60
+          },
+          "ViewData": {
+            "call_summary": {
+              "useJson": true
+            },
+            "CallerName": {
+              "useDynamic": true
+            },
+            "customer_data": {
+              "useJson": true
+            },
+            "Customer_Prefferred_Language": {
+              "useDynamic": true
+            },
+            "DialedNumber": {
+              "useDynamic": true
+            },
+            "Email": {
+              "useDynamic": true
+            },
+            "Intent": {
+              "useDynamic": true
+            },
+            "media_player": {
+              "useJson": true
+            },
+            "transcript_box": {
+              "useJson": true
+            },
+            "UPI": {
+              "useDynamic": true
+            },
+            "UserId": {
+              "useDynamic": true
+            },
+            "UserStatus": {
+              "useDynamic": true
+            },
+            "VerificationStatus": {
+              "useDynamic": true
+            },
+            "VerifiedVia": {
+              "useDynamic": true
+            }
+          }
+        }
+      }
+    },
+    "Annotations": []
+  },
+  "Actions": [
+    {
+      "Parameters": {
+        "LambdaFunctionARN": "$.FlowAttributes.vmx3_presigner_arn",
+        "InvocationTimeLimitSeconds": "8",
+        "InvocationType": "SYNCHRONOUS",
+        "ResponseValidation": {
+          "ResponseType": "JSON"
+        }
+      },
+      "Identifier": "Generate Presigned URL",
+      "Type": "InvokeLambdaFunction",
+      "Transitions": {
+        "NextAction": "834e2278-c1b1-445b-b1f1-b5307ab06c12",
+        "Errors": [
+          {
+            "NextAction": "834e2278-c1b1-445b-b1f1-b5307ab06c12",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowAttributes": {
+          "vmx3_presigner_arn": {
+            "Value": "arn:aws:lambda:us-east-1:518902362956:function:VMX3-GuidedTaskPresigner-btsgsd-dev-us-east-1"
+          }
+        }
+      },
+      "Identifier": "Set Presigner ARN",
+      "Type": "UpdateFlowAttributes",
+      "Transitions": {
+        "NextAction": "Generate Presigned URL",
+        "Errors": [
+          {
+            "NextAction": "Generate Presigned URL",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "FlowLoggingBehavior": "Enabled"
+      },
+      "Identifier": "5aa58466-9012-4121-9eb9-e0db0d4dbe9c",
+      "Type": "UpdateFlowLoggingBehavior",
+      "Transitions": {
+        "NextAction": "Set Presigner ARN"
+      }
+    },
+    {
+      "Parameters": {},
+      "Identifier": "f8c10e30-fd62-4d86-a275-9a0c1cfbc086",
+      "Type": "DisconnectParticipant",
+      "Transitions": {}
+    },
+    {
+      "Parameters": {
+        "Attributes": {
+          "vmx3_presigned_url": "$.External.vmx3_presigned_url"
+        },
+        "TargetContact": "Current"
+      },
+      "Identifier": "834e2278-c1b1-445b-b1f1-b5307ab06c12",
+      "Type": "UpdateContactAttributes",
+      "Transitions": {
+        "NextAction": "Show VMX Guided Task view",
+        "Errors": [
+          {
+            "NextAction": "Show VMX Guided Task view",
+            "ErrorType": "NoMatchingError"
+          }
+        ]
+      }
+    },
+    {
+      "Parameters": {
+        "ViewResource": {
+          "Id": "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/view/54a8a7ee-e4c3-4bad-bfc3-eaae87789984:$LATEST"
+        },
+        "InvocationTimeLimitSeconds": "1800",
+        "ViewData": {
+          "call_summary": {
+            "TemplateString": "<div>$.Attributes.CallSummary</div>"
+          },
+          "CallerName": "$.Attributes.CallerName",
+          "customer_data": {
+            "Items": [
+              {
+                "Value": "$.Attributes.vmx3_source_queue"
+              },
+              {
+                "Value": "$.Attributes.vmx3_target"
+              },
+              {
+                "Value": "$.Attributes.vmx3_callback_number"
+              },
+              {
+                "Value": "$.Attributes.vmx3_timestamp"
+              },
+              {
+                "Value": "$.Attributes.voiceMailFrom"
+              }
+            ]
+          },
+          "Customer_Prefferred_Language": "$.Attributes.Customer_Prefferred_Language",
+          "DialedNumber": "$.Attributes.dialledNumber",
+          "Email": "$.Attributes.Email",
+          "Intent": "$.Attributes.Intent",
+          "media_player": {
+            "TemplateString": "<div><audio controls preload='auto' src='$.External.vmx3_presigned_url' style='width: 100%;'></audio></div>"
+          },
+          "transcript_box": {
+            "TemplateString": "<div>$.Attributes.vmx3_transcript</div>"
+          },
+          "UPI": "$.Attributes.UPI",
+          "UserId": "$.Attributes.UserId",
+          "UserStatus": "$.Attributes.UserStatus",
+          "VerificationStatus": "$.Attributes.VerificationStatus",
+          "VerifiedVia": "$.Attributes.VerifiedVia"
+        }
+      },
+      "Identifier": "Show VMX Guided Task view",
+      "Type": "ShowView",
+      "Transitions": {
+        "NextAction": "f8c10e30-fd62-4d86-a275-9a0c1cfbc086",
+        "Errors": [
+          {
+            "NextAction": "f8c10e30-fd62-4d86-a275-9a0c1cfbc086",
+            "ErrorType": "NoMatchingCondition"
+          },
+          {
+            "NextAction": "f8c10e30-fd62-4d86-a275-9a0c1cfbc086",
+            "ErrorType": "NoMatchingError"
+          },
+          {
+            "NextAction": "f8c10e30-fd62-4d86-a275-9a0c1cfbc086",
+            "ErrorType": "TimeLimitExceeded"
+          }
+        ]
+      }
+    }
+  ]
+}

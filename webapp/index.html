@@ -335,6 +335,18 @@
                     <div id="customerTranslatedTextOutputDiv" class="output-text"></div>
                   </div>
 
+                  <!-- Voicemail Audio Player — shown while the agent has a voicemail task open -->
+                  <div id="voicemailPlayerSection" class="voicemail-player-section" style="display:none">
+                    <label class="voicemail-player-label">
+                      <i class="bi bi-voicemail"></i> Voicemail
+                    </label>
+                    <audio id="voicemailAudioPlayer" class="vm-audio" controls></audio>
+                    <div class="vm-status-row">
+                      <span id="voicemailStatus" class="vm-status" role="status" aria-live="polite"></span>
+                      <button id="voicemailRetryButton" type="button" class="vm-retry" style="display:none">Try again</button>
+                    </div>
+                  </div>
+
                 </div>
               </div>
 

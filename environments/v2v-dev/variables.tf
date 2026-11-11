@@ -602,32 +602,10 @@ variable "vmx3_beep_prompt_arn" {
   default     = null
 }
 
-variable "vmx3_timestamper_lambda_arn" {
-  description = "Existing VMX3 timestamper Lambda ARN; required for the connect deployment group."
-  type        = string
-  default     = null
-}
-
-variable "voicemail_presigner_user_name" {
-  description = "Existing IAM user whose access key signs voicemail recording URLs. Read only; not modified."
-  type        = string
-  default     = "VMX3_Presigner_User_btsgsd-dev-us-east-1"
-}
-
-variable "voicemail_create_presigner_access_key" {
-  description = "Create a new access key on the presigner user for the voicemail secret. Set false to supply voicemail_presigner_credentials."
+variable "voicemail_delete_retired_recordings_bucket" {
+  description = "Run B of the voicemail recordings bucket rename: delete the old btsgsd-v2v-us-voicemail bucket. Set true only after Run A is applied."
   type        = bool
-  default     = true
-}
-
-variable "voicemail_presigner_credentials" {
-  description = "Existing presigner access key; only used when voicemail_create_presigner_access_key is false. Supply from a pipeline secret, never tfvars."
-  type = object({
-    access_key_id     = string
-    secret_access_key = string
-  })
-  default   = null
-  sensitive = true
+  default     = false
 }
 
 variable "voicemail_connect_recordings_bucket_name" {
@@ -638,6 +616,12 @@ variable "voicemail_connect_recordings_bucket_name" {
 
 variable "voicemail_associate_ctr_stream" {
   description = "Stream contact trace records to the new voicemail Kinesis stream. Remove the console association first."
+  type        = bool
+  default     = false
+}
+
+variable "voicemail_associate_agent_events_stream" {
+  description = "Stream agent events to the new voicemail Kinesis stream. Remove the console agent events association first."
   type        = bool
   default     = false
 }

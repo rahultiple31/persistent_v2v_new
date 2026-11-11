@@ -207,24 +207,6 @@ resource "aws_lb_target_group" "proxy" {
   }
 }
 
-# ── Listener — HTTP (no certificate) ─────────────────────────────────────────
-
-resource "aws_lb_listener" "http" {
-  count             = var.https ? 0 : 1
-  load_balancer_arn = aws_lb.main.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.proxy.arn
-  }
-
-  tags = {
-    Name = "${var.stack_name}-listener-http"
-  }
-}
-
 # ── Listener — HTTPS (TLS 1.2 + 1.3, recommended policy) ─────────────────────
 
 resource "aws_lb_listener" "https" {
