@@ -66,6 +66,8 @@ VOICEMAIL_RETIRED_ADDRESSES = (
 TRANSFER_TABLE_DESTROY_CHOICE = "destroy_hr_veeva_transfer_tables"
 STATE_MIGRATION_CHOICE = "migrate_data_table_state"
 PRIMARY_RP_DESTROY_CHOICE = "destroy_primary_routing_profile"
+DATALAKE_DESTROY_CHOICE = "destroy_datalake_secret"
+DATALAKE_SECRET_ADDRESS = "module.datalake_secret[0].aws_secretsmanager_secret.this"
 PRIMARY_RP_TARGETS = (
     "module.connect_us_east_1[0].aws_connect_routing_profile.primary",
     "module.connect_us_east_1[0].aws_connect_queue.primary",
@@ -206,6 +208,12 @@ fi
                         resource_type, name = address.split(".")[1:3]
                         self.assertNotIn(f'resource "{resource_type}" "{name}"', module_source)
                     continue
+                if choice == DATALAKE_DESTROY_CHOICE:
+                    self.assertEqual(group, "secrets_manager")
+                    self.assertIn("-destroy", arguments)
+                    self.assertEqual(targets, [f"-target={DATALAKE_SECRET_ADDRESS}"])
+                    self.assertIn("datalake_secret", modules)
+                    continue
                 if choice in DESTROY_CHOICES:
                     expected_group, retired_modules = DESTROY_CHOICES[choice]
                     self.assertEqual(group, expected_group)
@@ -280,6 +288,35 @@ fi
                     if choice == "conversion_of_queue_metrics":
                         expected.append("-target=aws_lambda_permission.queue_metrics_connect[0]")
                     self.assertEqual(targets, expected)
+
+    def test_datalake_destroy_accepts_only_its_deletion_or_an_empty_plan(self):
+        for changes in ([], [change(DATALAKE_SECRET_ADDRESS, ["delete"])]):
+            with self.subTest(changes=changes):
+                result = self.run_selector(DATALAKE_DESTROY_CHOICE, plan(
+                    group="secrets_manager", changes=changes,
+                ))
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_datalake_destroy_rejects_other_resources_and_non_delete_actions(self):
+        invalid = [
+            change(address, ["delete"]) for address in (
+                'module.secrets_manager[0].aws_secretsmanager_secret.this["other"]',
+                "module.datalake_secret[1].aws_secretsmanager_secret.this",
+                "module.datalake_secret[0].aws_secretsmanager_secret.other",
+                "module.datalake_secret[0].aws_secretsmanager_secret.this_extra",
+            )
+        ] + [
+            change(DATALAKE_SECRET_ADDRESS, actions) for actions in (
+                ["create"], ["update"], ["delete", "create"], ["create", "delete"],
+            )
+        ]
+        for entry in invalid:
+            with self.subTest(entry=entry):
+                result = self.run_selector(DATALAKE_DESTROY_CHOICE, plan(
+                    group="secrets_manager", changes=[entry],
+                ))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing changes other than deletion of the Datalake secret", result.stderr)
 
     def test_unknown_choice_fails(self):
         result = self.run_selector("unknown-module")

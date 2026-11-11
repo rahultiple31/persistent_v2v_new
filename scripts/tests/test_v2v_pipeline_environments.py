@@ -15,6 +15,7 @@ from scripts.tests.test_v2v_terraform_target import (
     MOVED_CONNECT_TARGETS, MOVED_SHARED_CONNECT_TARGETS, change, plan,
     TRANSFER_TABLE_DESTROY_CHOICE, TRANSFER_TABLE_TARGETS, DATA_TABLE_MODULE_CHOICES,
     STATE_MIGRATION_CHOICE,
+    DATALAKE_DESTROY_CHOICE, DATALAKE_SECRET_ADDRESS,
 )
 
 
@@ -246,6 +247,41 @@ class V2VPipelineEnvironmentsTests(unittest.TestCase):
         self.assertNotIn("put-secret-value", trace)
         self.assertNotIn("DATALAKE_AWS_ACCESS_KEY_ID", self.pipeline)
         self.assertNotIn("DATALAKE_AWS_SECRET_ACCESS_KEY", self.pipeline)
+
+    def test_datalake_destroy_applies_saved_plan_and_rejects_unrelated_changes(self):
+        self.prepare("v2v-dev", DATALAKE_DESTROY_CHOICE)
+        self.env["TEST_PLAN"] = json.dumps(plan(group="secrets_manager", changes=[
+            change(DATALAKE_SECRET_ADDRESS, ["delete"]),
+        ]))
+        for stage in (0, 1):
+            result = self.run_stage(stage)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+        trace = self.trace.read_text()
+        self.assertEqual(trace.count(
+            "<-backend-config=key=terraform-state/v2v/us-east-1/secrets_manager/terraform.tfstate>"
+        ), 2)
+        plan_command = next(line for line in trace.splitlines() if line.startswith("terraform <plan>"))
+        self.assertIn("<-destroy>", plan_command)
+        self.assertEqual(re.findall(r'<-target=([^>]+)>', plan_command), [DATALAKE_SECRET_ADDRESS])
+        apply_command = next(line for line in trace.splitlines() if line.startswith("terraform <apply>"))
+        self.assertIn("terraform.tfplan>", apply_command)
+        self.assertNotIn("<-destroy>", apply_command)
+        self.assertNotIn("<-target=", apply_command)
+        self.assertNotIn("packages <", trace)
+        self.assertNotIn("terraform <output>", trace)
+
+        self.env["TEST_PLAN"] = json.dumps(plan(group="secrets_manager", changes=[
+            change(DATALAKE_SECRET_ADDRESS, ["delete"]),
+            change('module.secrets_manager[0].aws_secretsmanager_secret.this["other"]', ["delete"]),
+        ]))
+        for stage in (0, 1):
+            with self.subTest(stage=stage):
+                self.trace.write_text("")
+                result = self.run_stage(stage)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing changes other than deletion of the Datalake secret", result.stderr)
+                self.assertNotIn("terraform <apply>", self.trace.read_text())
 
     def test_dedicated_flow_choices_apply_saved_targeted_module_plans(self):
         for choice, address in (

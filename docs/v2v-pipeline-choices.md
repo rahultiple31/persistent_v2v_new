@@ -16,6 +16,7 @@ under `targetEnvironment=v2v-dev`:
 
 | Choice | Resources | Existing state |
 | --- | --- | --- |
+| `destroy_datalake_secret` | Only `BTSGSD-V2V-US-Datalake/dev` (`module.datalake_secret[0].aws_secretsmanager_secret.this`), with a 30-day recovery window | `terraform-state/v2v/us-east-1/secrets_manager/terraform.tfstate` |
 | `destroy_survey_ai` | `BTSGSD-V2V-US-AI-Survey-Agent`, `BTSGSD-V2V-US-AI-Survey-Prompt`, and their module-owned versions/helpers | `terraform-state/v2v/us-east-1/connect/terraform.tfstate` |
 | `destroy_survey_lex` | `BTSGSD-V2V-US-AIAgent-Survey` and its module-owned locales/IAM resources | `terraform-state/v2v/us-east-1/lex_bot/terraform.tfstate` |
 | `destroy_vmx3_main_vm_module` | Unused flow module `VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1`, its `AllowConnectVMX3-<instance>` permission on `voicemail-v2v-VoicemailTimestamper`, and that Lambda's instance association | `terraform-state/v2v/us-east-1/connect/terraform.tfstate` |
@@ -91,6 +92,13 @@ secret through `v2v_modules/datalake_secret`. Terraform manages the secret
 metadata only; the pipeline uses OIDC for AWS access and does not write a
 static access key pair to this secret. A consumer that needs a secret value
 must have its own value provisioning and authentication design.
+
+To delete this secret, run `destroy_datalake_secret` from `main` with
+`targetEnvironment=v2v-dev` and `terraformAction=plan`, then rerun the same
+choice with `terraformAction=apply`. Plan and Apply reject changes other than
+deletion of that exact secret resource in its existing Secrets Manager state.
+The secret must already be managed in that state. Its Terraform declaration
+remains, so a later `secrets_manager` deployment may attempt to recreate it.
 
 Each of these flow names is an individual `targetModule` choice in the existing
 Connect state:

@@ -84,6 +84,7 @@ parameters:
       - btsgsd-v2v-us-atsgsd-dev-us-east-1-ai-agent
       - btsgsd-v2v-us-intent-kb
       - secrets_manager
+      - destroy_datalake_secret
       - queue_info_dynamodb
       - cloudwatch_log_group
       - lex_yesno_log_group

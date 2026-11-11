@@ -100,6 +100,7 @@ btsgsd-v2v-us-connect-reporting-bucket|s3_connect_reporting|module.s3_connect_re
 btsgsd-v2v-us-atsgsd-dev-us-east-1-ai-agent|connect|module.dev_ai_template_encryption[0]
 btsgsd-v2v-us-intent-kb|btsgsd-intent-kb|module.s3_intent_kb[0]
 secrets_manager|secrets_manager|module.secrets_manager[0]
+destroy_datalake_secret|secrets_manager|module.datalake_secret[0].aws_secretsmanager_secret.this
 queue_info_dynamodb|dynamodb|module.queue_info_dynamodb[0]
 cloudwatch_log_group|cloudwatch_log_group|module.cloudwatch_log_group[0]
 lex_yesno_log_group|cloudwatch_log_group|module.lex_yesno_log_group[0]
@@ -173,6 +174,10 @@ fi
 
 # State-only and destroy-only choices skip deployment dependencies.
 case "$DEPLOYMENT_TARGET" in
+  destroy_datalake_secret)
+    TERRAFORM_DESTROY_ONLY=true
+    TERRAFORM_PLAN_ARGS+=("-destroy")
+    ;;
   migrate_data_table_state)
     TERRAFORM_STATE_MIGRATION_ONLY=true
     ;;
@@ -315,6 +320,19 @@ if target in destroy_prefixes:
     if unexpected:
         raise SystemExit(
             "Refusing changes other than deletion of the selected retired modules: "
+            + ", ".join(unexpected)
+        )
+
+if target == "destroy_datalake_secret":
+    allowed = "module.datalake_secret[0].aws_secretsmanager_secret.this"
+    unexpected = [
+        change["address"] for change in changes
+        if change["address"] != allowed
+        or change.get("change", {}).get("actions") != ["delete"]
+    ]
+    if unexpected:
+        raise SystemExit(
+            "Refusing changes other than deletion of the Datalake secret: "
             + ", ".join(unexpected)
         )
 
