@@ -136,7 +136,7 @@ resource "aws_lambda_function" "consolidation" {
     variables = {
       ACD_SOURCE_PREFIX       = "daily/acd/"
       ADD_SOURCE_COLUMNS      = "FALSE"
-      BUSINESS_TIMEZONE       = "America/Chicago"
+      BUSINESS_TIMEZONE       = "EST"
       CSV_ENCODING            = "utf-8-sig"
       EXPECTED_REGIONS        = "NORAM,EMEA,JAPAC"
       FAIL_IF_REGION_MISSING  = "FALSE"
@@ -194,7 +194,10 @@ resource "aws_scheduler_schedule" "consolidation" {
   target {
     arn      = aws_lambda_function.consolidation.arn
     role_arn = aws_iam_role.scheduler.arn
-    input    = jsonencode({})
+    input = jsonencode({
+      scheduled_time = "<aws.scheduler.scheduled-time>"
+      reportType     = "ALL"
+    })
   }
 
   depends_on = [aws_iam_role_policy.scheduler]

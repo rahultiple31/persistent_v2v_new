@@ -48,7 +48,7 @@ variable "connect_instance_alias" {
 variable "environment_variables" {
   type = map(string)
   default = {
-    BUSINESS_TIMEZONE     = "America/Chicago"
+    BUSINESS_TIMEZONE     = "EST"
     FILE_PREFIX           = "abbvieacd"
     LOG_LEVEL             = "INFO"
     OUTPUT_DELIMITER      = ","

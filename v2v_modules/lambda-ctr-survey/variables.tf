@@ -49,7 +49,7 @@ variable "environment_variables" {
   type = map(string)
   default = {
     S3_BUCKET         = "btsgsd-v2v-us-connect-reporting-bucket"
-    BUSINESS_TIMEZONE = "America/Chicago"
+    BUSINESS_TIMEZONE = "EST"
     S3_PREFIX         = "daily/survey/NORAM"
     LOG_LEVEL         = "INFO"
   }
