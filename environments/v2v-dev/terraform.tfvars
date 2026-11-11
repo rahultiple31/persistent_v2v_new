@@ -58,7 +58,7 @@ moh_30sec_prompt_s3_uri = null
 # Resolve exported customer-queue dependencies to their existing Dev names.
 connect_customer_queue_dependency_names = {
   "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us" = "BTSGSD-V2V-US-VMX3_Main_VM_Module"
-  "CustomerQueueMOH"                                   = "MOH_30SEC"
+  "MOH_30SEC"                                         = "CustomerQueue.wav"
 
   "VMX3_Main_VM_Module_btsgsd-dev-us-east-1" = "BTSGSD-V2V-US-VMX3_Main_VM_Module"
   "BTSGSD-Survey-DataTable"                  = "BTSGSD-V2V-US-PROMPT-DATATABLE"
