@@ -1,0 +1,53 @@
+
+name: BTSGSD-AsBuilt-Documentation
+
+trigger: none
+pr: none
+
+parameters:
+  - name: targetEnvironment
+    displayName: Select Environment
+    type: string
+    default: dev
+    values:
+      - dev
+      - prod
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: self
+
+  - task: UsePythonVersion@0
+    displayName: Select Python
+    inputs:
+      versionSpec: '3.12'
+
+  - script: |
+      python -m pip install --upgrade pip
+      python -m pip install boto3 python-docx reportlab
+    displayName: Install Python Dependencies
+
+  - task: AWSShellScript@1
+    displayName: Generate Word and PDF As-Built
+    inputs:
+      awsCredentials: 'BTSGSD-AsBuilt-AWS'
+      regionName: 'us-east-1'
+      scriptType: 'inline'
+      inlineScript: |
+        set -euo pipefail
+
+        python documentation/generate_asbuilt.py \
+          --environment "${{ parameters.targetEnvironment }}" \
+          --region "us-east-1" \
+          --output "$(Build.ArtifactStagingDirectory)/asbuilt"
+
+        ls -lh "$(Build.ArtifactStagingDirectory)/asbuilt"
+
+  - task: PublishPipelineArtifact@1
+    displayName: Publish Word PDF and Markdown
+    inputs:
+      targetPath: '$(Build.ArtifactStagingDirectory)/asbuilt'
+      artifact: 'BTSGSD-AsBuilt-Documents'
+      publishLocation: 'pipeline'
