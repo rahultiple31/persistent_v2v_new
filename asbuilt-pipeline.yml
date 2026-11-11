@@ -8,16 +8,39 @@ parameters:
   - name: targetEnvironment
     displayName: Select Environment
     type: string
-    default: dev
+    default: v2v-dev
     values:
       - dev
+      - v2v-dev
       - prod
+
+  - name: deploymentPipelineDefinitionId
+    displayName: V2V deployment pipeline definition ID
+    type: number
+    default: 0
+
+  - name: deploymentPipelineRunId
+    displayName: Applied V2V deployment pipeline run ID
+    type: number
+    default: 0
 
 pool:
   vmImage: ubuntu-latest
 
 steps:
   - checkout: self
+
+  - task: DownloadPipelineArtifact@2
+    displayName: Download evaluated Terraform configuration
+    condition: and(ne('${{ parameters.deploymentPipelineDefinitionId }}', '0'), ne('${{ parameters.deploymentPipelineRunId }}', '0'))
+    inputs:
+      buildType: specific
+      project: '$(System.TeamProject)'
+      definition: '${{ parameters.deploymentPipelineDefinitionId }}'
+      buildVersionToDownload: specific
+      pipelineId: '${{ parameters.deploymentPipelineRunId }}'
+      artifactName: v2v-terraform-asbuilt
+      targetPath: '$(Pipeline.Workspace)/v2v-terraform-plan'
 
   - task: UsePythonVersion@0
     displayName: Select Python
@@ -38,10 +61,24 @@ steps:
       inlineScript: |
         set -euo pipefail
 
+        terraform_arguments=()
+        if [ -s "$(Pipeline.Workspace)/v2v-terraform-plan/terraform-plan.json" ]; then
+          terraform_arguments+=(
+            --terraform-plan-json "$(Pipeline.Workspace)/v2v-terraform-plan/terraform-plan.json"
+          )
+        fi
+        if [ -s "$(Pipeline.Workspace)/v2v-terraform-plan/terraform-state.json" ]; then
+          terraform_arguments+=(
+            --terraform-state-json "$(Pipeline.Workspace)/v2v-terraform-plan/terraform-state.json"
+          )
+        fi
+
         python documentation/generate_asbuilt.py \
           --environment "${{ parameters.targetEnvironment }}" \
           --region "us-east-1" \
-          --output "$(Build.ArtifactStagingDirectory)/asbuilt"
+          --terraform-directory "environments/${{ parameters.targetEnvironment }}" \
+          --output "$(Build.ArtifactStagingDirectory)/asbuilt" \
+          "${terraform_arguments[@]}"
 
         ls -lh "$(Build.ArtifactStagingDirectory)/asbuilt"
 
