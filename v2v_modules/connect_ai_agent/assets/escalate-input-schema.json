@@ -4,7 +4,7 @@
   "properties": {
     "reason": {
       "type": "string",
-      "description": "Factual reason for the branch actually reached, never placeholder text. Call ONLY in the same response as, and after, the spoken transfer <message> (who they are going to, stay on the line); an Escalate with no spoken message leaves the caller in silence. ONLY EXCEPTION: the LATAM Veeva/Medcom route (RoutingIntent Veeva or Medcom) is called with NO bot message, because the contact flow plays the transfer prompt. A pending question blocks this tool unless an explicit exhaustion, cancellation, safety or authorized branch exception closes that question first. Actual active speech or partial transcripts always block terminal execution.",
+      "description": "Factual reason for the branch actually reached, never placeholder text. Call in the same response as, and after, the branch-specific spoken transfer message, EXCEPT for the flow-owned HR, FieldForce, LATAM Veeva/Medcom, verified non-LATAM Veeva/Medcom live-agent (Intent Veeva - Live Agent / Medcom - Live Agent) and Step 7 technical-failure (Intent Unverified - Lookup Error) transfer announcements. On those routes, do not duplicate the flow announcement; include only the acknowledgment or unrelated-request decline expressly permitted by the prompt. LATAM Veeva/Medcom transfers accept verified and unverified/no-UPI callers alike; lack of verification alone must not block those transfers. A pending question blocks this tool unless an explicit exhaustion, cancellation, safety or authorized branch exception closes that question first. Actual active speech or partial transcripts always block terminal execution.",
       "minLength": 8
     },
     "VerificationStatus": {
@@ -25,7 +25,7 @@
       "description": "The caller's AbbVie email address from the flow phone lookup (CALL CONTEXT, when phone_lookup_status=Matched) or the current UserLookUp result. Send an empty string if the caller is unverified or no email was returned."
     },
     "Intent": {
-      "description": "Use exactly one allowed label for the branch actually reached. Out of Scope closure labels are Complete-only and cannot be escalated. Caller-request suffixes must use an allowed journey label, else plain 'Live Agent - Caller Request'. Veeva/Medcom: 'Veeva - LATAM Helpdesk' / 'Medcom - LATAM Helpdesk' when region is LATAM (with RoutingIntent Veeva/Medcom); 'Veeva - Live Agent' / 'Medcom - Live Agent' when region is blank or any other value (no RoutingIntent).",
+      "description": "Use exactly one allowed label for the branch actually reached. Out of Scope closure labels are Complete-only and cannot be escalated. Caller-request suffixes must use an allowed journey label, else plain 'Live Agent - Caller Request'. Veeva/Medcom: 'Veeva - LATAM Helpdesk' / 'Medcom - LATAM Helpdesk' when region is LATAM (with RoutingIntent Veeva/Medcom); 'Veeva - Live Agent' / 'Medcom - Live Agent' when region is blank or any other value and the caller is verified (no RoutingIntent). LATAM helpdesk labels apply to verified and unverified callers alike. For the exhausted post-Handoff TechSpot Teams-receipt question only, final clear No uses TechSpot -- Live Agent after the existing transfer line. Other TechSpot escalation branches retain their existing labels. TechSpot -- No Response is Complete-only. Verified non-LATAM Veeva/Medcom, including blank region, uses the matching Live Agent Intent without RoutingIntent and requires US queue routing in the flow. For the post-Handoff Teams-receipt question only, intelligible uncertainty such as I am not sure counts as No, not unclear. Within the existing combined initial-plus-two cap, retry before the final opportunity; at the final opportunity use Escalate with TechSpot -- Live Agent, omit RoutingIntent and retain existing Interaction prerequisites. Final silence, unintelligible audio or genuinely ambiguous meaning uses Complete with TechSpot -- No Response. For uncertainty, terminal reason and CallSummary record receipt not confirmed, not definite non-receipt or an explicit agent request. No extra retries or changes to other questions or journeys.",
       "type": "string",
       "enum": [
         "Password Reset - Pre Hire",
@@ -100,7 +100,8 @@
         "Veeva - Live Agent",
         "Medcom - Live Agent",
         "Live Agent - Caller Request - Live Agent - Manufacturing",
-        "Live Agent - Caller Request - Live Agent - M&A"
+        "Live Agent - Caller Request - Live Agent - M&A",
+        "TechSpot -- Live Agent"
       ],
       "minLength": 3
     },
@@ -123,7 +124,7 @@
     },
     "RoutingIntent": {
       "type": "string",
-      "description": "FieldForce only on the Field Force handoff; HR only on the HR Helpdesk transfer (verified Active false/blank, or unverified HR transfer); Veeva/Medcom ONLY when the caller's need names Veeva/Medcom AND region is LATAM. Active=true HR portal never escalates. Omit on all other transfers.",
+      "description": "FieldForce only on the Field Force handoff; HR only on the HR Helpdesk transfer (verified Active false/blank, or unverified HR transfer); Veeva/Medcom ONLY when the caller's need names Veeva/Medcom AND region is LATAM. For the HR routing outcome, Active=true uses the portal branch rather than HR helpdesk escalation; existing safety and question-exhaustion handling retain their own defined conditions and Intents. Omit on all other transfers. For Veeva/Medcom use trimmed, case-insensitive trusted call-context region only: LATAM permits the matching helpdesk route for verified and unverified/no-UPI callers; every other value including blank is non-LATAM. Require matching helpdesk Intent and RoutingIntent. Non-LATAM verified callers use matching live-agent Intent with RoutingIntent omitted; non-LATAM unverified callers use graceful callback close and verification-failed Complete. HR uses the current lookup Active value: verified true gives portal guidance, verified anything else gives HR helpdesk; unverified HR skips Active. These are routing-outcome rules, not overrides of existing safety/question-exhaustion closes. Do not change other journeys queue-selection rules.",
       "enum": [
         "FieldForce",
         "HR",
@@ -133,7 +134,7 @@
     },
     "LanguageDetected": {
       "type": "string",
-      "description": "The caller's current actual spoken language as a BCP-47 locale code (e.g. 'en-US', 'es-MX', 'pt-BR', 'hi-IN'). Send on every Escalate call. Single bare token only - no trailing period, quotes, or surrounding spaces."
+      "description": "The current authorized response language as a BCP-47 locale code: start from the configured initial language and change only after an explicit caller request for a supported language. Do not infer a switch from accent, name, digits, foreign words or a full foreign-language sentence. Send one bare locale token without surrounding spaces or punctuation."
     },
     "UserId": {
       "type": "string",
@@ -141,7 +142,7 @@
     },
     "ScreenPopURL": {
       "type": "string",
-      "description": "Successful Interaction URL only when prerequisites met (verified caller, UPI held, ContactId present, Service Desk queue transfer); otherwise empty for HR/FieldForce/Veeva/Medcom helpdesk routes, unverified transfers, or skipped/failed Interaction. Never create Interaction for question exhaustion."
+      "description": "Successful Interaction URL only when prerequisites met (verified caller, UPI held, ContactId present, Service Desk queue transfer); otherwise empty for HR/FieldForce/LATAM Veeva/Medcom helpdesk routes, unverified transfers, or skipped/failed Interaction. Never create Interaction for question exhaustion, except the explicitly authorized final clear-No TechSpot post-Handoff Teams-receipt outcome: follow its existing Interaction prerequisites before Escalate with Intent TechSpot -- Live Agent. This exception does not waive verification, UPI, ContactId or Service Desk queue-transfer prerequisites. Final silence/unclear receipt exhaustion uses Complete with Intent TechSpot -- No Response and never creates Interaction. All other question-exhaustion restrictions remain unchanged."
     },
     "CallerName": {
       "type": "string",
