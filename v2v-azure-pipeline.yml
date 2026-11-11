@@ -66,6 +66,8 @@ parameters:
       - BTSGSD-V2V-US-Nextthink_Handoff
       - BTSGSD-V2V-US-UpdateSessionAttributes
       - silence_guard-dev
+      # BTSGSD-V2V-US-views Lambda (replaces the manual BTSGSD-Abbvie-views-Dev) with its hourly warm-up schedule.
+      - views_lambda
       - conversion_of_queue_metrics
       # VMX3 voicemail stack in the connect state; deletions limited to the retired Presigner and old recordings bucket.
       - voicemail
@@ -88,6 +90,8 @@ parameters:
       - queue_info_dynamodb
       - cloudwatch_log_group
       - lex_yesno_log_group
+      # /aws/lex/BTSGSD-V2V-US-IT-Support_Agent, 30-day retention like the dev log group.
+      - lex_it_support_log_group
       - lex_bot
       - lex_yesno_bot
       - lex_customer_queue_flow_bot

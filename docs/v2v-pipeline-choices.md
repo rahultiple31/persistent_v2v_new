@@ -291,6 +291,7 @@ identified and reconciled with its owning Terraform state.
 | BTSGSD-V2V-US-Nextthink_Handoff | `BTSGSD-V2V-US-Nextthink_Handoff` |
 | BTSGSD-V2V-US-UpdateSessionAttributes | `BTSGSD-V2V-US-UpdateSessionAttributes` |
 | BTSGSD-V2V-US-silence_guard | `silence_guard-dev` |
+| BTSGSD-V2V-US-views (Lambda, role, log group, warm-up schedule) | `views_lambda` |
 | BTSGSD-V2V-US-conversionOfQueueMetrics | `conversion_of_queue_metrics` |
 | BTSGSD-V2V-US-voicemail-* (VMX3 voicemail stack) | `voicemail` |
 | BTSGSD-V2V-US-lex-QueueFlow-Callback | `BTSGSD-V2V-US-lex-QueueFlow-Callback` or `lex_queueflow_callback` |
@@ -389,6 +390,20 @@ import {
 }
 ```
 
+The `views_lambda` choice creates `BTSGSD-V2V-US-views` in the Connect state. It
+replaces the manually created `BTSGSD-Abbvie-views-Dev`: the deployed code is
+unchanged (`DescribeContact` poll, 4-second wait), the role may only write its
+logs and call `connect:DescribeContact` on the V2V Connect instance, and the
+function is associated with that instance. It runs in the V2V Lambda VPC
+(`lambda_vpc_id`, `lambda_subnet_ids` and `lambda_additional_security_group_ids`
+in `terraform.tfvars`, plus the core Lambda security group), on Python 3.13
+with the shared Application Signals layer. It also manages the enabled
+`BTSGSD-V2V-US-views-warmup` schedule: hourly, `{"warmup":true}`, a maximum
+event age of 86400 seconds and 185 retries, through
+`BTSGSD-IVA-Lambda-Warmup-Scheduler-Role`. Deploy `lambda_security_groups` and
+`lambda_endpoint_associations` first. The V2V `BTSGSD-V2V-US-Views` flow still
+invokes the old function until its Lambda ARN is changed; the old function and
+its schedule are not touched by this choice.
 The `BTSGSD-V2V-US-ServiceNow_Interaction` choice also manages the enabled
 `BTSGSD-V2V-US-ServiceNow_Interaction-warmup` schedule in its existing
 `terraform-state/v2v/us-east-1/lambda-servicenow-interaction/terraform.tfstate`
@@ -439,8 +454,10 @@ import {
 ```
 
 `lex_bot`, `lex_yesno_bot`, and `lex_customer_queue_flow_bot`
-now target their respective bots. `cloudwatch_log_group`
-and `lex_yesno_log_group` select their respective log groups. The
+now target their respective bots. `cloudwatch_log_group`,
+`lex_yesno_log_group` and `lex_it_support_log_group` select their respective log
+groups (the last one is `/aws/lex/BTSGSD-V2V-US-IT-Support_Agent`, 30-day
+retention, no KMS key, as on `/aws/lex/btsgsd-IT-Support_Agent-dev`). The
 `support_agent_tools` choice was removed because that helper module creates
 no AWS resources; its output is used by `btsgsd_support_agent`.
 

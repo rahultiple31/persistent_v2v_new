@@ -669,6 +669,22 @@ variable "lambda_code_signing_config_arn" {
   }
 }
 
+variable "lambda_vpc_id" {
+  description = "VPC that holds the V2V Lambda subnets and the core Lambda security group."
+  type        = string
+}
+
+variable "lambda_subnet_ids" {
+  description = "Subnets for V2V Lambda network interfaces (one per Availability Zone)."
+  type        = list(string)
+}
+
+variable "lambda_additional_security_group_ids" {
+  description = "Security groups attached to V2V Lambdas in addition to the core Lambda security group."
+  type        = list(string)
+  default     = []
+}
+
 variable "enable_signing_profile" {
   description = "Create the signing profile when the code-signing deployment group is selected."
   type        = bool

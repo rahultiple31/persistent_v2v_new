@@ -214,3 +214,12 @@ snow_lambda_reserved_concurrency = null
 
 # Allow the specified Lex V2 alias to invoke the V2V callback Lambda.
 lex_queueflow_callback_bot_alias_arn = "arn:aws:lex:us-east-1:518902362956:bot-alias/RD35A35EAU/HJAVDZTZBO"
+# Network for V2V Lambdas (abv-vpc-accas-dev-vpc). Used by views_lambda.
+lambda_vpc_id = "vpc-0f2abb3d6596a0487"
+lambda_subnet_ids = [
+  "subnet-0c29b5f2c41c73d89", # us-east-1a: abv-vpc-accas-dev-app-a
+  "subnet-0fe7a72e5cef073ad", # us-east-1b: abv-vpc-accas-dev-app-b
+]
+lambda_additional_security_group_ids = [
+  "sg-0e77977e08fb0dedb", # BTSGSD-US-IVA-Internal-SG
+]

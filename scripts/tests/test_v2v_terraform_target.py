@@ -504,6 +504,29 @@ fi
             *(f"-target={address}" for address in MOVED_SHARED_CONNECT_TARGETS),
         ])
 
+    def test_views_lambda_targets_its_module_in_the_connect_state(self):
+        result = self.run_selector("views_lambda", details=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        group, backend, *arguments = result.stdout.splitlines()
+        self.assertEqual(group, "connect")
+        self.assertEqual(backend, "terraform-state/v2v/us-east-1/connect/terraform.tfstate")
+        self.assertEqual(arguments[arguments.index("-target=module.views_lambda[0]")], "-target=module.views_lambda[0]")
+        self.assertNotIn("-destroy", arguments)
+        # The flow choice differs from this one only by case; they must stay distinct.
+        views_flow = self.run_selector("BTSGSD-V2V-US-Views", details=True)
+        self.assertIn("-target=module.abbvie_views[0]", views_flow.stdout)
+        self.assertNotIn("module.views_lambda", views_flow.stdout)
+
+    def test_it_support_log_group_targets_only_its_module_in_its_own_state(self):
+        result = self.run_selector("lex_it_support_log_group", details=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        group, backend, *arguments = result.stdout.splitlines()
+        self.assertEqual(group, "cloudwatch_log_group")
+        self.assertEqual(backend, "terraform-state/v2v/us-east-1/cloudwatch_log_group/terraform.tfstate")
+        self.assertEqual([a for a in arguments if a.startswith("-target=")], [
+            "-target=module.lex_it_support_log_group[0]",
+        ])
+
     def test_voicemail_accepts_creates_and_updates(self):
         result = self.run_selector("voicemail", plan(group="connect", changes=[
             change("module.voicemail[0].aws_s3_bucket.this[\"recordings\"]", ["create"]),

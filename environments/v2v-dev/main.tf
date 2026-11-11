@@ -830,6 +830,28 @@ module "silence_guard-dev" {
   common_tags          = local.common_tags
 }
 
+# Deploys with the views_lambda choice (connect state). Replaces the manually
+# created BTSGSD-Abbvie-views-Dev: same code, same DescribeContact-only
+# permissions and the same hourly warm-up schedule, on this Connect instance.
+module "views_lambda" {
+  code_signing_config_arn = var.lambda_code_signing_config_arn
+
+  count  = local.deploy_connect ? 1 : 0
+  source = "../../v2v_modules/views_lambda"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  function_name            = "${local.name_prefix}-views"
+  connect_instance_arn     = module.connect_us_east_1[0].instance_arn
+  vpc_id                   = var.lambda_vpc_id
+  subnet_ids               = var.lambda_subnet_ids
+  security_group_ids       = var.lambda_additional_security_group_ids
+  core_security_group_name = "${local.name_prefix}-LAMBDA-core-sg"
+  common_tags              = local.common_tags
+}
+
 # Deploys with the existing Connect selection.
 module "conversion_of_queue_metrics" {
   code_signing_config_arn = var.lambda_code_signing_config_arn
@@ -955,6 +977,22 @@ module "lex_yesno_log_group" {
   }
 
   log_group_name = "/aws/lex/BTSGSD-V2V-US-yesNo"
+}
+
+# Creates the group only. It has the same retention and class as the existing
+# /aws/lex/btsgsd-IT-Support_Agent-dev group. The V2V IT Support bot is
+# child-directed, so Lex text conversation logging stays off until it is wired.
+module "lex_it_support_log_group" {
+  count  = contains(local.enabled_module_set, "cloudwatch_log_group") ? 1 : 0
+  source = "../../v2v_modules/cloudwatch_log_group"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  log_group_name    = "/aws/lex/${local.name_prefix}-IT-Support_Agent"
+  retention_in_days = 30
+  log_group_class   = "STANDARD"
 }
 
 import {
