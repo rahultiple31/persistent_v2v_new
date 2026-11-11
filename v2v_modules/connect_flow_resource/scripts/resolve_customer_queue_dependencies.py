@@ -121,6 +121,47 @@ def resolve(query, inventory_loader=list_resources):
             if parameter == "FlowModuleId" and "contactFlowModuleName" in action_metadata:
                 action_metadata["contactFlowModuleName"] = target_name
 
+    # Resolve callback queue attributes copied from another Connect instance.
+    for action in actions:
+        attributes = action.get("Parameters", {}).get("Attributes", {})
+        exported_arn = attributes.get("callbackOutboundQueue")
+        if not exported_arn:
+            continue
+
+        target_name = overrides.get(exported_arn)
+        if not target_name:
+            if exported_arn.startswith(query["instance_arn"] + "/queue/"):
+                continue
+            problems.append(
+                f"{action['Identifier']}: callbackOutboundQueue requires "
+                "a target queue-name mapping."
+            )
+            continue
+
+        if "CallbackQueue" not in inventory:
+            inventory["CallbackQueue"] = inventory_loader(
+                "list-queues", "QueueSummaryList", query
+            )
+        matches = [
+            item for item in inventory["CallbackQueue"]
+            if item.get("Name") == target_name
+        ]
+        if len(matches) != 1:
+            problems.append(
+                f"callbackOutboundQueue: expected one queue named "
+                f"{target_name!r}, found {len(matches)}."
+            )
+            continue
+
+        target_arn = matches[0].get("Arn", "")
+        if not target_arn.startswith(query["instance_arn"] + "/queue/"):
+            problems.append(
+                f"callbackOutboundQueue: {target_name!r} is outside "
+                "the target instance."
+            )
+            continue
+        attributes["callbackOutboundQueue"] = target_arn
+
     if problems:
         raise ValueError(
             "Customer-queue dependencies are unresolved:\n- "

@@ -8,10 +8,10 @@ module "flow" {
     content = replace(
       replace(
         file("${path.module}/assets/BTSGSD_Abbvie_CustomerQueueFlow.json"),
-        "arn:aws:lambda:us-east-1:518902362956:function:conversionOfQueueMetrics",
+        "arn:aws:lambda:us-east-1:518902362956:function:conversionOfQueueMetrics-dev",
         var.settings.queue_metrics_lambda_arn
       ),
-      "41573eb0-ae92-4b8a-bbe2-e4a32fb84801",
+      "0c2359aa-9062-43ec-9d0d-abc5861c2197",
       var.settings.survey_data_table_id
     )
     resolve_dependencies = true
