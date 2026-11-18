@@ -24,6 +24,11 @@ mock_provider "external" {
   }
 }
 
+variables {
+  connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
+  ai_agent_source_arn  = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/e36d6b86-c3f5-4d6d-b85b-e44f7e7ec04f/*"
+}
+
 run "requested_lambda_configuration" {
   command = plan
 
@@ -206,4 +211,27 @@ run "oversized_direct_upload_is_rejected" {
   }
 
   expect_failures = [aws_lambda_function.interaction]
+}
+
+run "permissions_target_the_v2v_instance_and_agents" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_lambda_permission.interaction_connect.source_arn == var.connect_instance_arn &&
+      aws_lambda_permission.interaction_connect.statement_id == "connect-bcc989e5-cd9d-494f-9cd4-434f39ccc90e" &&
+      aws_lambda_permission.interaction_connect.source_account == "518902362956" &&
+      aws_lambda_permission.interaction_agentcore.source_arn == var.ai_agent_source_arn &&
+      aws_lambda_permission.interaction_agentcore.principal == "bedrock-agentcore.amazonaws.com"
+    )
+    error_message = "Invoke permissions must name the V2V Connect instance and the V2V assistant's agents."
+  }
+}
+
+run "reject_non_instance_arn" {
+  command = plan
+  variables {
+    connect_instance_arn = "bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
+  }
+  expect_failures = [var.connect_instance_arn]
 }

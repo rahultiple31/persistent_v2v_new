@@ -33,6 +33,14 @@ variable "it_support_configuration" {
     )
     error_message = "IT Support configuration requires COPPA=true, all four locales, and the other intent/alias modes disabled."
   }
+
+  validation {
+    condition = var.it_support_configuration == null ? true : (
+      can(regex("^arn:[^:]+:wisdom:[^:]+:[0-9]{12}:assistant/[0-9a-f-]{36}$", var.it_support_configuration.assistant_arn)) &&
+      can(regex("^arn:[^:]+:connect:[^:]+:[0-9]{12}:instance/[0-9a-f-]{36}$", var.it_support_configuration.connect_instance_arn))
+    )
+    error_message = "IT Support configuration needs a Q in Connect assistant ARN and a Connect instance ARN."
+  }
 }
 
 variable "alias_configuration" {

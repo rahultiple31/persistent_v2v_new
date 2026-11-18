@@ -22,7 +22,7 @@ terraform/
     ├── alb/          # S3 log bucket + ALB + listener + target group
     ├── waf/          # WAF v2 WebACL + ALB association
     ├── cloudwatch/   # CloudWatch log group (90-day retention)
-    ├── ssm/          # SSM parameters (forceBackupTranslation, bedrockRegion)
+    ├── ssm/          # SSM parameters (forceBackupTranslation, bedrockRegion, promptVersions)
     ├── iam/          # Task execution role + task role + all inline policies
     ├── ecr/          # ECR private repository + lifecycle policy
     ├── ecs/          # ECS cluster + Fargate task definition + service
@@ -185,6 +185,53 @@ its own KMS key). Empty = off. If plays fail and the proxy log shows
 `AccessDenied`, check the bucket policy, its KMS key policy, and the S3 gateway
 endpoint's policy.
 
+### Interpreter prompts (Parameter Store)
+
+The interpreter's system prompts are not in the code. Each prompt language
+(en, es, fr, de, it, pt) has an encrypted parameter
+`/BTSGSD/V2V/US/POC/prompts/<language>` (SecureString, created by hand, never in
+Terraform or its state), and `/BTSGSD/V2V/US/POC/promptVersions` lists the
+approved version of each. Terraform creates `promptVersions` as `{}` (every
+language uses the built-in prompt) and never changes its value afterwards, and
+lets the task role read both and decrypt the prompts (only through Parameter
+Store, only for the prompts). The proxy reads `promptVersions` every 30
+seconds, so approving or rolling back needs no deployment. Details:
+`proxy_backend/README.md`.
+
+**First setup** (once, in CloudShell from the repository root, after the first
+apply with this change):
+
+```bash
+node proxy_backend/scripts/export-prompts.js /BTSGSD/V2V/US/POC/
+```
+
+It writes the six built-in prompts to `v2v-prompts/` and prints seven
+commands: six that store them as SecureString parameters (version 1 of each),
+and one that approves version 1 of each. Run them. The stored texts are the
+built-in ones, so calls do not change. A command never overwrites a prompt
+that exists already.
+
+**Change a prompt:** Parameter Store > `/BTSGSD/V2V/US/POC/prompts/es` > Edit >
+change the text > Save changes. This saves a new version (History tab) and
+changes nothing yet. Keep `{intro}` and `{tgt}`; the only other
+placeholders are `{src}` and `{input}`.
+
+**Approve:** edit `/BTSGSD/V2V/US/POC/promptVersions` and change that
+language's number, for example `"es":2`. New calls use it within 30 seconds:
+the proxy log shows `prompt version in use`, and each call's `websocket closed`
+line has `promptVersion`. A version that cannot be used (missing, or a
+misspelt placeholder) is not used: the log says why, and the previous prompt
+stays.
+
+**Roll back:** put the previous number back. To use the built-in prompt for a
+language, remove it from the list.
+
+**Who may do what** (IAM for the people, not in this Terraform): editors need
+`ssm:PutParameter` on `/BTSGSD/V2V/US/POC/prompts/*` and `kms:Encrypt` on the
+key; approvers need `ssm:PutParameter` on `/BTSGSD/V2V/US/POC/promptVersions`
+only; reviewers need `ssm:GetParameterHistory` and `kms:Decrypt`. The
+`promptVersions` History tab shows who approved what and when.
+
 ### Server-side sign-in with Ping (`auth_mode = "bff"`)
 
 Ping dev is a confidential client (it needs a client secret), so the proxy signs
@@ -238,12 +285,13 @@ can sign in.
 |----------|-------------|
 | `aws_ssm_parameter.force_backup_translation` | `/V2V/POC/forceBackupTranslation` — runtime switch |
 | `aws_ssm_parameter.bedrock_region` | `/V2V/POC/bedrockRegion` — informational |
+| `aws_ssm_parameter.prompt_versions` | `/V2V/POC/promptVersions` — approved interpreter prompt versions, `{}` at first; value changed by hand only |
 
 ### `iam`
 | Resource | Description |
 |----------|-------------|
 | `aws_iam_role.task_execution` | ECR pull + CloudWatch Logs write |
-| `aws_iam_role.task` | bedrock:InvokeModel, transcribe/translate/polly (region-scoped), ssm:GetParameter |
+| `aws_iam_role.task` | bedrock:InvokeModel, transcribe/translate/polly (region-scoped), ssm:GetParameter (switch, prompt versions, prompts), kms:Decrypt for the prompts via Parameter Store only |
 
 ### `ecr`
 | Resource | Description |

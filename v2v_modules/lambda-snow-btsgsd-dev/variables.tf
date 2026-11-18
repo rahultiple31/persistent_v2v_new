@@ -36,3 +36,21 @@ variable "common_tags" {
   type    = map(string)
   default = {}
 }
+
+variable "connect_instance_arn" {
+  description = "V2V Connect instance allowed to invoke the Lambda."
+  type        = string
+  validation {
+    condition     = can(regex("^arn:[^:]+:connect:[^:]+:[0-9]{12}:instance/[0-9a-f-]{36}$", var.connect_instance_arn))
+    error_message = "connect_instance_arn must be a Connect instance ARN."
+  }
+}
+
+variable "ai_agent_source_arn" {
+  description = "AI agent ARN, wildcards allowed, granted invoke through Bedrock AgentCore (the V2V assistant's agents)."
+  type        = string
+  validation {
+    condition     = can(regex("^arn:[^:]+:wisdom:[^:]+:[0-9]{12}:ai-agent/[0-9a-f-]{36}/", var.ai_agent_source_arn))
+    error_message = "ai_agent_source_arn must be an AI agent ARN on a Q in Connect assistant."
+  }
+}

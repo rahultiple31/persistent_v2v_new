@@ -67,6 +67,12 @@ TRANSFER_TABLE_DESTROY_CHOICE = "destroy_hr_veeva_transfer_tables"
 STATE_MIGRATION_CHOICE = "migrate_data_table_state"
 PRIMARY_RP_DESTROY_CHOICE = "destroy_primary_routing_profile"
 DATALAKE_DESTROY_CHOICE = "destroy_datalake_secret"
+SUPPORT_AGENT_STACK_DESTROY_CHOICE = "destroy_support_agent_stack"
+SUPPORT_AGENT_STACK_TARGETS = (
+    "module.btsgsd_support_agent[0].aws_cloudformation_stack.agent",
+    "module.btsgsd_support_agent[0].aws_s3_object.template",
+)
+SUPPORT_AGENT_ADMIN_PROFILES = "terraform_data.dev_ai_admin_security_profiles[0]"
 DATALAKE_SECRET_ADDRESS = "module.datalake_secret[0].aws_secretsmanager_secret.this"
 PRIMARY_RP_TARGETS = (
     "module.connect_us_east_1[0].aws_connect_routing_profile.primary",
@@ -208,6 +214,16 @@ fi
                         resource_type, name = address.split(".")[1:3]
                         self.assertNotIn(f'resource "{resource_type}" "{name}"', module_source)
                     continue
+                if choice == SUPPORT_AGENT_STACK_DESTROY_CHOICE:
+                    self.assertEqual(group, "connect")
+                    self.assertIn("-destroy", arguments)
+                    self.assertEqual(targets, [f"-target={address}" for address in SUPPORT_AGENT_STACK_TARGETS])
+                    # Both resources were removed from the connect_ai_agent module.
+                    module_source = (ROOT / "v2v_modules/connect_ai_agent/main.tf").read_text(encoding="utf-8")
+                    for address in SUPPORT_AGENT_STACK_TARGETS:
+                        resource_type, name = address.split(".")[2:4]
+                        self.assertNotIn(f'resource "{resource_type}" "{name}"', module_source)
+                    continue
                 if choice == DATALAKE_DESTROY_CHOICE:
                     self.assertEqual(group, "secrets_manager")
                     self.assertIn("-destroy", arguments)
@@ -284,6 +300,9 @@ fi
                         expected.extend(f"-target={address}" for address in MOVED_SHARED_CONNECT_TARGETS)
                     if choice == "conversion_of_queue_metrics":
                         expected.append("-target=aws_lambda_permission.queue_metrics_connect[0]")
+                    if choice == "btsgsd_support_agent":
+                        self.assertIn(("terraform_data", "dev_ai_admin_security_profiles"), resources)
+                        expected.append("-target=terraform_data.dev_ai_admin_security_profiles[0]")
                     self.assertEqual(targets, expected)
 
     def test_datalake_destroy_accepts_only_its_deletion_or_an_empty_plan(self):
@@ -382,6 +401,55 @@ fi
                 ]))
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("Refusing changes other than deletion of the primary routing profile", result.stderr)
+
+    def test_support_agent_stack_destroy_accepts_its_deletions_or_an_empty_plan(self):
+        for addresses in (
+            (*SUPPORT_AGENT_STACK_TARGETS, SUPPORT_AGENT_ADMIN_PROFILES),
+            SUPPORT_AGENT_STACK_TARGETS,
+            (),
+        ):
+            with self.subTest(addresses=addresses):
+                result = self.run_selector(SUPPORT_AGENT_STACK_DESTROY_CHOICE, plan(group="connect", changes=[
+                    *(change(address, ["delete"]) for address in addresses),
+                    change("data.aws_connect_instance.target[0]", ["read"], mode="data"),
+                ]))
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_support_agent_stack_destroy_rejects_other_changes(self):
+        for address, actions in (
+            ("module.btsgsd_support_agent[0].awscc_wisdom_ai_agent.support", ["delete"]),
+            ("module.btsgsd-Main-IB-Flow[0].aws_connect_contact_flow.main_ib", ["delete"]),
+            ("aws_cloudformation_stack.dev_ai_domain[0]", ["delete"]),
+            ("aws_s3_bucket.dev_ai_template[0]", ["delete"]),
+            (SUPPORT_AGENT_STACK_TARGETS[0], ["update"]),
+            (SUPPORT_AGENT_STACK_TARGETS[0], ["delete", "create"]),
+            (SUPPORT_AGENT_ADMIN_PROFILES, ["create", "delete"]),
+        ):
+            with self.subTest(address=address, actions=actions):
+                result = self.run_selector(SUPPORT_AGENT_STACK_DESTROY_CHOICE, plan(group="connect", changes=[
+                    change(SUPPORT_AGENT_STACK_TARGETS[0], ["delete"]),
+                    change(address, actions),
+                ]))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing changes other than deletion of the retired SupportAgent stack", result.stderr)
+
+    def test_support_agent_stack_deletion_is_refused_outside_its_choice(self):
+        for target in ("btsgsd_support_agent", "connect", "btsgsd-Main-IB-Flow"):
+            with self.subTest(target=target):
+                result = self.run_selector(target, plan(group="connect", changes=[
+                    change(SUPPORT_AGENT_STACK_TARGETS[0], ["delete"]),
+                    change("module.btsgsd_support_agent[0].awscc_wisdom_ai_agent.support", ["create"]),
+                ]))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Run destroy_support_agent_stack first", result.stderr)
+
+    def test_support_agent_choice_accepts_the_awscc_agent_once_the_stack_is_gone(self):
+        result = self.run_selector("btsgsd_support_agent", plan(group="connect", changes=[
+            change("module.btsgsd_support_agent[0].awscc_wisdom_ai_agent.support", ["create"]),
+            change("module.btsgsd_support_agent[0].awscc_wisdom_ai_agent_version.support", ["create"]),
+            change(SUPPORT_AGENT_ADMIN_PROFILES, ["create"]),
+        ]))
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_connect_resources_allows_plain_deletion_of_blended_routing_profile(self):
         result = self.run_selector("connect-resources", plan(changes=[
@@ -526,6 +594,66 @@ fi
         self.assertEqual([a for a in arguments if a.startswith("-target=")], [
             "-target=module.lex_it_support_log_group[0]",
         ])
+
+    def test_monitoring_uses_its_own_state_and_targets_only_its_module(self):
+        result = self.run_selector("monitoring", details=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        group, backend, *arguments = result.stdout.splitlines()
+        self.assertEqual(group, "monitoring")
+        self.assertEqual(backend, "terraform-state/v2v/us-east-1/monitoring/terraform.tfstate")
+        self.assertIn('-var=enabled_modules=["monitoring"]', arguments)
+        self.assertEqual([a for a in arguments if a.startswith("-target=")], ["-target=module.monitoring[0]"])
+        self.assertNotIn("-destroy", arguments)
+
+    def test_monitoring_accepts_alarm_topic_and_subscription_changes(self):
+        result = self.run_selector("monitoring", plan(group="monitoring", changes=[
+            change('module.monitoring[0].aws_cloudwatch_metric_alarm.this["ALARM-High-AgentCoreGW-Throttles-v2v"]', ["create"]),
+            change('module.monitoring[0].aws_cloudwatch_metric_alarm.this["ALARM-High-Lambda-SNOW_btsgsd-dev-Duration-v2v"]', ["update"]),
+            change("module.monitoring[0].aws_sns_topic.alerts", ["create"]),
+            change('module.monitoring[0].aws_sns_topic_subscription.email["old@example.com"]', ["delete"]),
+            change('module.monitoring[0].aws_sns_topic_subscription.email["new@example.com"]', ["create"]),
+            change("module.monitoring[0].data.aws_lambda_function.watched", ["read"], mode="data"),
+        ]))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_monitoring_rejects_deleting_or_replacing_alarms_and_the_topic(self):
+        for address, actions in (
+            ('module.monitoring[0].aws_cloudwatch_metric_alarm.this["ALARM-High-AgentCoreGW-Throttles-v2v"]', ["delete"]),
+            ('module.monitoring[0].aws_cloudwatch_metric_alarm.this["ALARM-High-AgentCoreGW-Throttles-v2v"]', ["delete", "create"]),
+            ("module.monitoring[0].aws_sns_topic.alerts", ["delete"]),
+            ("module.monitoring[0].aws_sns_topic.alerts", ["create", "delete"]),
+        ):
+            with self.subTest(address=address, actions=actions):
+                result = self.run_selector("monitoring", plan(group="monitoring", changes=[change(address, actions)]))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing monitoring plan that deletes or replaces", result.stderr)
+
+    def test_monitoring_rejects_changes_outside_its_module(self):
+        for address in (
+            "module.connect_us_east_1[0].aws_connect_contact_flow.placeholder",
+            "module.monitoring[1].aws_sns_topic.alerts",
+            "module.monitoring_extra[0].aws_sns_topic.alerts",
+            "aws_cloudwatch_metric_alarm.root",
+        ):
+            with self.subTest(address=address):
+                result = self.run_selector("monitoring", plan(group="monitoring", changes=[change(address, ["create"])]))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Refusing changes outside the monitoring module", result.stderr)
+
+    def test_other_states_cannot_change_monitoring_resources(self):
+        for group in ("connect", "connect-resources", "cloudwatch_log_group", "lambda"):
+            for actions in (["create"], ["update"], ["delete"]):
+                with self.subTest(group=group, actions=actions):
+                    result = self.run_selector(group, plan(group=group, changes=[
+                        change("module.monitoring[0].aws_sns_topic.alerts", actions),
+                    ]))
+                    self.assertNotEqual(result.returncode, 0)
+                    # connect-resources refuses anything outside its own modules first.
+                    expected = (
+                        "Refusing changes outside connect_resources" if group == "connect-resources"
+                        else "belongs to the dedicated monitoring state"
+                    )
+                    self.assertIn(expected, result.stderr)
 
     def test_voicemail_accepts_creates_and_updates(self):
         result = self.run_selector("voicemail", plan(group="connect", changes=[

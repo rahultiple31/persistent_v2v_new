@@ -24,29 +24,26 @@ variable "gateway_stack_name" {
   default = "BTSGSD-V2V-US-AgentCore-DefaultGateway"
 }
 
-variable "agent_stack_name" {
-  type    = string
-  default = "BTSGSD-V2V-US-SupportAgent"
+variable "support_agent" {
+  description = "The Terraform-managed SupportAgent (module.btsgsd_support_agent outputs)."
+  type = object({
+    agent_arn            = string
+    agent_version_arn    = string
+    connect_instance_arn = string
+  })
 }
 
-# Resolve existing deployments; this module creates neither stack.
+# Resolve the existing gateway stack; the agent comes from module.btsgsd_support_agent.
 data "aws_cloudformation_stack" "gateway" {
   name = var.gateway_stack_name
 }
 
-data "aws_cloudformation_stack" "support_agent" {
-  name = var.agent_stack_name
-}
 
 locals {
   grant_script = abspath("${path.module}/../connect_ai_agent/grant_admin_mcp_tools.py")
 
-  # The existing stack may expose AgentArn with :$LATEST already attached.
-  support_agent_arn = trimsuffix(
-    data.aws_cloudformation_stack.support_agent.outputs["AgentArn"],
-    ":$LATEST",
-  )
-  support_agent_version = data.aws_cloudformation_stack.support_agent.outputs["AgentVersion"]
+  # Strip any :$LATEST qualifier; the version ARN comes from the published version.
+  support_agent_arn = trimsuffix(var.support_agent.agent_arn, ":$LATEST")
 
   access_configuration = {
     connect_instance_arn = var.connect_instance_arn
@@ -61,7 +58,7 @@ locals {
 
     agent_arns = [
       local.support_agent_arn,
-      "${local.support_agent_arn}:${local.support_agent_version}",
+      var.support_agent.agent_version_arn,
     ]
   }
 }
@@ -87,8 +84,8 @@ resource "terraform_data" "admin_mcp_access" {
 
   lifecycle {
     precondition {
-      condition     = data.aws_cloudformation_stack.support_agent.outputs["ConnectInstanceArn"] == var.connect_instance_arn
-      error_message = "The existing support-agent stack must belong to the selected V2V Connect instance."
+      condition     = var.support_agent.connect_instance_arn == var.connect_instance_arn
+      error_message = "The SupportAgent must belong to the selected V2V Connect instance."
     }
   }
 }

@@ -3,7 +3,12 @@
 import { LOGGER_PREFIX } from "../constants";
 import { openNovaProxyStream } from "../utils/proxyTransport";
 import { createPcm16Downsampler, pcm16MonoToWavArrayBuffer } from "../utils/novaSonicAudioUtils";
-import { buildInterpreterPrompt } from "./interpreterPrompts";
+
+// The interpreter prompt is chosen and filled in by the proxy (proxy/src/services/promptStore.js), from the
+// approved versions in Parameter Store: the page only says which languages and which mode (live speech or
+// a typed message). The page still sends the SYSTEM text content where Nova Sonic expects it, with this
+// text, and the proxy replaces it.
+const SYSTEM_PROMPT_SET_BY_PROXY = "(set by the V2V server)";
 
 const NOVA_INPUT_SAMPLE_RATE = 16000;
 const NOVA_OUTPUT_SAMPLE_RATE = 24000;
@@ -99,7 +104,7 @@ class NovaOutboundQueue {
 }
 
 
-async function enqueueInterpreterSessionStartAndSystem(queue, { voiceId, systemPrompt, promptName, textContentName }) {
+async function enqueueInterpreterSessionStartAndSystem(queue, { voiceId, promptName, textContentName }) {
   queue.enqueueEvent({
     event: {
       sessionStart: {
@@ -148,7 +153,7 @@ async function enqueueInterpreterSessionStartAndSystem(queue, { voiceId, systemP
       textInput: {
         promptName,
         contentName: textContentName,
-        content: systemPrompt,
+        content: SYSTEM_PROMPT_SET_BY_PROXY,
       },
     },
   });
@@ -200,7 +205,6 @@ async function enqueueUserAudioContentStart(queue, { promptName, audioContentNam
 async function enqueueSessionPreamble(queue, opts) {
   await enqueueInterpreterSessionStartAndSystem(queue, {
     voiceId: opts.voiceId,
-    systemPrompt: opts.systemPrompt,
     promptName: opts.promptName,
     textContentName: opts.textContentName,
   });
@@ -971,9 +975,8 @@ export async function startNovaSonicInterpreterSession({
   const promptName = crypto.randomUUID();
   const textContentName = crypto.randomUUID();
   const audioContentName = crypto.randomUUID();
-  // Written in the target language when one is available — see interpreterPrompts.js
-  // for why an English prompt demanding non-English output causes drift.
-  const systemPrompt = buildInterpreterPrompt(sourceLangCode, targetLangCode, "speech");
+  // The proxy uses the approved prompt for this pair (written in the target language when one exists).
+  const prompt = { source: sourceLangCode, target: targetLangCode, mode: "speech" };
 
   const queue = new NovaOutboundQueue();
   const sessionState = { stopped: false };
@@ -988,7 +991,6 @@ export async function startNovaSonicInterpreterSession({
 
   await enqueueSessionPreamble(queue, {
     voiceId,
-    systemPrompt,
     promptName,
     textContentName,
     audioContentName,
@@ -996,7 +998,7 @@ export async function startNovaSonicInterpreterSession({
 
   let response;
   try {
-    response = await openNovaProxyStream(queue);
+    response = await openNovaProxyStream(queue, prompt);
   } catch (e) {
     queue.close();
     // The session never started, so it must not trigger a "proactive restart" 7.5 minutes from now.
@@ -1077,13 +1079,12 @@ export async function runNovaSonicTypedTextInterpretation({ text, sourceLangCode
   const promptName = crypto.randomUUID();
   const textContentName = crypto.randomUUID();
   const userTextContentName = crypto.randomUUID();
-  const systemPrompt = buildInterpreterPrompt(sourceLangCode, targetLangCode, "typed");
+  const prompt = { source: sourceLangCode, target: targetLangCode, mode: "typed" };
   const queue = new NovaOutboundQueue();
   const sessionState = { stopped: false };
 
   await enqueueInterpreterSessionStartAndSystem(queue, {
     voiceId,
-    systemPrompt,
     promptName,
     textContentName,
   });
@@ -1094,7 +1095,7 @@ export async function runNovaSonicTypedTextInterpretation({ text, sourceLangCode
   await delay(20);
   queue.close();
 
-  const response = await openNovaProxyStream(queue);
+  const response = await openNovaProxyStream(queue, prompt);
 
   await processResponseStream(response.body, handlers, sessionState, "AGENT-TYPED");
 }

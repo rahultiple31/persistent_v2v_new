@@ -21,6 +21,7 @@ under `targetEnvironment=v2v-dev`:
 | `destroy_survey_lex` | `BTSGSD-V2V-US-AIAgent-Survey` and its module-owned locales/IAM resources | `terraform-state/v2v/us-east-1/lex_bot/terraform.tfstate` |
 | `destroy_vmx3_main_vm_module` | Unused flow module `VMX3_MAIN_VM_MODULE_BTSGSD-DEV-US-EAST-1`, its `AllowConnectVMX3-<instance>` permission on `voicemail-v2v-VoicemailTimestamper`, and that Lambda's instance association | `terraform-state/v2v/us-east-1/connect/terraform.tfstate` |
 | `destroy_primary_routing_profile` | `BTSGSD-V2V-US-primary-routing-profile` and `BTSGSD-V2V-US-primary-queue` (`module.connect_us_east_1[0]`), removed from the connect module; the disabled SAML admin user now looks up `BTSGSD-V2V-US-AGENT-RP` | `terraform-state/v2v/us-east-1/connect/terraform.tfstate` |
+| `destroy_support_agent_stack` | The retired `BTSGSD-V2V-US-SupportAgent` CloudFormation stack (old agent `BTSGSD-V2V-US-SupportAgent` and prompt `BTSGSD-V2V-US-SupportAgent-prompt`) and its template object (`module.btsgsd_support_agent[0]`); also drops the `terraform_data.dev_ai_admin_security_profiles[0]` marker, which the `btsgsd_support_agent` apply reruns. Run once, before the first awscc `btsgsd_support_agent` apply, so the names are free | `terraform-state/v2v/us-east-1/connect/terraform.tfstate` |
 
 Run each choice with `terraformAction=plan` to review its destruction plan.
 Use the same choice with `terraformAction=apply` to create and apply a new
@@ -292,6 +293,7 @@ identified and reconciled with its owning Terraform state.
 | BTSGSD-V2V-US-UpdateSessionAttributes | `BTSGSD-V2V-US-UpdateSessionAttributes` |
 | BTSGSD-V2V-US-silence_guard | `silence_guard-dev` |
 | BTSGSD-V2V-US-views (Lambda, role, log group, warm-up schedule) | `views_lambda` |
+| ALARM-*-v2v CloudWatch alarms and the BTSGSD-V2V-US-alerts topic | `monitoring` |
 | BTSGSD-V2V-US-conversionOfQueueMetrics | `conversion_of_queue_metrics` |
 | BTSGSD-V2V-US-voicemail-* (VMX3 voicemail stack) | `voicemail` |
 | BTSGSD-V2V-US-lex-QueueFlow-Callback | `BTSGSD-V2V-US-lex-QueueFlow-Callback` or `lex_queueflow_callback` |
@@ -460,16 +462,62 @@ groups (the last one is `/aws/lex/BTSGSD-V2V-US-IT-Support_Agent`, 30-day
 retention, no KMS key, as on `/aws/lex/btsgsd-IT-Support_Agent-dev`). The
 `support_agent_tools` choice was removed because that helper module creates
 no AWS resources; its output is used by `btsgsd_support_agent`.
+The `monitoring` choice deploys `v2v_modules/monitoring` into its own state,
+`terraform-state/v2v/us-east-1/monitoring/terraform.tfstate`. It creates the
+SNS topic `BTSGSD-V2V-US-alerts` with one email subscription per address in
+`monitoring_alert_email_addresses` (each recipient must confirm by email) and
+104 CloudWatch alarms that replace the console-built `ALARM-*-dev` alarms. Each
+alarm keeps the console name with `-dev` replaced by `-v2v` and watches the V2V
+resource mapped to it in `terraform.tfvars` (`monitoring_lambda_alarms`,
+`monitoring_contact_flow_alarms`, `monitoring_queue_alarms`), plus the V2V
+Connect instance and the AgentCore gateway from
+`BTSGSD-V2V-US-AgentCore-DefaultGateway`. Every watched resource is read by
+name, so the plan fails if one is missing. Lambda Duration and
+ConcurrentExecutions thresholds are 80% of each function's timeout and reserved
+concurrency (or of the 1000 account limit). The AgentCore alarms add
+`Operation=InvokeGateway` and `Protocol=MCP` to `Resource`, the dimensions the
+gateway publishes. Plan and Apply reject changes outside the module and any
+deletion or replacement of an alarm or the topic; only email subscriptions may
+be replaced. No other choice may change the monitoring resources. The console
+alarms and `AbbVie_alerts` are not touched.
+
+`btsgsd_support_agent` deploys `BTSGSD-V2V-US-SupportAgent` and its prompt
+with the awscc provider (`awscc_wisdom_ai_prompt`, `_ai_prompt_version`,
+`_ai_agent`, `_ai_agent_version`); there is no CloudFormation stack, so tool
+schemas keep their booleans and numbers. Its Retrieve, Complete and Escalate
+tools are copies of the dev `btsgsd-SupportAgent` tools in
+`v2v_modules/connect_ai_agent/assets/tools`, after the three gateway tools.
+Retrieve pins the V2V assistant and a new `awscc_wisdom_assistant_association`
+between that assistant and the existing knowledge base
+`dev_support_ai_knowledge_base_id` (no knowledge base is created). After
+`btsgsd_support_agent` or `connect` applies, the pipeline runs
+`scripts/verify_v2v_support_agent_tools.py`, which reads the
+`btsgsd_support_agent` output and fails if any published field of the three
+tools differs from the repository copies. Run `destroy_support_agent_stack`
+once before the first awscc apply; any other plan that would still delete the
+old stack is refused, because the new agent and prompt reuse its names. The
+`btsgsd_support_agent` choice also targets
+`terraform_data.dev_ai_admin_security_profiles[0]`, so the new agent gets the
+Admin security profile in the same run.
+
+The `btsgsd-Main-IB-Flow` choice sets the flow's assistant, AI agent version and
+IT Support Lex alias to the V2V ones: `module.btsgsd_support_agent` outputs and
+the `btsgsd-alias-dev-sso` alias of `BTSGSD-V2V-US-IT-Support_Agent`, looked up
+by name with `scripts/resolve-lex-bot-alias.py` (or set
+`main_ib_it_support_bot_alias_arn`). The plan fails if a dev assistant, agent,
+Lex bot or instance ID remains in the flow. The `lex_bot` choice configures the
+IT Support bot with the V2V assistant and instance, and the SNOW and
+ServiceNow Interaction choices allow the V2V instance and every AI agent on the
+V2V assistant; these three states read the assistant from the
+`BTSGSD-V2V-US-ai-domain` stack and the instance by alias.
 
 Use `btsgsd_support_agent_tools_access` to grant the existing Connect `Admin`
 security profile access to the three configured MCP tools. This separate choice
-reads the existing gateway and support-agent CloudFormation stacks and assigns
-Admin to the agent's unversioned ARN and current numeric published-version ARN.
-It strips an existing `:$LATEST` suffix and builds the published ARN from the
-stack's `AgentVersion` output. Existing Admin associations and complete MCP
-tool permissions are skipped. It does not deploy
-the gateway, AI agent or prompt. Those stacks and the registered Connect MCP
-integration must already exist. Existing application/tool grants and other
+reads the existing gateway CloudFormation stack and takes the agent from
+`module.btsgsd_support_agent`, and assigns Admin to the agent's unversioned ARN
+and current numeric published-version ARN. Existing Admin associations and
+complete MCP tool permissions are skipped. It does not deploy the gateway; the
+gateway stack and the registered Connect MCP integration must already exist. Existing application/tool grants and other
 attached security profiles are retained. The original `btsgsd_support_agent`
 choice deploys the agent and prompt without running this grant.
 The access choice uses the existing Connect state. If the earlier in-module
@@ -479,7 +527,7 @@ revoke existing AWS grants. The new choice manages its own grant marker.
 The deployment identity needs `connect:ListSecurityProfiles`,
 `connect:ListSecurityProfileApplications`, `connect:UpdateSecurityProfile`,
 `connect:ListEntitySecurityProfiles`, `connect:AssociateSecurityProfiles`, and
-`cloudformation:DescribeStacks` for the two existing stacks.
+`cloudformation:DescribeStacks` for the gateway stack.
 
 The IT Support `lex_bot` choice looks up the Q in Connect built-in intent
 signature for each configured locale before changing any intents. The pipeline's

@@ -71,6 +71,7 @@ destroy_hr_veeva_transfer_tables|connect|aws_cloudformation_stack.hr_transfer_da
 BTSGSD-V2V-US-TopLevelBlockerMessage|connect|aws_cloudformation_stack.top_level_blocker_data_table[0]
 btsgsd_support_agent|connect|module.btsgsd_support_agent[0]
 btsgsd_support_agent_tools_access|connect|module.btsgsd_support_agent_tools_access[0]
+destroy_support_agent_stack|connect|module.btsgsd_support_agent[0].aws_cloudformation_stack.agent
 destroy_survey_ai|connect|module.connect_ai_agent[0]
 destroy_survey_lex|lex_bot|module.lex_aiagent_survey_bot[0]
 destroy_vmx3_main_vm_module|connect|module.vmx3_main_vm_module[0]
@@ -106,6 +107,7 @@ queue_info_dynamodb|dynamodb|module.queue_info_dynamodb[0]
 cloudwatch_log_group|cloudwatch_log_group|module.cloudwatch_log_group[0]
 lex_yesno_log_group|cloudwatch_log_group|module.lex_yesno_log_group[0]
 lex_it_support_log_group|cloudwatch_log_group|module.lex_it_support_log_group[0]
+monitoring|monitoring|module.monitoring[0]
 lex_bot|lex_bot|module.lex_bot[0]
 lex_yesno_bot|lex_bot|module.lex_yesno_bot[0]
 lex_customer_queue_flow_bot|lex_bot|module.lex_customer_queue_flow_bot[0]
@@ -206,6 +208,13 @@ case "$DEPLOYMENT_TARGET" in
     TERRAFORM_DESTROY_ONLY=true
     TERRAFORM_PLAN_ARGS+=("-destroy" "-target=module.connect_us_east_1[0].aws_connect_queue.primary")
     ;;
+  destroy_support_agent_stack)
+    # One-off before the first awscc SupportAgent apply: the retired
+    # BTSGSD-V2V-US-SupportAgent CloudFormation stack and its template object.
+    # awscc then recreates the agent and prompt under the same names.
+    TERRAFORM_DESTROY_ONLY=true
+    TERRAFORM_PLAN_ARGS+=("-destroy" "-target=module.btsgsd_support_agent[0].aws_s3_object.template")
+    ;;
 esac
 
 # Include both source and destination addresses of moved Connect flows.
@@ -250,6 +259,10 @@ fi
 # The Connect invocation grant is owned by the root, outside the Lambda module.
 if [ "$DEPLOYMENT_TARGET" = conversion_of_queue_metrics ]; then
   TERRAFORM_PLAN_ARGS+=("-target=aws_lambda_permission.queue_metrics_connect[0]")
+fi
+# Assign the Admin security profile to the (re)created SupportAgent in the same run.
+if [ "$DEPLOYMENT_TARGET" = btsgsd_support_agent ]; then
+  TERRAFORM_PLAN_ARGS+=("-target=terraform_data.dev_ai_admin_security_profiles[0]")
 fi
 
 # Call after Terraform init to preserve an existing gateway audience.
@@ -365,6 +378,37 @@ if target == "destroy_primary_routing_profile":
             + ", ".join(unexpected)
         )
 
+# awscc recreates the SupportAgent under the names the stack used, so the stack must be
+# gone first: only destroy_support_agent_stack may delete it.
+retired_agent_stack = "module.btsgsd_support_agent[0].aws_cloudformation_stack.agent"
+if target != "destroy_support_agent_stack" and any(
+    change["address"] == retired_agent_stack
+    and "delete" in change.get("change", {}).get("actions", [])
+    for change in changes
+):
+    raise SystemExit(
+        "Run destroy_support_agent_stack first: this plan deletes the retired "
+        "SupportAgent stack while creating its replacement under the same names."
+    )
+# The retired SupportAgent stack and template object, plus the Admin
+# security-profile run that recorded their outputs (rerun by the
+# btsgsd_support_agent apply). Nothing else may change.
+if target == "destroy_support_agent_stack":
+    allowed = {
+        "module.btsgsd_support_agent[0].aws_cloudformation_stack.agent",
+        "module.btsgsd_support_agent[0].aws_s3_object.template",
+        "terraform_data.dev_ai_admin_security_profiles[0]",
+    }
+    unexpected = [
+        change["address"] for change in changes
+        if change["address"] not in allowed
+        or change.get("change", {}).get("actions") != ["delete"]
+    ]
+    if unexpected:
+        raise SystemExit(
+            "Refusing changes other than deletion of the retired SupportAgent stack: "
+            + ", ".join(unexpected)
+        )
 # The voicemail choice refuses deletions and replacements, except the plain
 # deletion of the retired user-key Presigner resources and the old
 # recordings bucket (Terraform created them, so Terraform deletes them), and
@@ -462,6 +506,41 @@ if group != "connect-resources":
         raise SystemExit(
             "Move connect_resources into its dedicated state before "
             "applying another deployment group."
+        )
+
+# The monitoring state owns only the alarms and their topic. It may not
+# delete or replace any of them except subscriptions (a changed email
+# address replaces its subscription), and no other state may touch them.
+monitoring_prefix = "module.monitoring[0]."
+if group == "monitoring":
+    unexpected = [
+        change["address"] for change in changes
+        if not change["address"].startswith(monitoring_prefix)
+    ]
+    if unexpected:
+        raise SystemExit(
+            "Refusing changes outside the monitoring module: "
+            + ", ".join(unexpected)
+        )
+    deleting = [
+        change["address"] for change in changes
+        if "delete" in change.get("change", {}).get("actions", [])
+        and not change["address"].startswith(monitoring_prefix + "aws_sns_topic_subscription.email[")
+    ]
+    if deleting:
+        raise SystemExit(
+            "Refusing monitoring plan that deletes or replaces alarms or the topic: "
+            + ", ".join(deleting)
+        )
+else:
+    misplaced = [
+        change["address"] for change in changes
+        if change["address"].startswith(monitoring_prefix)
+    ]
+    if misplaced:
+        raise SystemExit(
+            "The monitoring module belongs to the dedicated monitoring state: "
+            + ", ".join(misplaced)
         )
 
 print("Validated V2V plan for group: " + group)

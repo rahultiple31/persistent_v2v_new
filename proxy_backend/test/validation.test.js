@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   validateFallbackRequest,
   validateNovaInputEvent,
+  validateNovaStart,
   validatePcmChunk,
   validateTranscribeStart,
 } from "../src/validation.js";
@@ -14,7 +15,8 @@ const bytes = (value) => Buffer.from(typeof value === "string" ? value : JSON.st
 
 test("Nova input: accepts each allowed event type", () => {
   for (const type of ["sessionStart", "promptStart", "contentStart", "textInput", "audioInput", "contentEnd", "promptEnd", "sessionEnd"]) {
-    assert.deepEqual(validateNovaInputEvent(bytes({ event: { [type]: {} } })), { ok: true, value: type });
+    const frame = { event: { [type]: { promptName: "p" } } };
+    assert.deepEqual(validateNovaInputEvent(bytes(frame)), { ok: true, value: { type, body: { promptName: "p" }, frame } });
   }
 });
 
@@ -24,6 +26,17 @@ test("Nova input: rejects unknown types, extra keys and malformed JSON", () => {
   assert.equal(validateNovaInputEvent(bytes({ event: { audioInput: {} }, extra: 1 })).reason, "invalidEnvelope");
   assert.equal(validateNovaInputEvent(bytes({ event: [] })).reason, "invalidEnvelope");
   assert.equal(validateNovaInputEvent(bytes("{not json")).reason, "invalidJson");
+});
+
+test("Nova start: needs the prompt's languages and mode", () => {
+  const prompt = { source: "en", target: "es", mode: "speech" };
+  assert.deepEqual(validateNovaStart({ prompt }), { ok: true, value: prompt });
+  assert.equal(validateNovaStart({ prompt: { ...prompt, mode: "typed", target: "pt-PT" } }).ok, true);
+  assert.equal(validateNovaStart({}).reason, "promptRequired");
+  assert.equal(validateNovaStart({ prompt: "en->es" }).reason, "promptRequired");
+  assert.equal(validateNovaStart({ prompt: { ...prompt, source: "English" } }).reason, "invalidPromptSource");
+  assert.equal(validateNovaStart({ prompt: { ...prompt, target: "es}}{{" } }).reason, "invalidPromptTarget");
+  assert.equal(validateNovaStart({ prompt: { ...prompt, mode: "chat" } }).reason, "invalidPromptMode");
 });
 
 test("Transcribe start: validates language code and sample rate", () => {

@@ -43,6 +43,9 @@ module "iam" {
   log_group_arn              = module.cloudwatch.log_group_arn
   secret_names               = local.sign_in_secret_names
 
+  prompt_versions_parameter_arn = module.ssm.prompt_versions_parameter_arn
+  prompt_parameter_prefix       = module.ssm.prompt_parameter_prefix
+
   voicemail_recordings_bucket = var.voicemail_recordings_bucket
 }
 

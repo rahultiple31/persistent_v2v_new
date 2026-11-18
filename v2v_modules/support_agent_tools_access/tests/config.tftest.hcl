@@ -2,11 +2,7 @@ mock_provider "aws" {
   mock_data "aws_cloudformation_stack" {
     defaults = {
       outputs = {
-        GatewayId          = "registered-gateway-0123456789"
-        AgentArn           = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id"
-        AgentVersionArn    = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:4"
-        AgentVersion       = "4"
-        ConnectInstanceArn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
+        GatewayId = "registered-gateway-0123456789"
       }
     }
   }
@@ -14,6 +10,11 @@ mock_provider "aws" {
 
 variables {
   connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
+  support_agent = {
+    agent_arn            = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id"
+    agent_version_arn    = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:4"
+    connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
+  }
 }
 
 run "existing_stacks_supply_access_configuration" {
@@ -22,7 +23,6 @@ run "existing_stacks_supply_access_configuration" {
   assert {
     condition = (
       data.aws_cloudformation_stack.gateway.name == "BTSGSD-V2V-US-AgentCore-DefaultGateway" &&
-      data.aws_cloudformation_stack.support_agent.name == "BTSGSD-V2V-US-SupportAgent" &&
       terraform_data.admin_mcp_access.input.namespace == "registered-gateway-0123456789" &&
       terraform_data.admin_mcp_access.input.connect_instance_arn == var.connect_instance_arn &&
       toset(terraform_data.admin_mcp_access.input.agent_arns) == toset([
@@ -35,7 +35,7 @@ run "existing_stacks_supply_access_configuration" {
         "BTSGSD-V2V-US-snow-userlookup___UserLookUp___UserLookUp",
       ])
     )
-    error_message = "Access must use existing stack outputs and the exact three MCP tool names."
+    error_message = "Access must use the gateway stack, the SupportAgent module outputs and the exact three MCP tool names."
   }
 }
 
@@ -47,28 +47,21 @@ run "different_connect_instance_is_rejected" {
   expect_failures = [terraform_data.admin_mcp_access]
 }
 
-run "current_stack_outputs_control_gateway_and_agent_version" {
+run "current_outputs_control_gateway_and_agent_version" {
   command = plan
-
   override_data {
     target = data.aws_cloudformation_stack.gateway
     values = {
       outputs = { GatewayId = "another-gateway-9876543210" }
     }
   }
-
-  override_data {
-    target = data.aws_cloudformation_stack.support_agent
-    values = {
-      outputs = {
-        AgentArn           = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id"
-        AgentVersionArn    = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:5"
-        AgentVersion       = "5"
-        ConnectInstanceArn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
-      }
+  variables {
+    support_agent = {
+      agent_arn            = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id"
+      agent_version_arn    = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:5"
+      connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
     }
   }
-
   assert {
     condition = (
       terraform_data.admin_mcp_access.input.namespace == "another-gateway-9876543210" &&
@@ -78,26 +71,20 @@ run "current_stack_outputs_control_gateway_and_agent_version" {
   }
 }
 
-run "latest_stack_qualifier_is_removed_and_published_arn_is_rebuilt" {
+run "latest_qualifier_is_removed" {
   command = plan
-
-  override_data {
-    target = data.aws_cloudformation_stack.support_agent
-    values = {
-      outputs = {
-        AgentArn           = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:$LATEST"
-        AgentVersionArn    = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:$LATEST:7"
-        AgentVersion       = "7"
-        ConnectInstanceArn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
-      }
+  variables {
+    support_agent = {
+      agent_arn            = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:$LATEST"
+      agent_version_arn    = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:7"
+      connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
     }
   }
-
   assert {
     condition = toset(terraform_data.admin_mcp_access.input.agent_arns) == toset([
       "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id",
       "arn:aws:wisdom:us-east-1:518902362956:ai-agent/assistant-id/support-agent-id:7",
     ])
-    error_message = "Normalize the stack's :$LATEST output and build the published ARN from AgentVersion."
+    error_message = "Strip the :$LATEST qualifier and grant the published version ARN."
   }
 }

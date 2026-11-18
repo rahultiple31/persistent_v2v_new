@@ -37,6 +37,21 @@ variable "force_backup_parameter_arn" {
   type        = string
 }
 
+variable "prompt_versions_parameter_arn" {
+  description = "ARN of the promptVersions SSM parameter: the approved interpreter prompt versions (read-only access)."
+  type        = string
+}
+
+variable "prompt_parameter_prefix" {
+  description = "Name prefix of the interpreter prompts (SecureString, created by hand), ending with /. Example: /V2V/POC/prompts/"
+  type        = string
+
+  validation {
+    condition     = startswith(var.prompt_parameter_prefix, "/") && endswith(var.prompt_parameter_prefix, "/")
+    error_message = "prompt_parameter_prefix must start and end with a forward slash (/)."
+  }
+}
+
 variable "log_group_arn" {
   description = "ARN of the CloudWatch log group (grants execution role write access)."
   type        = string

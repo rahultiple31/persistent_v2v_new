@@ -114,6 +114,9 @@ locals {
     # With both sides on backup each sentence is one Translate + Polly request
     { name = "FALLBACK_REQUESTS_PER_MINUTE", value = "150" },
     { name = "FORCE_BACKUP_PARAMETER", value = "${var.ssm_hierarchy}forceBackupTranslation" },
+    # Interpreter prompts: the approved versions, and the prompts' name prefix
+    { name = "PROMPT_VERSIONS_PARAMETER", value = "${var.ssm_hierarchy}promptVersions" },
+    { name = "PROMPT_PARAMETER_PREFIX", value = "${var.ssm_hierarchy}prompts/" },
     { name = "SSM_REGION", value = var.aws_region },
   ]
   # Sign-in settings (mirrors the CDK stack's signInEnvironment).

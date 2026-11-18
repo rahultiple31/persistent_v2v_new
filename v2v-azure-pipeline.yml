@@ -52,6 +52,7 @@ parameters:
       - BTSGSD-V2V-US-TopLevelBlockerMessage
       - btsgsd_support_agent
       - btsgsd_support_agent_tools_access
+      - destroy_support_agent_stack
       - destroy_survey_ai
       - destroy_survey_lex
       - agentcore_gateway
@@ -92,6 +93,8 @@ parameters:
       - lex_yesno_log_group
       # /aws/lex/BTSGSD-V2V-US-IT-Support_Agent, 30-day retention like the dev log group.
       - lex_it_support_log_group
+      # CloudWatch alarms (ALARM-*-v2v) and the BTSGSD-V2V-US-alerts topic, in the monitoring state.
+      - monitoring
       - lex_bot
       - lex_yesno_bot
       - lex_customer_queue_flow_bot
@@ -471,9 +474,9 @@ stages:
               if [ "$TARGET_ENVIRONMENT" = v2v ] && \
                  { [ "$TARGET_MODULE" = btsgsd_support_agent ] || [ "$TARGET_MODULE" = connect ]; }; then
                 refresh_v2v_credentials
+                # Reads the agent from this state's btsgsd_support_agent output.
                 python3 "$BUILD_SOURCESDIRECTORY/scripts/verify_v2v_support_agent_tools.py" \
-                  --region "$DEPLOYMENT_REGION" \
-                  --stack-name BTSGSD-V2V-US-SupportAgent
+                  --region "$DEPLOYMENT_REGION"
               fi
             displayName: Terraform Apply
             workingDirectory: $(workingDirectory)

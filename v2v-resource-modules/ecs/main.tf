@@ -3,6 +3,7 @@
 # Creates:
 #   • ECS Cluster          (Container Insights enabled)
 #   • Fargate Task Definition  (512 CPU / 1024 MiB, ARM64, read-only root FS,
+#                               non-root user, all capabilities dropped,
 #                               init process, non-blocking logs, 120 s stop)
 #   • Fargate Service      (2 tasks, circuit breaker + rollback, no public IP,
 #                           tags propagated from service to tasks)
@@ -60,6 +61,11 @@ resource "aws_ecs_task_definition" "proxy" {
       image     = var.container_image_uri
       essential = true
 
+      # Run as the image's unprivileged "node" user (UID:GID 1000:1000), never root.
+      # Set here as well as in the Dockerfile so scanners reading only the task
+      # definition see it (Snyk SNYK-CC-00202, Security Hub ECS.20).
+      user = "1000:1000"
+
       portMappings = [
         {
           containerPort = local.container_port
@@ -70,9 +76,14 @@ resource "aws_ecs_task_definition" "proxy" {
       # Read-only root filesystem — writeable paths are tmpfs mounts if needed
       readonlyRootFilesystem = true
 
-      # Docker init process as PID 1 prevents zombie processes
+      # Docker init process as PID 1 prevents zombie processes.
+      # All Linux capabilities dropped, including NET_RAW (Snyk SNYK-CC-00108):
+      # the proxy needs none of them.
       linuxParameters = {
         initProcessEnabled = true
+        capabilities = {
+          drop = ["ALL"]
+        }
       }
 
       # Graceful shutdown: ECS sends SIGTERM and waits up to 120 s before SIGKILL.

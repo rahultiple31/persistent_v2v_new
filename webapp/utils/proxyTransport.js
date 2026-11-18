@@ -358,9 +358,12 @@ export function warmProxyConnections() {
  * Opens a Nova Sonic stream through the proxy, shaped like the Bedrock SDK's
  * InvokeModelWithBidirectionalStreamCommand response. `outbound` is the adapter's async iterable of { chunk: { bytes } } input events. Resolves once the
  * proxy has the Bedrock stream open, with { body } yielding Bedrock-shaped output events.
+ *
+ * @param {{ source: string, target: string, mode: "speech"|"typed" }} prompt  the languages and mode the
+ *   proxy builds the system prompt for (it replaces the text of the SYSTEM content the adapter sends)
  */
-export async function openNovaProxyStream(outbound) {
-  const stream = await startStream({ type: "start", service: "nova" });
+export async function openNovaProxyStream(outbound, prompt) {
+  const stream = await startStream({ type: "start", service: "nova", prompt });
 
   // Input is sent straight away rather than after "ready": the proxy queues it while Bedrock accepts
   // the stream.

@@ -92,14 +92,24 @@ export function fakePolly({ fail = false } = {}) {
 
 export const silentLogger = { debug() {}, info() {}, warn() {}, error() {} };
 
-export async function startTestServer({ config = testConfig(), clients = {}, verifier = fakeVerifier, testSignIn = null, sessionAuth = null, tls = null } = {}) {
+export async function startTestServer({
+  config = testConfig(),
+  clients = {},
+  verifier = fakeVerifier,
+  testSignIn = null,
+  sessionAuth = null,
+  tls = null,
+  prompts = undefined,
+  logger = silentLogger,
+} = {}) {
   const proxy = createProxyServer({
     config,
     verifier,
     testSignIn,
     sessionAuth,
     tls,
-    logger: silentLogger,
+    ...(prompts ? { prompts } : {}),
+    logger,
     clients: {
       bedrock: fakeBedrock(),
       transcribe: fakeTranscribe(),
@@ -142,6 +152,9 @@ export function runClient(url, frames, { origin = ALLOWED_ORIGIN, onMessage, hea
 }
 
 export const auth = (token = VALID_TOKEN) => JSON.stringify({ type: "auth", token });
-export const start = (service, extra = {}) => JSON.stringify({ type: "start", service, ...extra });
+/** The prompt a Nova start message names unless a test gives its own (or `prompt: null` for none). */
+export const NOVA_PROMPT = Object.freeze({ source: "en", target: "es", mode: "speech" });
+export const start = (service, extra = {}) =>
+  JSON.stringify({ type: "start", service, ...(service === "nova" ? { prompt: NOVA_PROMPT } : {}), ...extra });
 export const end = () => JSON.stringify({ type: "end" });
 export const novaEvent = (type, body = {}) => Buffer.from(JSON.stringify({ event: { [type]: body } }));

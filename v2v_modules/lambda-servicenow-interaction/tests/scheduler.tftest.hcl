@@ -21,6 +21,8 @@ mock_provider "aws" {
 mock_provider "external" {}
 
 variables {
+  connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/bcc989e5-cd9d-494f-9cd4-434f39ccc90e"
+  ai_agent_source_arn  = "arn:aws:wisdom:us-east-1:518902362956:ai-agent/e36d6b86-c3f5-4d6d-b85b-e44f7e7ec04f/*"
   reserved_concurrency = null
 }
 

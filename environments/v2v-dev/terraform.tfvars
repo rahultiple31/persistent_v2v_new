@@ -109,6 +109,10 @@ dev_ai_tools           = []
 # Publish the new SupportAgent with the supplied complete voice prompt.
 dev_support_ai_agent_enabled = true
 
+# btsgsd-knowledgebase: the existing knowledge base the dev Retrieve tool
+# searches. Associated with the V2V assistant; not created here.
+dev_support_ai_knowledge_base_id = "4dbc482c-d939-440d-aca7-081921f95571"
+
 # Migrate all custom Dev AI agents to the existing built-in Admin profile.
 dev_ai_admin_security_profile_enabled = true
 
@@ -223,3 +227,52 @@ lambda_subnet_ids = [
 lambda_additional_security_group_ids = [
   "sg-0e77977e08fb0dedb", # BTSGSD-US-IVA-Internal-SG
 ]
+# CloudWatch alarms (monitoring choice). Each entry maps a V2V resource to the
+# name part of its console alarm: alarm names are the ALARM-*-dev names with
+# -dev replaced by -v2v. The subscriber is the one on the AbbVie_alerts topic.
+monitoring_alert_email_addresses = [
+  "vinay.kumarsingamsetti@abbvie.com",
+]
+monitoring_alarm_tags = {
+  App     = "AbbVie-ServiceDesk"
+  Owner   = "ContactCenter"
+  Service = "IVA"
+}
+monitoring_lambda_alarms = {
+  "BTSGSD-V2V-US-connect-daily-ctr-consolidation"  = { alarm_label = "btsgsd-dev-us-east-1-connect-daily-ctr-consolidation" }
+  "BTSGSD-V2V-US-connect-daily-ctr-export"         = { alarm_label = "btsgsd-dev-us-east-1-connect-daily-ctr-export" }
+  "BTSGSD-V2V-US-conversionOfQueueMetrics"         = { alarm_label = "conversionOfQueueMetrics-dev" }
+  "BTSGSD-V2V-US-CTR-Survey"                       = { alarm_label = "btsgsd-dev-us-east-1-CTR-Survey" }
+  "BTSGSD-V2V-US-lex-QueueFlow-Callback"           = { alarm_label = "BTSGSD-lex-QueueFlow-Callback-dev" }
+  "BTSGSD-V2V-US-lex-yesNo"                        = { alarm_label = "BTSGSD-lex-yesNo-dev" }
+  "BTSGSD-V2V-US-Nextthink_Handoff"                = { alarm_label = "Nextthink_Handoff_btsgsd-dev" }
+  "BTSGSD-V2V-US-ServiceNow_Interaction"           = { alarm_label = "ServiceNow_Interaction_btsgsd-dev" }
+  "BTSGSD-V2V-US-silence_guard"                    = { alarm_label = "NonSSO-silence_guard-dev" }
+  "BTSGSD-V2V-US-SNOW"                             = { alarm_label = "SNOW_btsgsd-dev" }
+  "BTSGSD-V2V-US-UpdateSessionAttributes"          = { alarm_label = "UpdateSessionAttributes-dev" }
+  "BTSGSD-V2V-US-views"                            = { alarm_label = "BTSGSD-Abbvie-views-Dev" }
+  "BTSGSD-V2V-US-voicemail-GuidedTaskPresigner"    = { alarm_label = "VMX3-GuidedTaskPresigner-btsgsd-dev-us-east-1" }
+  "BTSGSD-V2V-US-voicemail-Packager"               = { alarm_label = "VMX3-Packager-btsgsd-dev-us-east-1" }
+  "BTSGSD-V2V-US-voicemail-RecordingProcessor"     = { alarm_label = "VMX3-RecordingProcessor-btsgsd-dev-us-east-1" }
+  "BTSGSD-V2V-US-voicemail-TranscribeErrorHandler" = { alarm_label = "VMX3-TranscribeErrorHandler-btsgsd-dev-us-east-1" }
+  "BTSGSD-V2V-US-voicemail-Transcriber"            = { alarm_label = "VMX3-Transcriber-btsgsd-dev-us-east-1" }
+  "BTSGSD-V2V-US-voicemail-VoicemailTimestamper"   = { alarm_label = "VMX3-VoicemailTimestamper-btsgsd-dev-us-east-1" }
+}
+monitoring_contact_flow_alarms = {
+  "BTSGSD-V2V-US-btsgsd_HR"                = { alarm_label = "btsgsd_HR" }
+  "BTSGSD-V2V-US-HR"                       = { alarm_label = "btsgsd-dev-us-east-1-HR" }
+  "BTSGSD-V2V-US-Main-IB-Flow"             = { alarm_label = "btsgsd-Main-IB-Flow" }
+  "BTSGSD-V2V-US-placeholder-inbound-flow" = { alarm_label = "btsgsd-dev-us-east-1-placeholder-inbound-flow" }
+  "BTSGSD-V2V-US-stdgsd_Fieldforce_Flow"   = { alarm_label = "stdgsd_Fieldforce_Flow" }
+  "BTSGSD-V2V-US-SurveyFlow"               = { alarm_label = "BTSGSD-AIAgent-SurveyFlow" }
+  "BTSGSD-V2V-US-Views"                    = { alarm_label = "AbbVie_Views" }
+  "BTSGSD-V2V-US-VoicemailFlow"            = { alarm_label = "btsgsd-VoicemailFlow" }
+}
+monitoring_queue_alarms = {
+  "BTSGSD-V2V-LATAM-MAIN-QUEUE"         = { alarm_label = "BTSGSD-DEV-SSO-LATAM-MAIN-QUEUE" }
+  "BTSGSD-V2V-LATAM-OUT-QUEUE"          = { alarm_label = "BTSGSD-DEV-SSO-LATAM-OUT-QUEUE" }
+  "BTSGSD-V2V-US-DEV SSO-US-MAIN-QUEUE" = { alarm_label = "BTSGSD-DEV-SSO-US-MAIN-QUEUE-SPACE" }
+  "BTSGSD-V2V-US-MAIN-QUEUE"            = { alarm_label = "BTSGSD-DEV-SSO-US-MAIN-QUEUE" }
+  "BTSGSD-V2V-US-OUT-QUEUE"             = { alarm_label = "BTSGSD-DEV-SSO-US-OUT-QUEUE" }
+  "BTSGSD-V2V-US-VM-QUEUE"              = { alarm_label = "BTSGSD-DEV-SSO-US-VM-QUEUE" }
+}

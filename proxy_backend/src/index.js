@@ -6,6 +6,7 @@ import { createOidcVerifier, createRejectingVerifier } from "./auth.js";
 import { createAwsClients } from "./awsClients.js";
 import { createProxyServer } from "./server.js";
 import { createTranslationModeSource } from "./services/translationMode.js";
+import { createPromptStore } from "./services/promptStore.js";
 import { createTestSignIn, withTestSignIn } from "./services/testSignIn.js";
 import { createSecretSource } from "./services/secrets.js";
 import { createOidcClient } from "./services/oidcClient.js";
@@ -49,6 +50,16 @@ const translationMode = createTranslationModeSource({
   logger,
 });
 translationMode.start();
+// The interpreter prompts: the approved versions in Parameter Store, read before accepting traffic (for at
+// most a few seconds; the built-in prompts are used until then, or if Parameter Store cannot be read).
+const prompts = createPromptStore({
+  ssm: clients.ssm,
+  versionsParameter: config.prompts?.versionsParameter,
+  promptPrefix: config.prompts?.promptPrefix,
+  refreshMs: config.timeouts.promptRefreshMs,
+  logger,
+});
+await prompts.start();
 // The temporary test sign-in, switched on and off with its secret in Secrets Manager.
 const testSignIn = config.testSignInSecretId
   ? createTestSignIn({ secrets: clients.secrets, secretId: config.testSignInSecretId, refreshMs: config.timeouts.testSignInRefreshMs, logger })
@@ -80,7 +91,7 @@ if (config.bff) {
 }
 // SERVER_TLS=self-signed: a new key and certificate for this task, kept in memory only.
 const tls = config.serverTls === "self-signed" ? await createSelfSignedCertificate() : null;
-const proxy = createProxyServer({ config, verifier, clients, logger, translationMode, testSignIn, sessionAuth, tls });
+const proxy = createProxyServer({ config, verifier, clients, logger, translationMode, testSignIn, sessionAuth, tls, prompts });
 const address = await proxy.listen(config.port);
 logger.info("proxy listening", {
   port: address.port,
@@ -91,6 +102,8 @@ logger.info("proxy listening", {
   translateRegion: config.translateRegion,
   pollyRegion: config.pollyRegion,
   forceBackupParameter: config.forceBackupParameter,
+  promptVersionsParameter: config.prompts?.versionsParameter ?? null,
+  promptVersions: prompts.versions(),
   allowedOrigins: config.allowedOrigins,
   authMode: config.authMode,
   ...(config.bff
@@ -114,6 +127,7 @@ async function stop(signal) {
   stopping = true;
   logger.info("shutdown requested", { signal });
   translationMode.stop();
+  prompts.stop();
   testSignIn?.stop();
   sessionKey?.stop();
   clientSecret?.stop();

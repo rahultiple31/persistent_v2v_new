@@ -106,7 +106,8 @@ variable "enabled_modules" {
         "btsgsd-intent-kb",
         "lex_bot",
         "dynamodb",
-        "code-signing"
+        "code-signing",
+        "monitoring"
       ])
     )) == 0
     error_message = "enabled_modules contains an unsupported module name."
@@ -505,6 +506,28 @@ variable "dev_support_ai_python_executable" {
   default     = "python3"
 }
 
+variable "dev_support_ai_knowledge_base_id" {
+  description = "Existing knowledge base the SupportAgent's Retrieve tool searches (the one the dev btsgsd-SupportAgent uses). Terraform associates it with the V2V assistant; it does not create a knowledge base."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = !local.dev_support_ai_enabled || can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.dev_support_ai_knowledge_base_id))
+    error_message = "Set dev_support_ai_knowledge_base_id to the knowledge base UUID used by the dev Retrieve tool."
+  }
+}
+
+variable "main_ib_it_support_bot_alias_arn" {
+  description = "Optional IT Support Lex alias ARN for the Main IB flow; when null it is looked up by bot and alias name."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.main_ib_it_support_bot_alias_arn == null || can(regex("^arn:[^:]+:lex:[^:]+:[0-9]{12}:bot-alias/[A-Za-z0-9]+/[A-Za-z0-9]+$", var.main_ib_it_support_bot_alias_arn))
+    error_message = "main_ib_it_support_bot_alias_arn must be a Lex V2 bot alias ARN."
+  }
+}
+
 variable "dev_ai_assistant_id" {
   description = "Existing assistant UUID associated with the Dev Connect instance; leave null when Terraform creates the domain."
   type        = string
@@ -667,6 +690,36 @@ variable "lambda_code_signing_config_arn" {
     )
     error_message = "Set lambda_code_signing_config_arn before deploying a V2V Lambda group."
   }
+}
+
+variable "monitoring_alert_email_addresses" {
+  description = "Email addresses subscribed to the V2V alerts topic. Each recipient confirms by email."
+  type        = list(string)
+  default     = []
+}
+
+variable "monitoring_lambda_alarms" {
+  description = "V2V Lambdas watched by the monitoring alarms, keyed by function name, with the name part of each alarm."
+  type        = map(object({ alarm_label = string }))
+  default     = {}
+}
+
+variable "monitoring_contact_flow_alarms" {
+  description = "V2V contact flows watched by the monitoring alarms, keyed by flow name, with the name part of each alarm."
+  type        = map(object({ alarm_label = string }))
+  default     = {}
+}
+
+variable "monitoring_queue_alarms" {
+  description = "V2V standard queues watched by the monitoring alarms, keyed by queue name, with the name part of each alarm."
+  type        = map(object({ alarm_label = string }))
+  default     = {}
+}
+
+variable "monitoring_alarm_tags" {
+  description = "Tags added to the alerts topic and every alarm, on top of the common tags."
+  type        = map(string)
+  default     = {}
 }
 
 variable "lambda_vpc_id" {

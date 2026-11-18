@@ -33,8 +33,8 @@ export function createAwsClients(config) {
     transcribe: new TranscribeStreamingClient({ region: config.transcribeRegion }),
     translate: new TranslateClient({ region: config.translateRegion }),
     polly: new PollyClient({ region: config.pollyRegion }),
-    // fix 6: reads the forceBackupTranslation switch; only when a parameter name is configured.
-    ssm: config.forceBackupParameter ? new SSMClient({ region: config.ssmRegion }) : null,
+    // Parameter Store: the forceBackupTranslation switch (fix 6) and the interpreter prompts, when configured.
+    ssm: config.forceBackupParameter || config.prompts ? new SSMClient({ region: config.ssmRegion }) : null,
     // The test sign-in password, and the server-side sign-in's (AUTH_MODE=bff) client secret and session key.
     secrets: config.bff || config.testSignInSecretId ? new SecretsManagerClient({ region: config.secretsRegion }) : null,
     // Voicemail playback: reads recordings from the VMX3 bucket (through the VPC's S3 gateway endpoint). A

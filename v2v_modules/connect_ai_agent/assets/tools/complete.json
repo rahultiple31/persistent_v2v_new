@@ -1,0 +1,193 @@
+{
+  "toolName": "Complete",
+  "toolType": "RETURN_TO_CONTROL",
+  "toolId": "Complete",
+  "description": "Close conversation when customer has no more questions",
+  "instruction": {
+    "instruction": "Call Complete ONLY in the same response as the spoken closing message that the system prompt defines for the current outcome. The system prompt decides whether to ask \"anything else\" first; never ask it on your own. Never call Complete without spoken text.",
+    "examples": []
+  },
+  "inputSchema": {
+    "additionalProperties": false,
+    "type": "object",
+    "properties": {
+      "reason": {
+        "description": "Factual reason for the branch actually reached; never placeholder, test, TBD, N/A, unknown or null. Call ONLY in the same response as, and after, a nonempty spoken closing <message>; a tool-only Complete is invalid. A pending question blocks Complete unless its defined terminal outcome is reached. UPI availability: after original plus two re-prompts with no clear yes/no, use the NO-VALID-RSP closing and Complete (never Step 6). UPI capture/readback or first-name gates: if the caller SPOKE but no usable answer came after original plus two re-prompts, go to Step 6 instead of Complete; only silence/noise on all three asks may use the NO-VALID-RSP closing. A live-agent request alone is not a need: re-ask the pending question per the prompt. Active speech or partial transcripts block terminal execution. Silence, speech-recognition uncertainty, an agent request, UserNotRegistered or InvalidIdentifier is not a technical failure. For a Veeva/Medcom routing outcome, Complete applies only to an unverified caller outside LATAM (including blank region), after the existing graceful callback close, using Unverified - Verification Failed. A LATAM helpdesk routing outcome uses Escalate regardless of verification: Complete is FORBIDDEN for any Veeva/Medcom need when region is LATAM, verified or unverified (only exception: UPI availability exhausted with no clear yes/no uses the NO-VALID-RSP close); a verified non-LATAM live-agent routing outcome also uses Escalate. This does not override existing question-exhaustion, safety or unrelated-request closure rules. Receipt-only exception: after successful Handoff and the existing initial-plus-two combined Teams-receipt checks, final silence/unclear uses the existing no-response closing content without bot sign-off, then Complete with Intent TechSpot -- No Response. Preserve verification/profile, empty ScreenPopURL, omit RoutingIntent, no Interaction, and factual receipt-not-confirmed summary. Do not claim an agent was requested. Flow owns survey/sign-off speech; survey eligibility must be checked in the flow. HR Active restrictions govern HR routing outcomes only; existing safety and question-exhaustion closes remain allowed with their defined closure Intents.",
+        "not": {
+          "enum": [
+            "placeholder",
+            "Placeholder",
+            "PLACEHOLDER",
+            "test",
+            "TBD",
+            "N/A",
+            "unknown",
+            "null"
+          ]
+        },
+        "type": "string",
+        "minLength": 8
+      },
+      "VerificationStatus": {
+        "type": "string",
+        "description": "Authenticated for trusted registered-phone match, or current UPI match plus first-name confirmation. Otherwise Unauthenticated.",
+        "enum": [
+          "Authenticated",
+          "Unauthenticated"
+        ]
+      },
+      "CallSummary": {
+        "description": "ONE factual sentence (about 25 words) composed in this terminal turn: identity path, domain/sub-intent, key answers, outcome and next step. Only facts the caller said; never placeholder text, password, PIN, code, UPI value or the '|' character. For question exhaustion, name the unanswered gate.",
+        "not": {
+          "enum": [
+            "placeholder",
+            "Placeholder",
+            "PLACEHOLDER",
+            "test",
+            "TBD",
+            "N/A",
+            "unknown",
+            "null"
+          ]
+        },
+        "type": "string",
+        "minLength": 20
+      },
+      "Email": {
+        "type": "string",
+        "description": "Held AbbVie email (CALL CONTEXT when Matched, or current UserLookUp). Empty if unverified."
+      },
+      "LanguageDetected": {
+        "type": "string",
+        "description": "The current authorized response language as a BCP-47 locale code: start from the configured initial language and change only after an explicit caller request for a supported language. Do not infer a switch from accent, name, digits, foreign words or a full foreign-language sentence. Send one bare locale token without surrounding spaces or punctuation."
+      },
+      "UserId": {
+        "type": "string",
+        "description": "Held ServiceNow UserId. Empty if unverified."
+      },
+      "Intent": {
+        "description": "Exactly one allowed label for the branch actually reached. Confirmed TechSpot Teams receipt uses Techspot - Teams Handoff. Exhausted post-Handoff Teams receipt with final silence/unclear uses TechSpot -- No Response, not the original case label or generic Out of Scope label. Final clear No uses Escalate with TechSpot -- Live Agent, not Complete. Other TechSpot question-exhaustion outcomes remain unchanged. For the post-Handoff Teams-receipt question only, intelligible uncertainty such as I am not sure counts as No, not unclear. Within the existing combined initial-plus-two cap, retry before the final opportunity; at the final opportunity use Escalate with TechSpot -- Live Agent, omit RoutingIntent and retain existing Interaction prerequisites. Final silence, unintelligible audio or genuinely ambiguous meaning uses Complete with TechSpot -- No Response. For uncertainty, terminal reason and CallSummary record receipt not confirmed, not definite non-receipt or an explicit agent request. No extra retries or changes to other questions or journeys.",
+        "type": "string",
+        "enum": [
+          "Password Reset - Pre Hire",
+          "Password Reset - New Hire",
+          "Password Reset - Existing User",
+          "Password Reset - Manager Code",
+          "Password Reset - Vendor System",
+          "Password Reset - MFA/PingID",
+          "Password Reset - PingID Re-enable",
+          "Techspot - Device Health",
+          "Techspot - Applications",
+          "Techspot - ComplianceWire",
+          "Techspot - External Access",
+          "Techspot - Other IT",
+          "Techspot - VDI",
+          "Techspot - Network",
+          "Techspot - Teams Handoff",
+          "HR - Payroll",
+          "HR - Benefits",
+          "HR - Verification",
+          "HR - Lifecycle",
+          "HR - LMS/ComplianceWire",
+          "HR - Equipment Return",
+          "HR - Unverified",
+          "Live Agent - Identity Sync",
+          "Live Agent - Hardware",
+          "Live Agent - Mobility",
+          "Live Agent - Manufacturing",
+          "Live Agent - M&A",
+          "Field Force - Direct Routing",
+          "Other - Case Status",
+          "Other - Duplicate",
+          "Other - Catalogue Request",
+          "Record Conflict - Live Agent",
+          "Live Agent - Caller Request",
+          "Patient/Customer - Misroute",
+          "Unverified - Misroute",
+          "Unverified - Manufacturing",
+          "Unverified - M&A",
+          "Unverified - Verification Failed",
+          "Unverified - Lookup Error",
+          "Out of Scope - Unverified/WrongNumber Misroute",
+          "Out of Scope - Medical Request",
+          "Out of Scope - Unrelated Request",
+          "Live Agent - Caller Request - Password Reset - Pre Hire",
+          "Live Agent - Caller Request - Password Reset - New Hire",
+          "Live Agent - Caller Request - Password Reset - Existing User",
+          "Live Agent - Caller Request - Password Reset - Manager Code",
+          "Live Agent - Caller Request - Password Reset - Vendor System",
+          "Live Agent - Caller Request - Password Reset - MFA/PingID",
+          "Live Agent - Caller Request - Password Reset - PingID Re-enable",
+          "Live Agent - Caller Request - Techspot - Device Health",
+          "Live Agent - Caller Request - Techspot - Applications",
+          "Live Agent - Caller Request - Techspot - ComplianceWire",
+          "Live Agent - Caller Request - Techspot - External Access",
+          "Live Agent - Caller Request - Techspot - Other IT",
+          "Live Agent - Caller Request - Techspot - VDI",
+          "Live Agent - Caller Request - Techspot - Network",
+          "Live Agent - Caller Request - Techspot - Teams Handoff",
+          "Live Agent - Caller Request - HR - Payroll",
+          "Live Agent - Caller Request - HR - Benefits",
+          "Live Agent - Caller Request - HR - Verification",
+          "Live Agent - Caller Request - HR - Lifecycle",
+          "Live Agent - Caller Request - HR - LMS/ComplianceWire",
+          "Live Agent - Caller Request - HR - Equipment Return",
+          "Live Agent - Caller Request - HR - Unverified",
+          "Live Agent - Caller Request - Live Agent - Identity Sync",
+          "Live Agent - Caller Request - Live Agent - Hardware",
+          "Live Agent - Caller Request - Live Agent - Mobility",
+          "Live Agent - Caller Request - Field Force - Direct Routing",
+          "Live Agent - Caller Request - Other - Case Status",
+          "Live Agent - Caller Request - Other - Duplicate",
+          "Live Agent - Caller Request - Other - Catalogue Request",
+          "Live Agent - Caller Request - Record Conflict - Live Agent",
+          "TechSpot -- No Response"
+        ],
+        "minLength": 3
+      },
+      "ScreenPopURL": {
+        "type": "string",
+        "description": "Always empty on Complete. A nonempty spoken closing must precede Complete in the same response; on confirmed Teams receipt the defined short acknowledgement serves.",
+        "default": ""
+      },
+      "CallerName": {
+        "type": "string",
+        "description": "FirstName plus LastName from held profile; never spoken. Empty if unverified."
+      },
+      "UserStatus": {
+        "type": "string",
+        "description": "Exact held UserStatus, incl. blank/unrecognized; empty if unverified."
+      },
+      "VerifiedVia": {
+        "type": "string",
+        "description": "Phone for trusted ANI match; UPI only after UPI match plus first-name pass; otherwise Unverified.",
+        "enum": [
+          "Phone",
+          "UPI",
+          "Unverified"
+        ]
+      },
+      "UPI": {
+        "type": "string",
+        "description": "UPI exactly as returned by the held profile. Empty if unverified."
+      }
+    },
+    "required": [
+      "reason",
+      "VerificationStatus",
+      "CallSummary",
+      "Email",
+      "LanguageDetected",
+      "UserId",
+      "Intent",
+      "ScreenPopURL",
+      "CallerName",
+      "UserStatus",
+      "VerifiedVia",
+      "UPI"
+    ]
+  },
+  "userInteractionConfiguration": {
+    "isUserConfirmationRequired": false
+  }
+}

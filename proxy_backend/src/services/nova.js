@@ -70,14 +70,57 @@ class ReplayableInput {
 }
 
 /**
+ * The system prompt is the server's (services/promptStore.js), never the page's. The page still sends the
+ * SYSTEM text content, where Nova Sonic expects it, and the proxy replaces its text. There must be exactly
+ * one, before any other content: a page cannot leave it out, send a second one, or add content with
+ * another role (only USER).
+ *
+ * Returns a function that takes one checked input event (validateNovaInputEvent) and returns
+ * { ok: true, value: <bytes to send instead, or null to send the original> } or { ok: false, reason }.
+ *
+ * @param {string} systemPrompt
+ */
+export function createSystemPromptGuard(systemPrompt) {
+  let systemContentName = null; // set by the SYSTEM contentStart
+  let replaced = false;
+  return ({ type, body, frame }) => {
+    if (type === "contentStart") {
+      const role = String(body?.role ?? "").toUpperCase();
+      if (role === "SYSTEM") {
+        if (systemContentName != null) return { ok: false, reason: "systemPromptRepeated" };
+        if (body.type !== "TEXT" || typeof body.contentName !== "string" || !body.contentName) {
+          return { ok: false, reason: "invalidSystemContent" };
+        }
+        systemContentName = body.contentName;
+        return { ok: true, value: null };
+      }
+      if (!replaced) return { ok: false, reason: "systemPromptRequired" };
+      if (role !== "USER") return { ok: false, reason: "roleNotAllowed" };
+      return { ok: true, value: null };
+    }
+    if (type === "textInput" && systemContentName != null && body?.contentName === systemContentName) {
+      if (replaced) return { ok: false, reason: "systemPromptRepeated" };
+      replaced = true;
+      frame.event.textInput = { ...body, content: systemPrompt };
+      return { ok: true, value: Buffer.from(JSON.stringify(frame), "utf8") };
+    }
+    return { ok: true, value: null };
+  };
+}
+
+/**
  * Bridges one WebSocket to one Nova Sonic bidirectional stream.
  *
  * The webapp builds the Nova Sonic events (the same events Bedrock's API takes); each one arrives as a
- * binary frame of UTF-8 JSON. The proxy checks the envelope and forwards the original bytes,
- * and relays every output event's bytes back unchanged, so neither direction is re-serialised.
- * The model ID comes from the server configuration, never from the client.
+ * binary frame of UTF-8 JSON. The proxy checks the envelope and forwards the original bytes, except the
+ * system prompt's text, which it sets itself (createSystemPromptGuard). It relays every output event's
+ * bytes back unchanged. The model ID comes from the server configuration, never from the client.
+ *
+ * @param {object} deps
+ * @param {string} deps.systemPrompt - this session's system prompt, already filled in
  */
-export function createNovaSession(conn, { bedrock, config, logger }) {
+export function createNovaSession(conn, { bedrock, config, logger, systemPrompt }) {
+  const guardSystemPrompt = createSystemPromptGuard(systemPrompt);
   const input = new AsyncQueue({ maxItems: MAX_BUFFERED_INPUT_EVENTS });
   const replayable = new ReplayableInput(input);
   const abort = new AbortController();
@@ -165,12 +208,13 @@ export function createNovaSession(conn, { bedrock, config, logger }) {
   return {
     onData(bytes) {
       const check = validateNovaInputEvent(bytes);
-      if (!check.ok) {
-        conn.fail("invalidEvent", `Rejected Nova Sonic input event (${check.reason})`, { protocolError: true });
+      const guarded = check.ok ? guardSystemPrompt(check.value) : check;
+      if (!guarded.ok) {
+        conn.fail("invalidEvent", `Rejected Nova Sonic input event (${guarded.reason})`, { protocolError: true });
         return;
       }
       metrics.bytesIn += bytes.length;
-      if (!input.push({ chunk: { bytes } })) conn.fail("backpressure", "Nova Sonic is not consuming input");
+      if (!input.push({ chunk: { bytes: guarded.value ?? bytes } })) conn.fail("backpressure", "Nova Sonic is not consuming input");
     },
     onEnd() {
       input.close();

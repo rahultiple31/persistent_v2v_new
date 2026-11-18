@@ -5,9 +5,10 @@
 //
 //   client -> {"type":"auth","token":"<access token>"}                  first frame, never in the URL
 //             (AUTH_MODE=bff: {"type":"auth"}; the user comes from the session cookie of the upgrade)
-//   client -> {"type":"start","service":"nova"}
+//   client -> {"type":"start","service":"nova","prompt":{"source":"en","target":"es","mode":"speech"|"typed"}}
 //          or {"type":"start","service":"transcribe","languageCode":"en-US","sampleRate":16000}
 //   client -> binary frames                                               Nova Sonic event JSON / PCM16 audio
+//             (the proxy sets the system prompt's text itself, from `prompt`: services/promptStore.js)
 //   client -> {"type":"end"}                                              no more input
 //   server -> {"type":"ready"}                                            upstream stream established
 //   server -> binary frames (Nova Sonic output events), or for Transcribe {"type":"piece","text":"...",
@@ -24,8 +25,9 @@ import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { ConnectionLimiter, RateLimiter } from "./limits.js";
 import { errorFields } from "./logger.js";
-import { parseControlMessage, validateFallbackRequest, validateTranscribeStart } from "./validation.js";
+import { parseControlMessage, validateFallbackRequest, validateNovaStart, validateTranscribeStart } from "./validation.js";
 import { createNovaSession } from "./services/nova.js";
+import { createPromptStore } from "./services/promptStore.js";
 import { createTranscribeSession } from "./services/transcribe.js";
 import { runFallback } from "./services/fallback.js";
 import { isRecordingKey, sendRecording } from "./services/voicemail.js";
@@ -204,8 +206,9 @@ class ProxyConnection {
       return;
     }
 
-    const { config, logger, clients } = this.#deps;
+    const { config, logger, clients, prompts } = this.#deps;
     let transcribeParams;
+    let systemPrompt;
     if (message.service === "transcribe") {
       const check = validateTranscribeStart(message);
       if (!check.ok) {
@@ -213,7 +216,20 @@ class ProxyConnection {
         return;
       }
       transcribeParams = check.value;
-    } else if (message.service !== "nova") {
+    } else if (message.service === "nova") {
+      const check = validateNovaStart(message);
+      if (!check.ok) {
+        this.#protocolError(check.reason);
+        return;
+      }
+      // The approved prompt for this language pair, or the built-in one. Its version goes in the
+      // connection's log line ("websocket closed").
+      const prompt = prompts.resolve(check.value);
+      systemPrompt = prompt.text;
+      this.metrics.promptLanguage = prompt.language;
+      this.metrics.promptVersion = prompt.version;
+      this.metrics.promptMode = check.value.mode;
+    } else {
       this.#protocolError("unknownService");
       return;
     }
@@ -224,7 +240,7 @@ class ProxyConnection {
     this.#startedAt = performance.now();
     this.#session =
       message.service === "nova"
-        ? createNovaSession(this, { bedrock: clients.bedrock, config, logger })
+        ? createNovaSession(this, { bedrock: clients.bedrock, config, logger, systemPrompt })
         : createTranscribeSession(this, transcribeParams, { transcribe: clients.transcribe, config, logger });
   }
 
@@ -335,8 +351,20 @@ function readBody(req, limit) {
  *   identity provider, and the session cookie in place of `verifier` for /ws and /api.
  * @param {{key: string, cert: string}} [deps.tls] - SERVER_TLS=self-signed (selfSignedCert.js): serve HTTPS.
  *   Without it the server speaks plain HTTP.
+ * @param {{resolve(call): {text: string, language: string, version: number|string}}} [deps.prompts] - the
+ *   interpreter prompts (services/promptStore.js). Without it every session uses the built-in prompts.
  */
-export function createProxyServer({ config, verifier, clients, logger, translationMode = null, testSignIn = null, sessionAuth = null, tls = null }) {
+export function createProxyServer({
+  config,
+  verifier,
+  clients,
+  logger,
+  translationMode = null,
+  testSignIn = null,
+  sessionAuth = null,
+  tls = null,
+  prompts = createPromptStore({ logger }),
+}) {
   const limiter = new ConnectionLimiter({
     maxTotal: config.limits.maxConnections,
     maxPerUser: config.limits.maxConnectionsPerUser,
@@ -345,7 +373,7 @@ export function createProxyServer({ config, verifier, clients, logger, translati
   const testSignInLimiter = new RateLimiter({ perMinute: TEST_SIGN_IN_ATTEMPTS_PER_MINUTE });
   const voicemailLimiter = new RateLimiter({ perMinute: config.limits.voicemailRequestsPerMinute });
   const connections = new Set();
-  const connectionDeps = { config, verifier, clients, logger, limiter };
+  const connectionDeps = { config, verifier, clients, logger, limiter, prompts };
   // The proxy also serves the webapp (config.site), on the same origin as /ws and /api.
   const site = config.site ? createSite(config.site) : null;
   let draining = false;

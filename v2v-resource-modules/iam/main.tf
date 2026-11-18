@@ -148,6 +148,51 @@ resource "aws_iam_role_policy" "ssm_force_backup" {
   policy = data.aws_iam_policy_document.ssm_force_backup.json
 }
 
+# ── Policy 3b: SSM — interpreter prompts ──────────────────────────────────────
+# The proxy reads the approved versions (promptVersions) and the prompts
+# (<prompt_parameter_prefix><language>, SecureString, created by hand), and
+# decrypts the prompts: only through Parameter Store and only for the prompts
+# (Parameter Store's encryption context is the parameter's ARN).
+# Mirrors CDK: PrivatePocStack > PromptVersionsParameter + its two statements.
+
+locals {
+  prompt_parameters_arn = "arn:${var.partition}:ssm:${var.aws_region}:${var.account_id}:parameter/${trimprefix(var.prompt_parameter_prefix, "/")}*"
+}
+
+data "aws_iam_policy_document" "ssm_prompts" {
+  statement {
+    sid       = "ReadPrompts"
+    effect    = "Allow"
+    actions   = ["ssm:GetParameter"]
+    resources = [var.prompt_versions_parameter_arn, local.prompt_parameters_arn]
+  }
+
+  statement {
+    sid       = "DecryptPrompts"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = ["arn:${var.partition}:kms:${var.aws_region}:${var.account_id}:key/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${var.aws_region}.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "kms:EncryptionContext:PARAMETER_ARN"
+      values   = [local.prompt_parameters_arn]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "ssm_prompts" {
+  name   = "ssm-prompts"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.ssm_prompts.json
+}
+
 # ── Policy 4 (optional): Secrets Manager — sign-in secrets ────────────────────
 # Only created when secret_names is not empty (auth_mode = "bff", or the test
 # sign-in). The secrets (the identity provider's client secret, the session

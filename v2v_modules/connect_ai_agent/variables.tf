@@ -14,11 +14,6 @@ variable "connect_instance_arn" {
   type        = string
 }
 
-variable "template_bucket_name" {
-  description = "Existing private S3 bucket in the provider region for CloudFormation templates."
-  type        = string
-  nullable    = false
-}
 
 variable "prompt_yaml_file" {
   description = "YAML file containing a complete system prompt (with optional messages) or prompt instructions appended to the source system; may include description and test_question metadata."
@@ -36,6 +31,15 @@ variable "prompt_yaml_file" {
   }
 }
 
+variable "knowledge_base_id" {
+  description = "Knowledge base the Retrieve tool searches (the same one the dev agent uses), associated with this assistant."
+  type        = string
+  nullable    = false
+  validation {
+    condition     = can(regex("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$", var.knowledge_base_id))
+    error_message = "knowledge_base_id must be a knowledge base UUID."
+  }
+}
 variable "agent_name" {
   type = string
 }
@@ -45,7 +49,7 @@ variable "prompt_name" {
 }
 
 variable "source_agent_name" {
-  description = "System orchestration agent whose voice template, tools, locale, and guardrail are copied."
+  description = "System orchestration agent whose voice prompt template and locale are copied."
   type        = string
   default     = "SelfServiceOrchestratorVoice"
 }
@@ -62,9 +66,6 @@ variable "prompt_model_id" {
   default     = "global.anthropic.claude-sonnet-5"
 }
 
-variable "stack_name" {
-  type = string
-}
 
 variable "python_executable" {
   description = "Python 3 executable on the runner; use python for Windows or python3 for Linux."
@@ -84,7 +85,7 @@ variable "tags" {
 }
 
 variable "tool_configurations" {
-  description = "Additional existing MCP tools attached to this AI agent."
+  description = "Existing MCP gateway tools attached to this AI agent, ahead of Retrieve, Complete and Escalate."
 
   type = list(object({
     ToolName = string
@@ -95,26 +96,8 @@ variable "tool_configurations" {
   default = []
 }
 
-variable "include_complete_tool" {
-  description = "Update the inherited Complete tool, or add it if absent, with the V2V SupportAgent closing contract."
-  type        = bool
-  default     = false
-  nullable    = false
-}
 
-variable "include_escalate_tool" {
-  description = "Update the inherited Escalate tool, or add it if absent, with the V2V SupportAgent transfer contract."
-  type        = bool
-  default     = false
-  nullable    = false
-}
 
-variable "override_retrieve_instruction" {
-  description = "Set the instruction on the inherited Amazon Connect Retrieve tool."
-  type        = bool
-  default     = false
-  nullable    = false
-}
 
 variable "admin_mcp_access" {
   description = "Optional MCP application access granted through the existing Admin security profile."

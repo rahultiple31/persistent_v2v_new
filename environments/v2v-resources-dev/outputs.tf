@@ -27,6 +27,11 @@ output "force_backup_parameter_name" {
   value       = module.ssm.force_backup_parameter_name
 }
 
+output "prompt_versions_parameter_name" {
+  description = "SSM parameter name of the approved interpreter prompt versions."
+  value       = module.ssm.prompt_versions_parameter_name
+}
+
 output "task_role_arn" {
   description = "ARN of the ECS task IAM role."
   value       = module.iam.task_role_arn

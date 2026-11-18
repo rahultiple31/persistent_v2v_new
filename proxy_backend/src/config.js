@@ -144,6 +144,20 @@ function voicemailConfig(env, bedrockRegion) {
 }
 
 /**
+ * The interpreter prompts in Parameter Store (services/promptStore.js): the promptVersions parameter and the
+ * prompts' name prefix (a prompt's name is the prefix plus its language). Both or neither; neither means
+ * every call uses the built-in prompts.
+ */
+function promptsConfig(env) {
+  const versionsParameter = env.PROMPT_VERSIONS_PARAMETER?.trim();
+  let promptPrefix = env.PROMPT_PARAMETER_PREFIX?.trim();
+  if (!versionsParameter && !promptPrefix) return null;
+  if (!versionsParameter || !promptPrefix) throw new Error("PROMPT_VERSIONS_PARAMETER and PROMPT_PARAMETER_PREFIX must be set together");
+  if (!promptPrefix.endsWith("/")) promptPrefix += "/";
+  return Object.freeze({ versionsParameter, promptPrefix });
+}
+
+/**
  * Reads and validates the proxy configuration from environment variables.
  * Fails fast on anything missing so a misconfigured task never becomes healthy.
  */
@@ -182,6 +196,8 @@ export function loadConfig(env = process.env) {
     pollyRegion: env.POLLY_REGION?.trim() || bedrockRegion,
     // fix 6: the forceBackupTranslation switch in Parameter Store (full name). Not set: the switch is off.
     forceBackupParameter: env.FORCE_BACKUP_PARAMETER?.trim() || null,
+    // The interpreter prompts in Parameter Store. Not set: the built-in prompts.
+    prompts: promptsConfig(env),
     // The temporary test sign-in's secret in Secrets Manager, its password (services/testSignIn.js). Not set:
     // there is no test sign-in.
     testSignInSecretId: env.TEST_SIGN_IN_SECRET_ID?.trim() || null,
@@ -208,6 +224,8 @@ export function loadConfig(env = process.env) {
       // fix 6: how often the forceBackupTranslation switch is read.
       translationModeRefreshMs: positiveInt(env, "TRANSLATION_MODE_REFRESH_MS", 30_000),
       testSignInRefreshMs: positiveInt(env, "TEST_SIGN_IN_REFRESH_MS", 30_000),
+      // How often the approved prompt versions are read.
+      promptRefreshMs: positiveInt(env, "PROMPT_REFRESH_MS", 30_000),
     }),
   });
 }

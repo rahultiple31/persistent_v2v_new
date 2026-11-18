@@ -258,6 +258,12 @@ module "btsgsd-Main-IB-Flow" {
     session_attributes_lambda_arn = module.BTSGSD-V2V-US-UpdateSessionAttributes[0].lambda_arn
     silence_guard_lambda_arn      = module.silence_guard-dev[0].function_arn
     queue_metrics_lambda_arn      = module.conversion_of_queue_metrics[0].lambda_arn
+
+    # The V2V assistant and SupportAgent (instead of the dev btsgsd-SupportAgent)
+    # and the V2V IT Support bot (instead of the dev btsgsd-IT-Support_Agent-dev).
+    ai_assistant_arn         = try(module.btsgsd_support_agent[0].assistant_arn, null)
+    ai_agent_version_arn     = try(module.btsgsd_support_agent[0].agent_version_arn, null)
+    it_support_bot_alias_arn = local.main_ib_it_support_bot_alias_arn
   }
 
   tags = local.common_tags
@@ -317,37 +323,35 @@ module "btsgsd_support_agent" {
   source = "../../v2v_modules/connect_ai_agent"
 
   providers = {
-    aws = aws.us_east_1
+    aws   = aws.us_east_1
+    awscc = awscc.us_east_1
   }
 
+  # Managed directly through awscc (no CloudFormation stack). Retrieve, Complete
+  # and Escalate are copies of the dev btsgsd-SupportAgent tools; Retrieve
+  # searches the dev knowledge base through a V2V assistant association.
   agent_name         = "BTSGSD-V2V-US-SupportAgent"
   prompt_name        = "BTSGSD-V2V-US-SupportAgent-prompt"
-  stack_name         = "BTSGSD-V2V-US-SupportAgent"
   source_agent_name  = "SelfServiceOrchestratorVoice"
   source_prompt_name = "SelfServiceOrchestrationVoice"
   prompt_model_id    = "global.anthropic.claude-sonnet-5"
 
-  assistant_id                 = local.dev_ai_assistant_id
-  connect_instance_arn         = module.connect_us_east_1[0].instance_arn
-  template_bucket_name         = aws_s3_bucket.dev_ai_template[0].id
-  prompt_yaml_file             = abspath("${path.module}/${var.dev_support_ai_prompt_file}")
-  python_executable            = var.dev_support_ai_python_executable
-  tags                         = local.dev_ai_tags
-  tool_configurations          = module.support_agent_tools[0].tool_configurations
-  include_complete_tool        = true
-  include_escalate_tool        = true
-  override_retrieve_instruction = true
+  assistant_id         = local.dev_ai_assistant_id
+  connect_instance_arn = module.connect_us_east_1[0].instance_arn
+  knowledge_base_id    = var.dev_support_ai_knowledge_base_id
+  prompt_yaml_file     = abspath("${path.module}/${var.dev_support_ai_prompt_file}")
+  python_executable    = var.dev_support_ai_python_executable
+  tags                 = local.dev_ai_tags
+  tool_configurations  = module.support_agent_tools[0].tool_configurations
 
   depends_on = [
     module.connect_Integrations,
     aws_cloudformation_stack.dev_ai_domain,
-    aws_s3_bucket_public_access_block.dev_ai_template,
-    module.dev_ai_template_encryption
   ]
 }
 
 module "btsgsd_support_agent_tools_access" {
-  count  = local.deploy_connect ? 1 : 0
+  count  = local.dev_support_ai_enabled ? 1 : 0
   source = "../../v2v_modules/support_agent_tools_access"
 
   providers = {
@@ -356,6 +360,11 @@ module "btsgsd_support_agent_tools_access" {
 
   connect_instance_arn = data.aws_connect_instance.target[0].arn
   python_executable    = var.dev_ai_security_profile_python_executable
+  support_agent = {
+    agent_arn            = module.btsgsd_support_agent[0].agent_arn
+    agent_version_arn    = module.btsgsd_support_agent[0].agent_version_arn
+    connect_instance_arn = module.btsgsd_support_agent[0].deployment.ConnectInstanceArn
+  }
 }
 
 module "lambda_us_east_1" {
@@ -418,6 +427,8 @@ module "BTSGSD-V2V-US-SNOW" {
   }
 
   function_name         = "BTSGSD-V2V-US-SNOW"
+  connect_instance_arn  = local.connect_target_instance_arn
+  ai_agent_source_arn   = local.v2v_ai_agent_source_arn
   environment_variables = var.snow_lambda_environment_variables
   python_executable     = var.snow_lambda_python_executable
   reserved_concurrency  = var.snow_lambda_reserved_concurrency
@@ -587,6 +598,8 @@ module "BTSGSD-V2V-US-ServiceNow_Interaction" {
   }
 
   common_tags           = local.common_tags
+  connect_instance_arn  = local.connect_target_instance_arn
+  ai_agent_source_arn   = local.v2v_ai_agent_source_arn
   environment_variables = var.servicenow_interaction_environment_variables
   python_executable     = var.servicenow_interaction_python_executable
   reserved_concurrency  = var.servicenow_interaction_reserved_concurrency
@@ -691,14 +704,16 @@ module "lex_bot" {
     awscc = awscc.us_east_1
   }
 
-  bot_name       = "BTSGSD-V2V-US-IT-Support_Agent"
+  bot_name       = local.it_support_bot.name
   child_directed = true
   locale_ids     = ["en_US", "hi_IN", "pt_BR", "es_419"]
 
+  # The V2V assistant (whose SupportAgent the Main IB flow passes to this bot)
+  # and the V2V instance allowed to call the alias.
   it_support_configuration = {
-    assistant_arn        = "arn:aws:wisdom:us-east-1:518902362956:assistant/bc274e3f-380d-45e7-968f-2d19f92acd74"
-    connect_instance_arn = "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d"
-    alias_name           = "btsgsd-alias-dev-sso"
+    assistant_arn        = local.v2v_ai_assistant_arn
+    connect_instance_arn = local.connect_target_instance_arn
+    alias_name           = local.it_support_bot.alias_name
   }
 }
 
@@ -993,6 +1008,27 @@ module "lex_it_support_log_group" {
   log_group_name    = "/aws/lex/${local.name_prefix}-IT-Support_Agent"
   retention_in_days = 30
   log_group_class   = "STANDARD"
+}
+
+# CloudWatch alarms for the V2V resources and the SNS topic they notify, in
+# their own monitoring state. Replaces the console-built ALARM-*-dev alarms
+# (DEV-SSO resources); every watched resource is looked up by name.
+module "monitoring" {
+  count  = contains(local.enabled_module_set, "monitoring") ? 1 : 0
+  source = "../../v2v_modules/monitoring"
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  topic_name             = "${local.name_prefix}-alerts"
+  alert_email_addresses  = var.monitoring_alert_email_addresses
+  connect_instance_alias = var.connect_instance_alias
+  gateway_stack_name     = "${local.name_prefix}-AgentCore-DefaultGateway"
+  lambda_alarms          = var.monitoring_lambda_alarms
+  contact_flow_alarms    = var.monitoring_contact_flow_alarms
+  queue_alarms           = var.monitoring_queue_alarms
+  tags                   = merge(local.common_tags, var.monitoring_alarm_tags)
 }
 
 import {
@@ -1319,7 +1355,7 @@ module "connect_queue" {
 # Configuration consolidated from connect_target.tf
 # Resolve the existing POC instance rather than retaining a copied Dev UUID.
 data "aws_connect_instance" "target" {
-  count    = local.deploy_connect || local.deploy_connect_resources ? 1 : 0
+  count    = local.deploy_connect || local.deploy_connect_resources || local.v2v_ai_consumer_state ? 1 : 0
   provider = aws.us_east_1
 
   instance_alias = var.connect_instance_alias

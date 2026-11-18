@@ -1,0 +1,179 @@
+{
+  "toolName": "Escalate",
+  "toolType": "RETURN_TO_CONTROL",
+  "toolId": "Escalate",
+  "description": "Escalate to human agent when customer issue can not solve.",
+  "instruction": {
+    "instruction": "Call Escalate ONLY when the system prompt defines a transfer for the current outcome, in the same response as that outcome's spoken transfer line (LATAM Veeva/Medcom: no line, the flow plays it). Do not escalate for unclear answers, silence, a wrong UPI, unverified callers or a failed knowledge search; the system prompt defines those paths.",
+    "examples": []
+  },
+  "inputSchema": {
+    "additionalProperties": false,
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "string",
+        "description": "Factual reason for the branch actually reached, never placeholder text. Call in the same response as, and after, the branch-specific spoken transfer message, EXCEPT for the flow-owned HR, FieldForce, LATAM Veeva/Medcom, verified non-LATAM Veeva/Medcom live-agent (Intent Veeva - Live Agent / Medcom - Live Agent) and Step 7 technical-failure (Intent Unverified - Lookup Error) transfer announcements. On those routes, do not duplicate the flow announcement; include only the acknowledgment or unrelated-request decline expressly permitted by the prompt. LATAM Veeva/Medcom transfers accept verified and unverified/no-UPI callers alike; lack of verification alone must not block those transfers. A pending question blocks this tool unless an explicit exhaustion, cancellation, safety or authorized branch exception closes that question first. Actual active speech or partial transcripts always block terminal execution.",
+        "minLength": 8
+      },
+      "VerificationStatus": {
+        "type": "string",
+        "description": "Authenticated for trusted registered-phone match directly (no name challenge), or current UPI match plus first-name confirmation. Otherwise Unauthenticated. Never use outer MCP success as identity proof.",
+        "enum": [
+          "Authenticated",
+          "Unauthenticated"
+        ]
+      },
+      "CallSummary": {
+        "type": "string",
+        "description": "ONE factual sentence (about 25 words) composed fresh in this same turn - never tracked earlier in the call. Covers how identity was resolved (phone-matched / UPI-matched / unverified), the domain and sub-intent classified, key gating answers given, and self-service steps already attempted. Identical to the 'description' passed to the Interaction call immediately preceding this Escalate, where one was made. Only names systems the caller actually named. Never contains a password, PIN, one-time code, or the '|' character. On a caller-requested agent, note the stated purpose. For multiple intents, record only the caller-selected handled need and factually note remaining caller-stated needs when a defined transfer ends the call. Manager authorization-code wording is context only; never include or request the code. For UPI verification, state only that UPI plus first-name verification succeeded or failed, never expose the identifier. Guidance provided is not caller-confirmed resolution. Record exhausted questions accurately. Use only words and facts the caller actually said.",
+        "minLength": 20
+      },
+      "Email": {
+        "type": "string",
+        "description": "The caller's AbbVie email address from the flow phone lookup (CALL CONTEXT, when phone_lookup_status=Matched) or the current UserLookUp result. Send an empty string if the caller is unverified or no email was returned."
+      },
+      "Intent": {
+        "description": "Use exactly one allowed label for the branch actually reached. Out of Scope closure labels are Complete-only and cannot be escalated. Caller-request suffixes must use an allowed journey label, else plain 'Live Agent - Caller Request'. Veeva/Medcom: 'Veeva - LATAM Helpdesk' / 'Medcom - LATAM Helpdesk' when region is LATAM (with RoutingIntent Veeva/Medcom); 'Veeva - Live Agent' / 'Medcom - Live Agent' when region is blank or any other value and the caller is verified (no RoutingIntent). LATAM helpdesk labels apply to verified and unverified callers alike. For the exhausted post-Handoff TechSpot Teams-receipt question only, final clear No uses TechSpot -- Live Agent after the existing transfer line. Other TechSpot escalation branches retain their existing labels. TechSpot -- No Response is Complete-only. Verified non-LATAM Veeva/Medcom, including blank region, uses the matching Live Agent Intent without RoutingIntent and requires US queue routing in the flow. For the post-Handoff Teams-receipt question only, intelligible uncertainty such as I am not sure counts as No, not unclear. Within the existing combined initial-plus-two cap, retry before the final opportunity; at the final opportunity use Escalate with TechSpot -- Live Agent, omit RoutingIntent and retain existing Interaction prerequisites. Final silence, unintelligible audio or genuinely ambiguous meaning uses Complete with TechSpot -- No Response. For uncertainty, terminal reason and CallSummary record receipt not confirmed, not definite non-receipt or an explicit agent request. No extra retries or changes to other questions or journeys.",
+        "type": "string",
+        "enum": [
+          "Password Reset - Pre Hire",
+          "Password Reset - New Hire",
+          "Password Reset - Existing User",
+          "Password Reset - Manager Code",
+          "Password Reset - Vendor System",
+          "Password Reset - MFA/PingID",
+          "Password Reset - PingID Re-enable",
+          "Techspot - Device Health",
+          "Techspot - Applications",
+          "Techspot - ComplianceWire",
+          "Techspot - External Access",
+          "Techspot - Other IT",
+          "Techspot - VDI",
+          "Techspot - Network",
+          "Techspot - Teams Handoff",
+          "HR - Payroll",
+          "HR - Benefits",
+          "HR - Verification",
+          "HR - Lifecycle",
+          "HR - LMS/ComplianceWire",
+          "HR - Equipment Return",
+          "HR - Unverified",
+          "Live Agent - Identity Sync",
+          "Live Agent - Hardware",
+          "Live Agent - Mobility",
+          "Live Agent - Manufacturing",
+          "Live Agent - M&A",
+          "Field Force - Direct Routing",
+          "Other - Case Status",
+          "Other - Duplicate",
+          "Other - Catalogue Request",
+          "Record Conflict - Live Agent",
+          "Live Agent - Caller Request",
+          "Unverified - Manufacturing",
+          "Unverified - M&A",
+          "Unverified - Verification Failed",
+          "Unverified - Lookup Error",
+          "Live Agent - Caller Request - Password Reset - Pre Hire",
+          "Live Agent - Caller Request - Password Reset - New Hire",
+          "Live Agent - Caller Request - Password Reset - Existing User",
+          "Live Agent - Caller Request - Password Reset - Manager Code",
+          "Live Agent - Caller Request - Password Reset - Vendor System",
+          "Live Agent - Caller Request - Password Reset - MFA/PingID",
+          "Live Agent - Caller Request - Password Reset - PingID Re-enable",
+          "Live Agent - Caller Request - Techspot - Device Health",
+          "Live Agent - Caller Request - Techspot - Applications",
+          "Live Agent - Caller Request - Techspot - ComplianceWire",
+          "Live Agent - Caller Request - Techspot - External Access",
+          "Live Agent - Caller Request - Techspot - Other IT",
+          "Live Agent - Caller Request - Techspot - VDI",
+          "Live Agent - Caller Request - Techspot - Network",
+          "Live Agent - Caller Request - Techspot - Teams Handoff",
+          "Live Agent - Caller Request - HR - Payroll",
+          "Live Agent - Caller Request - HR - Benefits",
+          "Live Agent - Caller Request - HR - Verification",
+          "Live Agent - Caller Request - HR - Lifecycle",
+          "Live Agent - Caller Request - HR - LMS/ComplianceWire",
+          "Live Agent - Caller Request - HR - Equipment Return",
+          "Live Agent - Caller Request - HR - Unverified",
+          "Live Agent - Caller Request - Live Agent - Identity Sync",
+          "Live Agent - Caller Request - Live Agent - Hardware",
+          "Live Agent - Caller Request - Live Agent - Mobility",
+          "Live Agent - Caller Request - Field Force - Direct Routing",
+          "Live Agent - Caller Request - Other - Case Status",
+          "Live Agent - Caller Request - Other - Duplicate",
+          "Live Agent - Caller Request - Other - Catalogue Request",
+          "Live Agent - Caller Request - Record Conflict - Live Agent",
+          "Veeva - LATAM Helpdesk",
+          "Medcom - LATAM Helpdesk",
+          "Veeva - Live Agent",
+          "Medcom - Live Agent",
+          "Live Agent - Caller Request - Live Agent - Manufacturing",
+          "Live Agent - Caller Request - Live Agent - M&A",
+          "TechSpot -- Live Agent"
+        ],
+        "minLength": 3
+      },
+      "UserStatus": {
+        "type": "string",
+        "description": "Exact UserStatus from the flow phone lookup (CALL CONTEXT, when phone_lookup_status=Matched) or the current UserLookUp result, including blank/unrecognized value; never replace with branch label or infer from dates. Empty if unverified."
+      },
+      "VerifiedVia": {
+        "type": "string",
+        "description": "Phone only for a trusted registered ANI match; UPI only after the current UPI record matched and the required first-name confirmation passed; otherwise Unverified. A UPI record match alone is not full verification. Set UPI only after deterministic normalized first-name equality; clear spelling equivalent to the held first name is a match.",
+        "enum": [
+          "Phone",
+          "UPI",
+          "Unverified"
+        ]
+      },
+      "UPI": {
+        "type": "string",
+        "description": "The AbbVie UPI exactly as returned by the flow phone lookup (CALL CONTEXT, when phone_lookup_status=Matched) or the current UserLookUp result, on either the Phone or UPI-plus-name path. Empty only when unverified or no UPI was returned. Never collect UPI solely to create an Interaction."
+      },
+      "RoutingIntent": {
+        "type": "string",
+        "description": "FieldForce only on the Field Force handoff; HR only on the HR Helpdesk transfer (verified Active false/blank, or unverified HR transfer); Veeva/Medcom ONLY when the caller's need names Veeva/Medcom AND region is LATAM. For the HR routing outcome, Active=true uses the portal branch rather than HR helpdesk escalation; existing safety and question-exhaustion handling retain their own defined conditions and Intents. Omit on all other transfers. For Veeva/Medcom use trimmed, case-insensitive trusted call-context region only: LATAM permits the matching helpdesk route for verified and unverified/no-UPI callers; every other value including blank is non-LATAM. Require matching helpdesk Intent and RoutingIntent. Non-LATAM verified callers use matching live-agent Intent with RoutingIntent omitted; non-LATAM unverified callers use graceful callback close and verification-failed Complete. HR uses the current lookup Active value: verified true gives portal guidance, verified anything else gives HR helpdesk; unverified HR skips Active. These are routing-outcome rules, not overrides of existing safety/question-exhaustion closes. Do not change other journeys queue-selection rules.",
+        "enum": [
+          "FieldForce",
+          "HR",
+          "Veeva",
+          "Medcom"
+        ]
+      },
+      "LanguageDetected": {
+        "type": "string",
+        "description": "The current authorized response language as a BCP-47 locale code: start from the configured initial language and change only after an explicit caller request for a supported language. Do not infer a switch from accent, name, digits, foreign words or a full foreign-language sentence. Send one bare locale token without surrounding spaces or punctuation."
+      },
+      "UserId": {
+        "type": "string",
+        "description": "The caller's ServiceNow UserId (sys_user record identifier) from the flow phone lookup (CALL CONTEXT, when phone_lookup_status=Matched) or the current UserLookUp result. Send an empty string if the caller is unverified."
+      },
+      "ScreenPopURL": {
+        "type": "string",
+        "description": "Successful Interaction URL only when prerequisites met (verified caller, UPI held, ContactId present, Service Desk queue transfer); otherwise empty for HR/FieldForce/LATAM Veeva/Medcom helpdesk routes, unverified transfers, or skipped/failed Interaction. Never create Interaction for question exhaustion, except the explicitly authorized final clear-No TechSpot post-Handoff Teams-receipt outcome: follow its existing Interaction prerequisites before Escalate with Intent TechSpot -- Live Agent. This exception does not waive verification, UPI, ContactId or Service Desk queue-transfer prerequisites. Final silence/unclear receipt exhaustion uses Complete with Intent TechSpot -- No Response and never creates Interaction. All other question-exhaustion restrictions remain unchanged."
+      },
+      "CallerName": {
+        "type": "string",
+        "description": "The verified caller's full name (FirstName plus LastName from the flow phone lookup (CALL CONTEXT, when phone_lookup_status=Matched) or the current UserLookUp result), for the receiving agent's context only - never spoken to the caller. Send an empty string if the caller is unverified."
+      }
+    },
+    "required": [
+      "reason",
+      "VerificationStatus",
+      "CallSummary",
+      "Email",
+      "Intent",
+      "UserStatus",
+      "VerifiedVia",
+      "UPI",
+      "LanguageDetected",
+      "UserId",
+      "ScreenPopURL",
+      "CallerName"
+    ]
+  },
+  "userInteractionConfiguration": {
+    "isUserConfirmationRequired": false
+  }
+}

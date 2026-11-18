@@ -17,7 +17,9 @@ credentials.
 WebSocket protocol ([src/server.js](src/server.js)): the first frame is `{"type":"auth","token":"<access token>"}`,
 then `{"type":"start","service":"nova"|"transcribe",...}`, then binary frames (Nova Sonic event JSON, or PCM16
 audio). The proxy answers `{"type":"ready"}` once AWS has accepted the stream, relays the output, and ends
-with `{"type":"end"}` or `{"type":"error",...}`.
+with `{"type":"end"}` or `{"type":"error",...}`. A Nova start names the languages and mode,
+`"prompt":{"source":"en","target":"es","mode":"speech"|"typed"}`, and the proxy sets the system prompt from
+them (below).
 
 ## Security
 
@@ -27,14 +29,17 @@ with `{"type":"end"}` or `{"type":"error",...}`.
   header, never in a URL. The test sign-in's tokens are checked against the test password's key.
 - **Permissions.** The task role can call only `bedrock:InvokeModel` on the configured Nova Sonic model, plus
   Transcribe streaming, `translate:TranslateText` and `polly:SynthesizeSpeech` in the configured Region, and
-  read the `forceBackupTranslation` parameter and its secrets (the test sign-in password; with `bff` the
+  read the `forceBackupTranslation` and `promptVersions` parameters, the prompts (`kms:Decrypt` only through
+  Parameter Store and only for the prompts), and its secrets (the test sign-in password; with `bff` the
   session key and client secret). With voicemail playback: `s3:GetObject` on the recordings bucket's
   `.wav` files only, and `kms:Decrypt` only through S3 (for a bucket with its own KMS key).
 - **Voicemail.** The recording's name comes from the page, so only VMX3 names (`YYYY/MM/DD/<contact ID>.wav`)
   are read, and only from the one bucket. Any signed-in agent can play a voicemail whose name they have; every
   read is logged with the user and the name. Recordings are sent with `Cache-Control: no-store`.
 - **Input.** Only the Nova Sonic event types the web app sends are accepted, and the model ID comes from the
-  configuration, never from the client. WebSocket frames are capped at 256 KB and backup request bodies at
+  configuration, never from the client. So does the system prompt: the proxy replaces the text of the page's
+  SYSTEM content with the approved prompt, and rejects a session that has no SYSTEM content before its first
+  USER content, a second one, or content with any other role. WebSocket frames are capped at 256 KB and backup request bodies at
   16 KB. The WebSocket `Origin` must be the site's address.
 - **Limits** (per task). 12 connections per user and 2,000 per task; backup requests per user per minute
   (`FALLBACK_REQUESTS_PER_MINUTE`, 150 in the POC); authentication within 10 seconds; an unused socket closes
@@ -65,6 +70,8 @@ All set by the CDK stack (`cdk-stacks/lib/private-poc-stack.ts`); listed here fo
 | `CONTENT_SECURITY_POLICY`, `CSP_REPORT_ONLY` | no | no policy; report-only |
 | `TRANSCRIBE_REGION`, `TRANSLATE_REGION`, `POLLY_REGION` | no | `BEDROCK_REGION` |
 | `FORCE_BACKUP_PARAMETER` (Parameter Store name of the backup switch) | no | switch off |
+| `PROMPT_VERSIONS_PARAMETER` (the approved prompt versions), `PROMPT_PARAMETER_PREFIX` (the prompts' names without the language) | no, both or neither | built-in prompts |
+| `PROMPT_REFRESH_MS` | no | `30000` |
 | `TEST_SIGN_IN_SECRET_ID` (Secrets Manager secret: the test sign-in password, 12+ characters, or `off`) | no | no test sign-in |
 | `SECRETS_REGION` (Secrets Manager) | no | `AWS_REGION`, else `BEDROCK_REGION` |
 | `VOICEMAIL_BUCKET` (the VMX3 recordings bucket), `VOICEMAIL_REGION` | no | no voicemail playback; `AWS_REGION`, else `BEDROCK_REGION` |
@@ -78,6 +85,21 @@ The two switches (the backup parameter and the test sign-in secret) are read eve
 needs no deployment. With `forceBackupTranslation`
 = `true`, new calls start on Transcribe + Translate + Polly and calls in progress move to it within about a
 minute.
+
+**Interpreter prompts** (`src/services/promptStore.js`). The system prompts live in Parameter Store, outside
+the code: one SecureString per prompt language (`<prefix>en`, `es`, `fr`, `de`, `it`, `pt`; any other target
+language uses the English prompt). Every save makes a new version, which is not used until it is approved in
+`PROMPT_VERSIONS_PARAMETER`, a String such as `{"en":1,"es":3}`. The proxy reads it every 30 seconds and each
+newly approved version once, so an approval or a rollback reaches new calls within about 30 seconds with no
+deployment. A prompt is filled in per call: `{src}` and `{tgt}` (the language names, in the prompt's
+language), `{intro}` ("You hear English." or, for typed messages, "You read text typed in English.") and
+`{input}` ("what you hear" or "the text"). A version is used only if it contains `{tgt}` and `{intro}`
+(or `{src}`) and no other placeholder; single braces, as Parameter Store refuses a value with `{{`. A language left out, a version that cannot be read or fails that
+check, or Parameter Store being unreachable, keeps the prompt in use (at first the built-in one,
+`src/prompts/builtinPrompts.js`) and logs a warning. The `websocket closed` log line of every Nova session
+shows `promptLanguage`, `promptVersion` (a number, or `built-in`) and `promptMode`. To store the first
+versions, run `node scripts/export-prompts.js <SSM hierarchy>` (no npm install needed): it writes the
+built-in prompts to files and prints the AWS CLI commands.
 
 **Server-side sign-in** (`AUTH_MODE=bff`, `src/sessionAuth.js`), for an identity provider client that has a
 secret. The proxy is the OAuth client (the "backend for frontend" pattern of RFC 10017): `/auth/login` sends the

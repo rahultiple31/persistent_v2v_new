@@ -1,5 +1,6 @@
 // Copyright 2025 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
+import { PROMPT_MODES } from "./prompts/builtinPrompts.js";
 
 /** Nova Sonic input events the webapp sends. Anything else is rejected. */
 export const NOVA_INPUT_EVENTS = new Set([
@@ -31,7 +32,8 @@ function isPlainObject(value) {
 
 /**
  * Checks one Nova Sonic input frame: a JSON object of the form { event: { <allowed type>: {...} } }.
- * The original bytes are forwarded unchanged, so this only inspects the envelope.
+ * Returns the type, the event's body and the parsed frame. The original bytes are forwarded unchanged,
+ * except the system prompt's text (services/nova.js).
  */
 export function validateNovaInputEvent(bytes) {
   let parsed;
@@ -45,7 +47,21 @@ export function validateNovaInputEvent(bytes) {
   }
   const types = Object.keys(parsed.event);
   if (types.length !== 1 || !NOVA_INPUT_EVENTS.has(types[0])) return fail("eventNotAllowed");
-  return ok(types[0]);
+  return ok({ type: types[0], body: parsed.event[types[0]], frame: parsed });
+}
+
+/**
+ * Validates a { type: "start", service: "nova", prompt: { source, target, mode } } message. The proxy
+ * builds the system prompt from these (services/promptStore.js); the page does not send its text.
+ */
+export function validateNovaStart(message) {
+  const { prompt } = message;
+  if (!isPlainObject(prompt)) return fail("promptRequired");
+  const { source, target, mode } = prompt;
+  if (typeof source !== "string" || !TRANSLATE_LANGUAGE_CODE.test(source)) return fail("invalidPromptSource");
+  if (typeof target !== "string" || !TRANSLATE_LANGUAGE_CODE.test(target)) return fail("invalidPromptTarget");
+  if (!PROMPT_MODES.includes(mode)) return fail("invalidPromptMode");
+  return ok({ source, target, mode });
 }
 
 /** Validates the parameters of a { type: "start", service: "transcribe", ... } message. */

@@ -14,6 +14,19 @@ parameters:
       - v2v-dev
       - prod
 
+  # AWS tag used to scope resource collection to the selected environment.
+  # Default resolves automatically (v2v-dev → BTSGSD-V2V-US).
+  # Override here if your tagging convention differs.
+  - name: filterTagKey
+    displayName: Resource filter tag key
+    type: string
+    default: Application
+
+  - name: filterTagValue
+    displayName: Resource filter tag value
+    type: string
+    default: BTSGSD-V2V-US
+
   - name: deploymentPipelineDefinitionId
     displayName: V2V deployment pipeline definition ID
     type: number
@@ -74,8 +87,10 @@ steps:
         fi
 
         python documentation/generate_asbuilt.py \
-          --environment "${{ parameters.targetEnvironment }}" \
-          --region "us-east-1" \
+          --environment     "${{ parameters.targetEnvironment }}" \
+          --region          "us-east-1" \
+          --filter-tag-key  "${{ parameters.filterTagKey }}" \
+          --filter-tag-value "${{ parameters.filterTagValue }}" \
           --terraform-directory "environments/${{ parameters.targetEnvironment }}" \
           --output "$(Build.ArtifactStagingDirectory)/asbuilt" \
           "${terraform_arguments[@]}"
@@ -83,7 +98,7 @@ steps:
         ls -lh "$(Build.ArtifactStagingDirectory)/asbuilt"
 
   - task: PublishPipelineArtifact@1
-    displayName: Publish Word PDF and Markdown
+    displayName: Publish Word PDF and Markdown as pipeline artifact
     inputs:
       targetPath: '$(Build.ArtifactStagingDirectory)/asbuilt'
       artifact: 'BTSGSD-AsBuilt-Documents'

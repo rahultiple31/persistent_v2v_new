@@ -10,6 +10,40 @@ mock_provider "aws" {
   }
 }
 
+mock_provider "awscc" {
+  mock_resource "awscc_wisdom_assistant_association" {
+    defaults = {
+      assistant_association_id = "00000000-0000-0000-0000-0000000000aa"
+    }
+  }
+  mock_resource "awscc_wisdom_ai_prompt" {
+    defaults = {
+      ai_prompt_id          = "00000000-0000-0000-0000-0000000000b1"
+      modified_time_seconds = 1700000000
+    }
+  }
+  mock_resource "awscc_wisdom_ai_prompt_version" {
+    defaults = {
+      ai_prompt_version_id = "00000000-0000-0000-0000-0000000000b1:3"
+      version_number       = 3
+    }
+  }
+  mock_resource "awscc_wisdom_ai_agent" {
+    defaults = {
+      ai_agent_id           = "00000000-0000-0000-0000-0000000000c1"
+      ai_agent_arn          = "arn:aws:wisdom:us-east-1:123456789012:ai-agent/00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-0000000000c1"
+      assistant_arn         = "arn:aws:wisdom:us-east-1:123456789012:assistant/00000000-0000-0000-0000-000000000001"
+      modified_time_seconds = 1700000001
+    }
+  }
+  mock_resource "awscc_wisdom_ai_agent_version" {
+    defaults = {
+      ai_agent_version_id = "00000000-0000-0000-0000-0000000000c1:7"
+      version_number      = 7
+    }
+  }
+}
+
 mock_provider "external" {
   mock_data "external" {
     defaults = {
@@ -18,7 +52,6 @@ mock_provider "external" {
         configuration   = <<-JSON
           {
             "Locale": "en_US",
-            "OrchestrationAIGuardrailId": "00000000-0000-0000-0000-000000000003:1",
             "OrchestrationAIPromptId": "00000000-0000-0000-0000-000000000004:1",
             "ToolConfigurations": [{
               "ToolName": "Retrieve",
@@ -44,38 +77,214 @@ mock_provider "external" {
 variables {
   assistant_id         = "00000000-0000-0000-0000-000000000001"
   connect_instance_arn = "arn:aws:connect:us-east-1:123456789012:instance/00000000-0000-0000-0000-000000000005"
-  template_bucket_name = "test-ai-agent-template-bucket"
-  agent_name           = "BTSGSD-V2V-US-ai-survey-agent"
-  prompt_name          = "BTSGSD-V2V-US-ai-survey-prompt"
-  stack_name           = "BTSGSD-V2V-US-ai-survey-agent"
+  knowledge_base_id    = "4dbc482c-d939-440d-aca7-081921f95571"
+  agent_name           = "BTSGSD-V2V-US-SupportAgent"
+  prompt_name          = "BTSGSD-V2V-US-SupportAgent-prompt"
   prompt_yaml_file     = "tests/fixtures/complete_system.yaml"
+  tool_configurations = [
+    for name in [
+      "BTSGSD-V2V-US-nexthink-handoff___handoff",
+      "BTSGSD-V2V-US-snow-interaction___Interaction__Interaction",
+      "BTSGSD-V2V-US-snow-userlookup___UserLookUp___UserLookUp",
+      ] : {
+      ToolName = name
+      ToolType = "MODEL_CONTEXT_PROTOCOL"
+      ToolId   = "gateway_gateway-0123456789__${name}"
+    }
+  ]
 }
 
-run "voice_agent_template" {
+run "agent_and_prompt_are_awscc_resources_on_the_target_assistant" {
   command = plan
+
+  assert {
+    condition = (
+      awscc_wisdom_ai_agent.support.name == "BTSGSD-V2V-US-SupportAgent" &&
+      awscc_wisdom_ai_agent.support.type == "ORCHESTRATION" &&
+      awscc_wisdom_ai_agent.support.assistant_id == var.assistant_id &&
+      awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.connect_instance_arn == var.connect_instance_arn &&
+      awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.locale == "en_US" &&
+      awscc_wisdom_ai_prompt.support.name == "BTSGSD-V2V-US-SupportAgent-prompt" &&
+      awscc_wisdom_ai_prompt.support.type == "ORCHESTRATION" &&
+      awscc_wisdom_ai_prompt.support.api_format == "MESSAGES" &&
+      awscc_wisdom_ai_prompt.support.model_id == "global.anthropic.claude-sonnet-5"
+    )
+    error_message = "Deploy the orchestration agent and its global Sonnet 5 prompt through awscc on the target assistant and instance."
+  }
 
   assert {
     condition     = length(terraform_data.admin_mcp_access) == 0
     error_message = "Existing callers must not modify Admin MCP access unless explicitly enabled."
   }
+}
+
+run "knowledge_base_is_associated_with_the_target_assistant" {
+  command = plan
 
   assert {
     condition = (
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Name == "BTSGSD-V2V-US-ai-survey-agent" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Type == "ORCHESTRATION" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.Name == "BTSGSD-V2V-US-ai-survey-prompt" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.ModelId == "global.anthropic.claude-sonnet-5"
+      awscc_wisdom_assistant_association.knowledge_base.assistant_id == var.assistant_id &&
+      awscc_wisdom_assistant_association.knowledge_base.association_type == "KNOWLEDGE_BASE" &&
+      awscc_wisdom_assistant_association.knowledge_base.association.knowledge_base_id == "4dbc482c-d939-440d-aca7-081921f95571"
     )
-    error_message = "The template must deploy the requested orchestration agent and global Sonnet 5 prompt."
+    error_message = "The target assistant must be associated with the knowledge base the dev Retrieve tool searches."
+  }
+}
+
+run "tools_mirror_dev_in_order_with_the_gateway_tools_first" {
+  command = apply
+
+  assert {
+    condition = [
+      for tool in awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations : tool.tool_name
+      ] == [
+      "BTSGSD-V2V-US-nexthink-handoff___handoff",
+      "BTSGSD-V2V-US-snow-interaction___Interaction__Interaction",
+      "BTSGSD-V2V-US-snow-userlookup___UserLookUp___UserLookUp",
+      "Retrieve",
+      "Complete",
+      "Escalate",
+    ]
+    error_message = "Tools must be the gateway tools followed by Retrieve, Complete and Escalate, as on the dev agent."
+  }
+
+  assert {
+    condition = alltrue([
+      for index, name in ["Retrieve", "Complete", "Escalate"] :
+      jsondecode(awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[index + 3].input_schema) ==
+      jsondecode(file("${path.module}/assets/tools/${lower(name)}.json")).inputSchema
+    ])
+    error_message = "Each mirrored tool must carry the dev input schema unchanged."
   }
 
   assert {
     condition = (
-      local.source_configuration.ToolConfigurations[0].ToolId == "copied-tool" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.OrchestrationAIGuardrailId == "00000000-0000-0000-0000-000000000003:1"
+      awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[4].tool_id == "Complete" &&
+      awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[5].tool_id == "Escalate" &&
+      awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[3].tool_id == "aws_service__qconnect_Retrieve" &&
+      awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[3].tool_type == "MODEL_CONTEXT_PROTOCOL" &&
+      awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[4].tool_type == "RETURN_TO_CONTROL" &&
+      # Empty dev examples/annotations are omitted: the API drops them, and
+      # sending them leaves a permanent in-place diff on the agent.
+      # Checked on what the module sends; the mock fills omitted values on apply.
+      alltrue([for index in [3, 4, 5] : local.tool_configurations[index].instruction.examples == null]) &&
+      local.tool_configurations[3].annotations == null &&
+      awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[4].instruction.instruction == jsondecode(file("${path.module}/assets/tools/complete.json")).instruction.instruction &&
+      awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[5].user_interaction_configuration.is_user_confirmation_required == false
     )
-    error_message = "The custom agent must retain the source tools and guardrail."
+    error_message = "Tool IDs, types, instructions, examples and confirmation settings must match the dev tools."
   }
+}
+
+run "schemas_keep_numbers_and_booleans" {
+  command = apply
+
+  assert {
+    condition = (
+      jsondecode(awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[4].input_schema).additionalProperties == false &&
+      jsondecode(awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[4].input_schema).properties.reason.minLength == 8 &&
+      jsondecode(awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[5].input_schema).properties.CallSummary.minLength == 20 &&
+      !strcontains(awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[4].input_schema, "\"additionalProperties\":\"false\"")
+    )
+    error_message = "Schemas must keep JSON booleans and numbers; the CloudFormation deployment stored them as strings."
+  }
+}
+
+run "retrieve_searches_the_target_assistant_association" {
+  command = apply
+
+  assert {
+    condition = {
+      for override in awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[3].override_input_values :
+      override.json_path => override.value.constant
+      } == {
+      "$.assistantId" = {
+        type  = "STRING"
+        value = "00000000-0000-0000-0000-000000000001"
+      }
+      "$.retrievalConfiguration.knowledgeSource.assistantAssociationIds" = {
+        type  = "JSON_STRING"
+        value = "[\"00000000-0000-0000-0000-0000000000aa\"]"
+      }
+    }
+    error_message = "Retrieve must pin this assistant and its knowledge-base association, as the dev tool pins its own."
+  }
+
+  assert {
+    condition = (
+      length(awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.tool_configurations[3].override_input_values) == 2 &&
+      !strcontains(jsonencode(awscc_wisdom_ai_agent.support.configuration), "bc274e3f") &&
+      !strcontains(jsonencode(awscc_wisdom_ai_agent.support.configuration), "ede5afd1") &&
+      !strcontains(jsonencode(awscc_wisdom_ai_agent.support.configuration), "c227a737")
+    )
+    error_message = "No dev instance, assistant or association ID may remain in the agent configuration."
+  }
+}
+
+run "versions_are_published_and_exposed" {
+  command = apply
+
+  assert {
+    condition = (
+      awscc_wisdom_ai_agent.support.configuration.orchestration_ai_agent_configuration.orchestration_ai_prompt_id == "00000000-0000-0000-0000-0000000000b1:3" &&
+      awscc_wisdom_ai_agent_version.support.ai_agent_id == awscc_wisdom_ai_agent.support.ai_agent_id &&
+      awscc_wisdom_ai_agent_version.support.modified_time_seconds == awscc_wisdom_ai_agent.support.modified_time_seconds &&
+      awscc_wisdom_ai_prompt_version.support.modified_time_seconds == awscc_wisdom_ai_prompt.support.modified_time_seconds &&
+      output.agent_version_arn == "arn:aws:wisdom:us-east-1:123456789012:ai-agent/00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-0000000000c1:7" &&
+      output.deployment.AgentVersion == "7" &&
+      output.deployment.PromptVersion == "3" &&
+      output.deployment.KnowledgeBaseAssociationId == "00000000-0000-0000-0000-0000000000aa" &&
+      output.assistant_arn == "arn:aws:wisdom:us-east-1:123456789012:assistant/00000000-0000-0000-0000-000000000001"
+    )
+    error_message = "The agent must use the published prompt version and expose a version-qualified ARN for routing."
+  }
+}
+
+run "agent_arn_without_latest_qualifier" {
+  command = apply
+
+  override_resource {
+    target = awscc_wisdom_ai_agent.support
+    values = {
+      ai_agent_id           = "00000000-0000-0000-0000-0000000000c1"
+      ai_agent_arn          = "arn:aws:wisdom:us-east-1:123456789012:ai-agent/00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-0000000000c1:$LATEST"
+      assistant_arn         = "arn:aws:wisdom:us-east-1:123456789012:assistant/00000000-0000-0000-0000-000000000001"
+      modified_time_seconds = 1700000001
+    }
+  }
+
+  assert {
+    condition     = output.agent_version_arn == "arn:aws:wisdom:us-east-1:123456789012:ai-agent/00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-0000000000c1:7"
+    error_message = "A :$LATEST qualifier on the agent ARN must not leak into the version ARN."
+  }
+}
+
+run "reject_gateway_tool_named_like_a_mirrored_tool" {
+  command = plan
+
+  variables {
+    tool_configurations = [{
+      ToolName = "Retrieve"
+      ToolType = "MODEL_CONTEXT_PROTOCOL"
+      ToolId   = "gateway_x__Retrieve"
+    }]
+  }
+
+  expect_failures = [awscc_wisdom_ai_agent.support]
+}
+
+run "reject_invalid_knowledge_base_id" {
+  command = plan
+
+  variables {
+    knowledge_base_id = "btsgsd-knowledgebase"
+  }
+
+  expect_failures = [var.knowledge_base_id]
+}
+
+run "voice_prompt_uses_the_complete_custom_system" {
+  command = plan
 
   assert {
     condition = (
@@ -85,60 +294,19 @@ run "voice_agent_template" {
       length(yamldecode(local.prompt_text).system) <= 100000 &&
       length(yamldecode(local.prompt_text).messages) == 1 &&
       yamldecode(local.prompt_text).messages[0] == "{{$.conversationHistory}}" &&
-      !contains(keys(yamldecode(local.prompt_text)), "test_question")
+      !contains(keys(yamldecode(local.prompt_text)), "test_question") &&
+      awscc_wisdom_ai_prompt.support.template_configuration.text_full_ai_prompt_edit_template_configuration.text == local.prompt_text
     )
     error_message = "Use the complete custom system without duplicating the source, preserve runtime tools/messages, and stay within the system length limit."
   }
-
-  assert {
-    condition = (
-      aws_s3_object.template.server_side_encryption == "AES256" &&
-      jsondecode(aws_s3_object.template.content).Outputs.AgentVersionArn.Value["Fn::Sub"][0] == "$${AgentArn}:$${AgentVersion}" &&
-      jsondecode(aws_s3_object.template.content).Outputs.AgentVersionArn.Value["Fn::Sub"][1].AgentArn["Fn::GetAtt"] == ["SupportAgent", "AIAgentArn"] &&
-      jsondecode(aws_s3_object.template.content).Outputs.AgentVersionArn.Value["Fn::Sub"][1].AgentVersion["Fn::Select"] == [1, { "Fn::Split" = [":", { "Fn::GetAtt" = ["SupportAgentVersion", "AIAgentVersionId"] }] }]
-    )
-    error_message = "Encrypt the template and expose a version-qualified agent ARN for voice routing."
-  }
-
-  assert {
-    condition = (
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.OrchestrationAIPromptId["Fn::GetAtt"] == ["SupportPromptVersion", "AIPromptVersionId"] &&
-      jsondecode(aws_s3_object.template.content).Outputs.AgentVersionId.Value["Fn::GetAtt"] == ["SupportAgentVersion", "AIAgentVersionId"]
-    )
-    error_message = "Use the string-valued version IDs directly for the agent's prompt and the published agent version."
-  }
-
-  assert {
-    condition = (
-      jsondecode(aws_s3_object.template.content).Outputs.AgentVersion.Value["Fn::Select"] == [1, { "Fn::Split" = [":", { "Fn::GetAtt" = ["SupportAgentVersion", "AIAgentVersionId"] }] }] &&
-      jsondecode(aws_s3_object.template.content).Outputs.PromptVersion.Value["Fn::Select"] == [1, { "Fn::Split" = [":", { "Fn::GetAtt" = ["SupportPromptVersion", "AIPromptVersionId"] }] }]
-    )
-    error_message = "Version-number outputs must extract string suffixes instead of exposing numeric GetAtt attributes."
-  }
 }
 
-run "support_agent_template" {
+run "support_agent_prompt_file" {
   command = plan
 
   variables {
-    agent_name         = "BTSGSD-V2V-US-SupportAgent"
-    prompt_name        = "BTSGSD-V2V-US-SupportAgent-prompt"
-    stack_name         = "BTSGSD-V2V-US-SupportAgent"
     source_prompt_name = "SelfServiceOrchestrationVoice"
-    prompt_yaml_file   = "../../environments/v2v/metadata/prompts/btsgsd-SupportAgent-prompt.yaml"
-  }
-
-  assert {
-    condition = (
-      aws_cloudformation_stack.agent.name == "BTSGSD-V2V-US-SupportAgent" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Name == "BTSGSD-V2V-US-SupportAgent" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Type == "ORCHESTRATION" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.Name == "BTSGSD-V2V-US-SupportAgent-prompt" &&
-      jsondecode(aws_s3_object.template.content).Resources.SupportPrompt.Properties.Type == "ORCHESTRATION" &&
-      data.external.source.query.source_name == "SelfServiceOrchestratorVoice" &&
-      data.external.source.query.source_prompt_name == "SelfServiceOrchestrationVoice"
-    )
-    error_message = "Create the requested SupportAgent and prompt from the required system voice source."
+    prompt_yaml_file   = "../../environments/v2v-dev/metadata/prompts/btsgsd-SupportAgent-prompt.yaml"
   }
 
   assert {
@@ -149,186 +317,48 @@ run "support_agent_template" {
       length(yamldecode(local.prompt_text).system) <= 100000 &&
       yamldecode(local.prompt_text).messages == local.custom_prompt.messages &&
       !contains(keys(yamldecode(local.prompt_text)), "name") &&
-      !contains(keys(yamldecode(local.prompt_text)), "description")
+      !contains(keys(yamldecode(local.prompt_text)), "description") &&
+      data.external.source.query.source_name == "SelfServiceOrchestratorVoice" &&
+      data.external.source.query.source_prompt_name == "SelfServiceOrchestrationVoice"
     )
-    error_message = "Preserve the complete supplied instructions and conversation messages while keeping metadata outside the runtime prompt and respecting the length limit."
-  }
-}
-
-run "support_agent_publishes_tool_schemas" {
-  command = plan
-
-  variables {
-    include_complete_tool         = true
-    include_escalate_tool         = true
-    override_retrieve_instruction = true
-  }
-
-  assert {
-    condition = (
-      length(jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations) == 3 &&
-      one([
-        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
-        if tool.ToolName == "Complete"
-      ]).InputSchema == jsondecode(file("${path.module}/assets/complete-input-schema.json")) &&
-      one([
-        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
-        if tool.ToolName == "Escalate"
-      ]).InputSchema == jsondecode(file("${path.module}/assets/escalate-input-schema.json")) &&
-      one([
-        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
-        if tool.ToolName == "Retrieve"
-      ]).Instruction.Instruction == trimspace(local.retrieve_instruction)
-    )
-    error_message = "The generated SupportAgent template must include Retrieve, Complete and Escalate with both Return to Control input schemas."
-  }
-}
-
-run "inherited_complete_keeps_its_tool_id_and_receives_schema" {
-  command = plan
-
-  variables {
-    include_complete_tool = true
-  }
-
-  override_data {
-    target = data.external.source
-    values = {
-      result = {
-        source_agent_id = "00000000-0000-0000-0000-000000000002"
-        configuration   = <<-JSON
-          {
-            "Locale": "en_US",
-            "ToolConfigurations": [
-              {"ToolName": "Retrieve", "ToolType": "MODEL_CONTEXT_PROTOCOL", "ToolId": "copied-tool"},
-              {"ToolName": "Complete", "ToolType": "RETURN_TO_CONTROL", "ToolId": "inherited-complete", "InputSchema": {"type": "object", "properties": {}}}
-            ]
-          }
-        JSON
-        prompt_text = <<-YAML
-          system: |
-            Voice orchestration protocol.
-            {{$.toolConfigurationList}}
-          messages:
-            - '{{$.conversationHistory}}'
-        YAML
-      }
-    }
-  }
-
-  assert {
-    condition = (
-      length([
-        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
-        if tool.ToolName == "Complete"
-      ]) == 1 &&
-      one([
-        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
-        if tool.ToolName == "Complete"
-      ]).ToolId == "inherited-complete" &&
-      one([
-        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
-        if tool.ToolName == "Complete"
-      ]).InputSchema == jsondecode(file("${path.module}/assets/complete-input-schema.json"))
-    )
-    error_message = "The inherited Complete tool must retain its ToolId and receive the requested input schema exactly once."
-  }
-}
-
-run "inherited_escalate_keeps_its_tool_id_and_receives_schema" {
-  command = plan
-
-  variables {
-    include_escalate_tool = true
-  }
-
-  override_data {
-    target = data.external.source
-    values = {
-      result = {
-        source_agent_id = "00000000-0000-0000-0000-000000000002"
-        configuration   = <<-JSON
-          {
-            "Locale": "en_US",
-            "ToolConfigurations": [
-              {"ToolName": "Retrieve", "ToolType": "MODEL_CONTEXT_PROTOCOL", "ToolId": "copied-tool"},
-              {"ToolName": "Escalate", "ToolType": "RETURN_TO_CONTROL", "ToolId": "inherited-escalate", "InputSchema": {"type": "object", "properties": {}}}
-            ]
-          }
-        JSON
-        prompt_text = <<-YAML
-          system: |
-            Voice orchestration protocol.
-            {{$.toolConfigurationList}}
-          messages:
-            - '{{$.conversationHistory}}'
-        YAML
-      }
-    }
-  }
-
-  assert {
-    condition = (
-      length([
-        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
-        if tool.ToolName == "Escalate"
-      ]) == 1 &&
-      one([
-        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
-        if tool.ToolName == "Escalate"
-      ]).ToolId == "inherited-escalate" &&
-      one([
-        for tool in jsondecode(aws_s3_object.template.content).Resources.SupportAgent.Properties.Configuration.OrchestrationAIAgentConfiguration.ToolConfigurations : tool
-        if tool.ToolName == "Escalate"
-      ]).InputSchema == jsondecode(file("${path.module}/assets/escalate-input-schema.json"))
-    )
-    error_message = "The inherited Escalate tool must retain its ToolId and receive the requested input schema exactly once."
+    error_message = "Preserve the complete supplied instructions and conversation messages while keeping metadata outside the runtime prompt."
   }
 }
 
 run "missing_prompt_file" {
   command = plan
-
   variables {
     prompt_yaml_file = "tests/fixtures/missing.yaml"
   }
-
   expect_failures = [var.prompt_yaml_file]
 }
 
 run "blank_prompt" {
   command = plan
-
   variables {
     prompt_yaml_file = "tests/fixtures/blank_prompt.yaml"
   }
-
   expect_failures = [var.prompt_yaml_file]
 }
 
 run "blank_system" {
   command = plan
-
   variables {
     prompt_yaml_file = "tests/fixtures/blank_system.yaml"
   }
-
   expect_failures = [var.prompt_yaml_file]
 }
 
 run "missing_instruction_key" {
   command = plan
-
   variables {
     prompt_yaml_file = "tests/fixtures/missing_instruction_key.yaml"
   }
-
   expect_failures = [var.prompt_yaml_file]
 }
 
 run "complete_system_replaces_source" {
   command = plan
-
   override_data {
     target = data.external.source
     values = {
@@ -336,57 +366,42 @@ run "complete_system_replaces_source" {
         source_agent_id = "00000000-0000-0000-0000-000000000002"
         configuration   = "{}"
         prompt_text     = <<-YAML
-          system: Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol.
+          system: Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol. Source protocol.
           messages:
             - 'Source message should be replaced.'
         YAML
       }
     }
   }
-
   assert {
     condition = (
       length(local.source_prompt.system) > length(local.custom_instructions) &&
       !strcontains(yamldecode(local.prompt_text).system, "Source protocol.") &&
-      length(yamldecode(local.prompt_text).system) <= 100000 &&
       strcontains(yamldecode(local.prompt_text).system, trimspace(local.custom_prompt.system)) &&
       yamldecode(local.prompt_text).messages[0] == "{{$.conversationHistory}}"
     )
-    error_message = "A complete system prompt must replace the source system and messages while staying within the length limit."
+    error_message = "A complete system prompt must replace the source system and messages."
   }
 }
 
 run "oversized_system" {
   command = plan
-
   variables {
     prompt_yaml_file = "tests/fixtures/oversized_system.yaml"
   }
-
-  expect_failures = [aws_s3_object.template]
+  expect_failures = [awscc_wisdom_ai_prompt.support]
 }
 
 run "support_agent_admin_mcp_tools" {
   command = plan
-
   variables {
-    agent_name = "BTSGSD-V2V-US-SupportAgent"
     admin_mcp_access = {
       namespace = "gateway-0123456789"
     }
-    tool_configurations = [
-      for name in [
-        "BTSGSD-V2V-US-nexthink-handoff___handoff",
-        "BTSGSD-V2V-US-snow-interaction___Interaction__Interaction",
-        "BTSGSD-V2V-US-snow-userlookup___UserLookUp___UserLookUp",
-        ] : {
-        ToolName = name
-        ToolType = "MODEL_CONTEXT_PROTOCOL"
-        ToolId   = "gateway_gateway-0123456789__${name}"
-      }
-    ]
   }
 
+  # Plan only: the grant runs a local script. The awscc agent ARNs are known
+  # after apply, so check their count here (Terraform 1.10 has no override_during).
   assert {
     condition = (
       length(terraform_data.admin_mcp_access) == 1 &&
@@ -396,9 +411,10 @@ run "support_agent_admin_mcp_tools" {
         "BTSGSD-V2V-US-nexthink-handoff___handoff",
         "BTSGSD-V2V-US-snow-interaction___Interaction__Interaction",
         "BTSGSD-V2V-US-snow-userlookup___UserLookUp___UserLookUp",
-      ])
+      ]) &&
+      length(terraform_data.admin_mcp_access[0].input.agent_arns) == 2
     )
-    error_message = "The grant must use the registered gateway namespace and preserve exact tool names and case."
+    error_message = "The grant must use the gateway namespace, exact tool names, and the agent and version ARNs."
   }
 }
 
