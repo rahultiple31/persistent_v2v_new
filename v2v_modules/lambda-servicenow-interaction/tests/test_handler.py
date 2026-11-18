@@ -13,7 +13,11 @@ from zipfile import ZipFile
 SOURCE = Path(__file__).parents[1] / "src" / "lambda_function.py"
 spec = importlib.util.spec_from_file_location("interaction_handler", SOURCE)
 handler = importlib.util.module_from_spec(spec)
-with patch.dict(os.environ, {"SN_INSTANCE": "abbvienowdev", "SN_CTI_RULE": "cti_gsd"}):
+with patch.dict(os.environ, {
+    "SN_INSTANCE": "abbvienowdev", "SN_CTI_RULE": "cti_gsd",
+    "SN_ENRICH_CALLER": "true", "SN_PHONE_SYS_ID_ATTRS": "",
+    "SN_UPI_SYS_ID_ATTRS": "", "SN_USER_ID_ATTRS": "", "SN_PHONE_ATTRS": "",
+}):
     spec.loader.exec_module(handler)
 
 CONTACT_ID = "11111111-2222-3333-4444-555555555555"
@@ -140,6 +144,105 @@ class HandlerTests(unittest.TestCase):
         url = handler.build_screen_pop_url("TEST-123", CONTACT_ID, "")
         self.assertNotIn("sysparm_u_description", parse_qs(urlsplit(url).query))
 
+    def test_phone_lookup_has_priority_over_upi_lookup(self):
+        response = handler.lambda_handler({
+            "UPI": "TEST-123", "ContactId": CONTACT_ID,
+            "CallerSysId": "A" * 32, "UPISysId": "b" * 32,
+            "UserId": "TIPLERX", "CallerPhone": "+1 (555) 123-4567",
+        }, None)
+        query = parse_qs(urlsplit(response["ScreenPopURL"]).query)
+        self.assertEqual(query["sysparm_caller_sys_id"], ["a" * 32])
+        self.assertEqual(query["sysparm_caller_user_id"], ["TIPLERX"])
+        self.assertEqual(query["sysparm_caller_phone"], ["+15551234567"])
+
+    def test_invalid_phone_lookup_falls_back_to_upi_lookup(self):
+        with self.assertLogs(level="WARNING"):
+            response = handler.lambda_handler({
+                "parameters": {
+                    "UPI": "TEST-123", "ContactId": CONTACT_ID,
+                    "CallerSysId": "invalid", "UPISysId": "B" * 32,
+                    "UserId": "bad&value", "CallerPhone": "not a number",
+                },
+            }, None)
+        query = parse_qs(urlsplit(response["ScreenPopURL"]).query)
+        self.assertEqual(query["sysparm_caller_sys_id"], ["b" * 32])
+        self.assertNotIn("sysparm_caller_user_id", query)
+        self.assertNotIn("sysparm_caller_phone", query)
+
+    def test_flow_identity_parameters_override_attributes_and_use_ani(self):
+        response = handler.lambda_handler({"Details": {
+            "Parameters": {"CallerSysId": "A" * 32, "UserId": "EXPLICIT"},
+            "ContactData": {
+                "ContactId": CONTACT_ID,
+                "Attributes": {
+                    "UPI": "TEST-123", "CallerSysId": "b" * 32,
+                    "UserId": "ATTRIBUTE",
+                },
+                "CustomerEndpoint": {"Address": "+15551234567"},
+            },
+        }}, None)
+        query = parse_qs(urlsplit(response["ScreenPopURL"]).query)
+        self.assertEqual(query["sysparm_caller_sys_id"], ["a" * 32])
+        self.assertEqual(query["sysparm_caller_user_id"], ["EXPLICIT"])
+        self.assertEqual(query["sysparm_caller_phone"], ["+15551234567"])
+
+    def test_flow_identity_falls_back_to_attributes(self):
+        response = handler.lambda_handler({"Details": {
+            "Parameters": {},
+            "ContactData": {
+                "ContactId": CONTACT_ID,
+                "Attributes": {
+                    "UPI": "TEST-123", "UPISysId": "B" * 32,
+                    "UserId": "ATTRIBUTE", "CallerPhone": "555-1234",
+                },
+                "CustomerEndpoint": {"Address": "+15551234567"},
+            },
+        }}, None)
+        query = parse_qs(urlsplit(response["ScreenPopURL"]).query)
+        self.assertEqual(query["sysparm_caller_sys_id"], ["b" * 32])
+        self.assertEqual(query["sysparm_caller_user_id"], ["ATTRIBUTE"])
+        self.assertEqual(query["sysparm_caller_phone"], ["5551234"])
+
+    def test_disabled_enrichment_preserves_legacy_url(self):
+        with patch.object(handler, "SN_ENRICH_CALLER", False):
+            response = handler.lambda_handler({
+                "UPI": "TEST-123", "ContactId": CONTACT_ID,
+                "CallerSysId": "a" * 32, "UserId": "TIPLERX",
+                "CallerPhone": "+15551234567",
+            }, None)
+        self.assertEqual(
+            response["ScreenPopURL"],
+            handler.compose_url("TEST-123", CONTACT_ID),
+        )
+
+    def test_truncated_summary_retains_identity(self):
+        with self.assertLogs(level="WARNING"):
+            response = handler.lambda_handler({
+                "UPI": "TEST-123", "ContactId": CONTACT_ID,
+                "CallerSysId": "a" * 32, "UserId": "TIPLERX",
+                "CallerPhone": "+15551234567", "CallSummary": "\U0001f600" * 3000,
+            }, None)
+        url = response["ScreenPopURL"]
+        self.assertTrue(handler.url_within_limits(url))
+        query = parse_qs(urlsplit(url).query, errors="strict")
+        self.assertEqual(query["sysparm_caller_sys_id"], ["a" * 32])
+        self.assertEqual(query["sysparm_caller_user_id"], ["TIPLERX"])
+        self.assertEqual(query["sysparm_caller_phone"], ["+15551234567"])
+        summary = query["sysparm_u_description"][0]
+        self.assertEqual(summary, "\U0001f600" * len(summary))
+
+    def test_attribute_key_environment_override(self):
+        with patch.dict(os.environ, {"SN_UPI_SYS_ID_ATTRS": " CustomSysId, OtherSysId "}):
+            keys = handler.keys_from_env("SN_UPI_SYS_ID_ATTRS", ())
+        self.assertEqual(keys, ("CustomSysId", "OtherSysId"))
+        with patch.object(handler, "UPI_SYS_ID_KEYS", keys):
+            response = handler.lambda_handler({
+                "UPI": "TEST-123", "ContactId": CONTACT_ID,
+                "customsysid": "B" * 32,
+            }, None)
+        query = parse_qs(urlsplit(response["ScreenPopURL"]).query)
+        self.assertEqual(query["sysparm_caller_sys_id"], ["b" * 32])
+
 
 class WarmupWrapperTests(unittest.TestCase):
     def setUp(self):
@@ -201,10 +304,12 @@ class WarmupWrapperTests(unittest.TestCase):
             "sysparm_u_description": ["Caller needs IT & account assistance."],
         })
 
-    def test_original_handler_errors_propagate(self):
+    def test_url_errors_return_structured_failure(self):
         with patch.object(self.business, "build_screen_pop_url", side_effect=ValueError("test URL failure")):
-            with self.assertRaisesRegex(ValueError, "test URL failure"):
-                self.wrapper.handler({"UPI": "TEST-123", "ContactId": CONTACT_ID}, None)
+            response = self.wrapper.handler({"UPI": "TEST-123", "ContactId": CONTACT_ID}, None)
+        self.assertEqual(response["Status"], "Failure")
+        self.assertEqual(response["Error"], "UrlTooLong")
+        self.assertNotIn("ScreenPopURL", response)
 
 
 if __name__ == "__main__":
