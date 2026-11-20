@@ -1,6 +1,4 @@
-# US agent routing profile. Managed with awscc because hashicorp/aws has no
-# support for manual-assignment queues. Matches source BTSGSD-DEV-SSO-US-AGENT-RP:
-# no standard queues, US-MAIN as a VOICE manual-assignment queue.
+# The US agent routing profile uses awscc to manage its manual-assignment queue.
 resource "awscc_connect_routing_profile" "us_agent" {
   instance_arn               = local.instance_arn
   name                       = local.agent_routing_profile_name
@@ -18,6 +16,25 @@ resource "awscc_connect_routing_profile" "us_agent" {
       channel                = "VOICE"
       concurrency            = 1
       cross_channel_behavior = { behavior_type = "ROUTE_CURRENT_CHANNEL_ONLY" }
+    },
+  ]
+
+  queue_configs = [
+    {
+      delay    = 0
+      priority = 1
+      queue_reference = {
+        channel   = "TASK"
+        queue_arn = aws_connect_queue.us_vm.arn
+      }
+    },
+    {
+      delay    = 0
+      priority = 1
+      queue_reference = {
+        channel   = "VOICE"
+        queue_arn = aws_connect_queue.us_main.arn
+      }
     },
   ]
 
