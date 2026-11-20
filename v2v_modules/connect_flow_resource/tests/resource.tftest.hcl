@@ -80,3 +80,40 @@ run "reject_other_connect_instance" {
   }
   expect_failures = [aws_connect_contact_flow.this]
 }
+
+# forbidden_references are checked on the content Terraform deploys (after the
+# resolver), not on the exported source.
+run "source_references_removed_by_the_resolver_pass" {
+  command = plan
+  variables {
+    flow = {
+      name                 = "BTSGSD-V2V-US-test-flow"
+      type                 = "CUSTOMER_QUEUE"
+      description          = "Imported flow"
+      instance_arn         = "arn:aws:connect:us-east-1:518902362956:instance/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      resolve_dependencies = true
+      forbidden_references = ["source-instance-id", "SOURCEBOT1"]
+      content              = "{\"StartAction\":\"source-instance-id SOURCEBOT1\",\"Actions\":[{\"Type\":\"DisconnectParticipant\"}]}"
+    }
+  }
+  assert {
+    condition     = length(local.remaining_references) == 0
+    error_message = "References present only in the source export must not block the plan."
+  }
+}
+
+run "source_reference_left_after_resolution_fails" {
+  command = plan
+  variables {
+    flow = {
+      name                 = "BTSGSD-V2V-US-test-flow"
+      type                 = "CUSTOMER_QUEUE"
+      description          = "Imported flow"
+      instance_arn         = "arn:aws:connect:us-east-1:518902362956:instance/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      resolve_dependencies = true
+      forbidden_references = ["resolved"]
+      content              = "{\"StartAction\":\"original\",\"Actions\":[{\"Type\":\"DisconnectParticipant\"}]}"
+    }
+  }
+  expect_failures = [aws_connect_contact_flow.this]
+}

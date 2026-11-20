@@ -18,6 +18,10 @@ SPEC.loader.exec_module(resolver)
 INSTANCE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 INSTANCE_ARN = f"arn:aws:connect:us-east-1:518902362956:instance/{INSTANCE}"
 MODULE_NAME = "BTSGSD-V2V-US-VMX3_Main_VM_Module"
+QUEUE_BOT = ("BTSGSD-V2V-US-customerQueueFlowBot", "CQBOT00001", "CQALIAS001")
+YESNO_BOT = ("BTSGSD-V2V-US-yesNo", "YNBOT00001", "YNALIAS001")
+def alias_arn(bot):
+    return f"arn:aws:lex:us-east-1:518902362956:bot-alias/{bot[1]}/{bot[2]}"
 
 
 class DependencyResolutionTests(unittest.TestCase):
@@ -58,6 +62,23 @@ class DependencyResolutionTests(unittest.TestCase):
                 {"Name": "BTSGSD-V2V-US-OUT-QUEUE", "Id": "us-out",
                  "Arn": INSTANCE_ARN + "/queue/us-out"},
             ],
+            # Same names in the source account must not be picked up.
+            "lexv2-models list-bots": [
+                {"botName": QUEUE_BOT[0], "botId": QUEUE_BOT[1]},
+                {"botName": YESNO_BOT[0], "botId": YESNO_BOT[1]},
+                {"botName": "BTSGSD-SSO-US-yesNo", "botId": "QT2GQYM5TT"},
+            ],
+            f"lexv2-models list-bot-aliases:{QUEUE_BOT[1]}": [
+                {"botAliasName": "TestBotAlias", "botAliasId": "TSTALIASID"},
+                {"botAliasName": "BTSGSD-V2V-US-DEV", "botAliasId": QUEUE_BOT[2]},
+            ],
+            f"lexv2-models list-bot-aliases:{YESNO_BOT[1]}": [
+                {"botAliasName": "BTSGSD-V2V-US-DEV", "botAliasId": YESNO_BOT[2]},
+            ],
+            "list-bots": [
+                {"LexV2Bot": {"AliasArn": alias_arn(QUEUE_BOT)}},
+                {"LexV2Bot": {"AliasArn": alias_arn(YESNO_BOT)}},
+            ],
         }
 
     def load(self, operation, result_key, query):
@@ -73,8 +94,13 @@ class DependencyResolutionTests(unittest.TestCase):
             self.assertEqual(before["Identifier"], after["Identifier"])
             self.assertEqual(before["Type"], after["Type"])
             self.assertEqual(before["Transitions"], after["Transitions"])
-            if before["Type"] in ("ConnectParticipantWithLexBot", "InvokeLambdaFunction"):
+            if before["Type"] == "InvokeLambdaFunction":
                 self.assertEqual(before, after)
+            if before["Type"] == "ConnectParticipantWithLexBot":
+                self.assertEqual(
+                    {k: v for k, v in before["Parameters"].items() if k != "LexV2Bot"},
+                    {k: v for k, v in after["Parameters"].items() if k != "LexV2Bot"},
+                )
         params = [action["Parameters"] for action in output["Actions"]]
         self.assertEqual(next(p["PromptId"] for p in params if "PromptId" in p),
                          INSTANCE_ARN + "/prompt/dev-prompt")
@@ -83,6 +109,86 @@ class DependencyResolutionTests(unittest.TestCase):
         self.assertEqual(next(p["FlowModuleId"] for p in params if "FlowModuleId" in p),
                          "dev-module:$LATEST")
         self.assertEqual(self.query["content"], self.source)
+
+    def test_lex_blocks_use_the_target_bots_and_labels(self):
+        output = json.loads(resolver.resolve(self.query, self.load)["content"])
+        actions = {action["Identifier"]: action for action in output["Actions"]}
+        metadata = output["Metadata"]["ActionMetadata"]
+        for identifier, bot in (
+            ("Virtual  Queue or  Voicemail", QUEUE_BOT),
+            ("54b3000f-eba8-43ea-a040-c815c87a877d", YESNO_BOT),
+            ("e853af02-ee8d-40e8-8855-9d5f7b5b4909", YESNO_BOT),
+        ):
+            with self.subTest(block=identifier):
+                self.assertEqual(actions[identifier]["Parameters"]["LexV2Bot"]["AliasArn"], alias_arn(bot))
+                shown = metadata[identifier]["parameters"]["LexV2Bot"]["AliasArn"]
+                self.assertEqual((shown["lexV2BotName"], shown["displayName"]), (bot[0], "BTSGSD-V2V-US-DEV"))
+                self.assertEqual(metadata[identifier]["lexV2BotName"], bot[0])
+                self.assertEqual(metadata[identifier]["lexV2BotAliasName"], "BTSGSD-V2V-US-DEV")
+        text = json.dumps(output)
+        for source in ("RD35A35EAU", "QT2GQYM5TT", "BTSGSD-SSO-US-", "c227a737-3e4f-4c64-8397-2d37e318801d"):
+            self.assertNotIn(source, text)
+
+    def test_lambda_label_names_the_invoked_function(self):
+        target = "arn:aws:lambda:us-east-1:518902362956:function:BTSGSD-V2V-US-conversionOfQueueMetrics"
+        self.query["content"] = self.source.replace(
+            "arn:aws:lambda:us-east-1:518902362956:function:conversionOfQueueMetrics-dev", target
+        )
+        output = json.loads(resolver.resolve(self.query, self.load)["content"])
+        action = next(a for a in output["Actions"] if a["Type"] == "InvokeLambdaFunction")
+        shown = output["Metadata"]["ActionMetadata"][action["Identifier"]]["parameters"]["LambdaFunctionARN"]
+        self.assertEqual(shown["displayName"], "BTSGSD-V2V-US-conversionOfQueueMetrics")
+
+    def test_lex_alias_must_be_associated_with_the_target_instance(self):
+        self.inventory["list-bots"] = [{"LexV2Bot": {"AliasArn": alias_arn(QUEUE_BOT)}}]
+        with self.assertRaisesRegex(ValueError, "'BTSGSD-V2V-US-yesNo' alias 'BTSGSD-V2V-US-DEV' is not associated"):
+            resolver.resolve(self.query, self.load)
+
+    def test_missing_or_duplicate_lex_bots_and_aliases_are_rejected(self):
+        for problem in ("no-bot", "two-bots", "no-alias"):
+            with self.subTest(problem=problem):
+                self.setUp()
+                if problem == "no-bot":
+                    self.inventory["lexv2-models list-bots"].pop(0)
+                    expected = "one Lex bot named 'BTSGSD-V2V-US-customerQueueFlowBot', found 0"
+                elif problem == "two-bots":
+                    self.inventory["lexv2-models list-bots"].append({"botName": YESNO_BOT[0], "botId": "OTHER00001"})
+                    expected = "one Lex bot named 'BTSGSD-V2V-US-yesNo', found 2"
+                else:
+                    self.inventory[f"lexv2-models list-bot-aliases:{YESNO_BOT[1]}"] = []
+                    expected = "one alias named 'BTSGSD-V2V-US-DEV' on 'BTSGSD-V2V-US-yesNo', found 0"
+                with self.assertRaisesRegex(ValueError, expected):
+                    resolver.resolve(self.query, self.load)
+
+    def test_lex_lookups_are_made_once(self):
+        with patch.object(self, "load", wraps=self.load) as loader:
+            resolver.resolve(self.query, loader)
+        operations = [call.args[0] for call in loader.call_args_list]
+        for operation in ("lexv2-models list-bots", "list-bots", f"lexv2-models list-bot-aliases:{YESNO_BOT[1]}"):
+            self.assertEqual(operations.count(operation), 1, operation)
+
+    def test_dynamic_lex_alias_is_left_unchanged(self):
+        flow = json.loads(self.source)
+        for action in flow["Actions"]:
+            if "LexV2Bot" in action.get("Parameters", {}):
+                action["Parameters"]["LexV2Bot"]["AliasArn"] = "$.Attributes.botAlias"
+        self.query["content"] = json.dumps(flow)
+        self.inventory["list-bots"] = []
+        output = json.loads(resolver.resolve(self.query, self.load)["content"])
+        for action in output["Actions"]:
+            if "LexV2Bot" in action.get("Parameters", {}):
+                self.assertEqual(action["Parameters"]["LexV2Bot"]["AliasArn"], "$.Attributes.botAlias")
+
+    def test_lex_cli_commands(self):
+        with patch.object(resolver.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            run.return_value.stdout = json.dumps({"botAliasSummaries": [], "LexBots": []})
+            resolver.list_resources(f"lexv2-models list-bot-aliases:{YESNO_BOT[1]}", "botAliasSummaries", self.query)
+            self.assertEqual(run.call_args.args[0][:5], ["aws", "lexv2-models", "list-bot-aliases", "--bot-id", YESNO_BOT[1]])
+            resolver.list_resources("list-bots", "LexBots", self.query)
+            command = run.call_args.args[0]
+            self.assertEqual(command[:5], ["aws", "connect", "list-bots", "--instance-id", INSTANCE])
+            self.assertEqual(command[5:7], ["--lex-version", "V2"])
 
     def test_missing_dependencies_are_reported_together(self):
         self.inventory = {key: [] for key in self.inventory}

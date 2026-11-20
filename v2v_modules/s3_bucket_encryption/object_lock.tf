@@ -12,3 +12,4 @@ resource "aws_s3_bucket_object_lock_configuration" "this" {
   bucket              = aws_s3_bucket_versioning.this.bucket
   object_lock_enabled = "Enabled"
 }
+

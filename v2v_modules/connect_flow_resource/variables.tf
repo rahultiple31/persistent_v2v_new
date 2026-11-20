@@ -11,5 +11,8 @@ variable "flow" {
     resolve_dependencies  = optional(bool, false)
     dependency_names      = optional(map(string), {})
     python_executable     = optional(string, "python3")
+    # IDs that must not survive into the deployed content (for example the
+    # source instance and Lex bots of an exported flow).
+    forbidden_references = optional(list(string), [])
   })
 }

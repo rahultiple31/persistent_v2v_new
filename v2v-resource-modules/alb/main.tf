@@ -25,6 +25,14 @@ resource "aws_s3_bucket" "alb_logs" {
   }
 }
 
+resource "aws_s3_bucket_versioning" "alb_logs" {
+  bucket = lower("${var.stack_name}-alb-logs-${var.account_id}")
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "alb_logs" {
   bucket                  = aws_s3_bucket.alb_logs.id
   block_public_acls       = true

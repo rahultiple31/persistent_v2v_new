@@ -49,19 +49,22 @@ connect_resources_dependencies = {
 # state. Keep other Connect resources in their owning state; do not copy the
 # complete Connect state into the connect-resources state.
 
-# Upload the converted WAV manually in Connect: Routing > Prompts > Add prompt.
-# Prompt name: MOH_30SEC
-# Local file: environments/v2v-dev/metadata/prompts/audio/MOH_30SEC.wav
-# No S3 bucket is required for this manual upload.
-moh_30sec_prompt_s3_uri = null
+# MOH_30SEC prompt (connect-resources state), created from this file. Upload it
+# once by hand (8 kHz mono u-law WAV, the dev MOH_30SEC audio); Connect copies
+# it when the prompt is created, so later edits to the object need a new key.
+# The bucket is the connect state's artifact bucket (dev_ai_template_bucket).
+moh_30sec_prompt_s3_uri = "s3://btsgsd-v2v-us-atsgsd-dev-us-east-1-ai-agent/connect-prompts/MOH_30SEC.wav"
 
 # Resolve exported customer-queue dependencies to their existing Dev names.
 connect_customer_queue_dependency_names = {
   "VMX3_Main_VM_Module_abbvie-sd-contactcenter-dev-us" = "BTSGSD-V2V-US-VMX3_Main_VM_Module"
-  "MOH_30SEC"                                         = "CustomerQueue.wav"
 
   "VMX3_Main_VM_Module_btsgsd-dev-us-east-1" = "BTSGSD-V2V-US-VMX3_Main_VM_Module"
   "BTSGSD-Survey-DataTable"                  = "BTSGSD-V2V-US-PROMPT-DATATABLE"
+  # Lex bots and alias shown in the exported customer queue flow.
+  "BTSGSD-SSO-US-customerQueueFlowBot" = "BTSGSD-V2V-US-customerQueueFlowBot"
+  "BTSGSD-SSO-US-yesNo"                = "BTSGSD-V2V-US-yesNo"
+  "BTSGSD-SSO-US-DEV"                  = "BTSGSD-V2V-US-DEV"
 
   # Map the attachment's LATAM/default callback branches to V2V outbound queues.
   "arn:aws:connect:us-east-1:518902362956:instance/c227a737-3e4f-4c64-8397-2d37e318801d/queue/e9ba99c6-d9ef-4d55-bf3b-430d157f243e" = "BTSGSD-V2V-LATAM-OUT-QUEUE"

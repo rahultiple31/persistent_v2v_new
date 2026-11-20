@@ -21,9 +21,18 @@ RESOURCE_TYPES = {
 
 
 def list_resources(operation, result_key, query):
-    command = [
-        "aws", "connect", operation,
-        "--instance-id", query["instance_id"],
+    # "lexv2-models <operation>[:<bot id>]" reads Lex; anything else is a
+    # Connect list call scoped to the target instance.
+    if operation.startswith("lexv2-models "):
+        lex_operation, _, bot_id = operation.split(" ", 1)[1].partition(":")
+        command = ["aws", "lexv2-models", lex_operation]
+        if bot_id:
+            command += ["--bot-id", bot_id]
+    else:
+        command = ["aws", "connect", operation, "--instance-id", query["instance_id"]]
+        if operation == "list-bots":
+            command += ["--lex-version", "V2"]
+    command += [
         "--region", query["region"],
         "--output", "json", "--no-cli-pager",
         "--cli-connect-timeout", "10", "--cli-read-timeout", "20",
@@ -120,6 +129,78 @@ def resolve(query, inventory_loader=list_resources):
                 action_metadata["promptName"] = target_name
             if parameter == "FlowModuleId" and "contactFlowModuleName" in action_metadata:
                 action_metadata["contactFlowModuleName"] = target_name
+
+    # Resolve Lex V2 bot aliases by the bot and alias names the export shows,
+    # mapped through name_overrides, and require the alias to be associated
+    # with the target instance. The labels shown in the designer follow.
+    account = query["instance_arn"].split(":")[4]
+    for action in actions:
+        lex = action.get("Parameters", {}).get("LexV2Bot")
+        # Dynamic aliases ($.Attributes...) are left to the flow.
+        if not isinstance(lex, dict) or not str(lex.get("AliasArn", "")).startswith("arn:"):
+            continue
+        action_metadata = metadata.get(action["Identifier"], {})
+        shown = action_metadata.get("parameters", {}).get("LexV2Bot", {}).get("AliasArn", {})
+        if not isinstance(shown, dict) or not shown.get("lexV2BotName") or not shown.get("displayName"):
+            problems.append(
+                f"{action['Identifier']}: LexV2Bot has no exported bot and alias names."
+            )
+            continue
+        bot_name = overrides.get(shown["lexV2BotName"], shown["lexV2BotName"])
+        alias_name = overrides.get(shown["displayName"], shown["displayName"])
+        if "LexBots" not in inventory:
+            inventory["LexBots"] = inventory_loader("lexv2-models list-bots", "botSummaries", query)
+        bots = [item for item in inventory["LexBots"] if item.get("botName") == bot_name]
+        if len(bots) != 1:
+            problems.append(
+                f"LexV2Bot: expected one Lex bot named {bot_name!r}, found {len(bots)}."
+            )
+            continue
+        bot_id = bots[0]["botId"]
+        alias_key = f"LexAliases:{bot_id}"
+        if alias_key not in inventory:
+            inventory[alias_key] = inventory_loader(
+                f"lexv2-models list-bot-aliases:{bot_id}", "botAliasSummaries", query
+            )
+        aliases = [item for item in inventory[alias_key] if item.get("botAliasName") == alias_name]
+        if len(aliases) != 1:
+            problems.append(
+                f"LexV2Bot: expected one alias named {alias_name!r} on {bot_name!r}, "
+                f"found {len(aliases)}."
+            )
+            continue
+        alias_arn = (
+            f"arn:aws:lex:{query['region']}:{account}:bot-alias/"
+            f"{bot_id}/{aliases[0]['botAliasId']}"
+        )
+        if "LexAssociations" not in inventory:
+            inventory["LexAssociations"] = {
+                item.get("LexV2Bot", {}).get("AliasArn")
+                for item in inventory_loader("list-bots", "LexBots", query)
+            }
+        if alias_arn not in inventory["LexAssociations"]:
+            problems.append(
+                f"LexV2Bot: {bot_name!r} alias {alias_name!r} is not associated "
+                "with the target instance."
+            )
+            continue
+        lex["AliasArn"] = alias_arn
+        shown["displayName"] = alias_name
+        shown["lexV2BotName"] = bot_name
+        if "lexV2BotName" in action_metadata:
+            action_metadata["lexV2BotName"] = bot_name
+        if "lexV2BotAliasName" in action_metadata:
+            action_metadata["lexV2BotAliasName"] = alias_name
+
+    # Show the function actually invoked, not the exported function's name.
+    for action in actions:
+        function_arn = action.get("Parameters", {}).get("LambdaFunctionARN", "")
+        shown = (
+            metadata.get(action["Identifier"], {})
+            .get("parameters", {}).get("LambdaFunctionARN")
+        )
+        if ":function:" in function_arn and isinstance(shown, dict) and "displayName" in shown:
+            shown["displayName"] = function_arn.split(":")[6]
 
     # Resolve callback queue attributes copied from another Connect instance.
     for action in actions:
