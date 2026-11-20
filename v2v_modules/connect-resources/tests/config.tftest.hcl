@@ -183,7 +183,10 @@ run "routing_profiles_reference_module_queues" {
     condition = (
       awscc_connect_routing_profile.us_agent.default_outbound_queue_arn == aws_connect_queue.us_out.arn &&
       length(awscc_connect_routing_profile.us_agent.media_concurrencies) == 2 &&
-      length(awscc_connect_routing_profile.us_agent.queue_configs) == 0 &&
+      toset([for q in awscc_connect_routing_profile.us_agent.queue_configs : [q.queue_reference.queue_arn, q.queue_reference.channel, q.priority, q.delay]]) == toset([
+        [aws_connect_queue.us_vm.arn, "TASK", 1, 0],
+        [aws_connect_queue.us_main.arn, "VOICE", 1, 0],
+      ]) &&
       [for q in awscc_connect_routing_profile.us_agent.manual_assignment_queue_configs : [q.queue_reference.queue_arn, q.queue_reference.channel]] == [[aws_connect_queue.us_main.arn, "VOICE"]] &&
       output.routing_profile_ids["us_agent"] == "48a9cf8d-1538-4184-a03e-c04912acdc3f" &&
       aws_connect_routing_profile.latam_agent.default_outbound_queue_id == aws_connect_queue.latam_out.queue_id &&
@@ -193,7 +196,7 @@ run "routing_profiles_reference_module_queues" {
       [for mc in aws_connect_routing_profile.vm_agent.media_concurrencies : [mc.channel, mc.concurrency]] == [["TASK", 1]] &&
       [for qc in aws_connect_routing_profile.vm_agent.queue_configs : [qc.queue_id, qc.channel, qc.priority, qc.delay]] == [[aws_connect_queue.us_vm.queue_id, "TASK", 1, 0]]
     )
-    error_message = "Routing profiles must match the source configuration and reference the module and connect-queue queues."
+    error_message = "Routing profiles must use the expected queues and channel settings."
   }
 }
 
