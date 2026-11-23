@@ -162,27 +162,6 @@ nexthink_handoff_reserved_concurrency = null
 # nexthink_handoff_secret_kms_key_arn = "arn:aws:kms:us-east-1:518902362956:key/<key-id>"
 
 # Use the dedicated secrets_manager Terraform state for this deployment.
-secrets_manager_secrets = {
-  "servicenow/stage-dev" = {
-    username = "SVC-HCLDESK"
-    password = "Ma%Ns7U]w0+D@hwMtPcK@y"
-  }
-
-  "servicenow/prod-dev" = {
-    username = "SVC-HCLDESK"
-    password = "K@tTenFeest0909!"
-  }
-
-  "servicenow/details-dev" = {
-    username = "SVC-HCLDESK"
-    password = "HS0]Bu(dTu.Zu#aiy57Rp8"
-  }
-
-  "Nextthink/Clientid/Secretkey-dev" = {
-    client_id     = "fc261bfec6164bfdbd4efe467782feb8"
-    client_secret = "hux82NQlYW4VmY-jfjMokXFUnWdBaWdMbs2G5_MAzE197pWkjEdXTb9COpe27O3L"
-  }
-}
 
 # For secrets that already exist, add their actual ARNs before applying.
 # This avoids attempting to recreate existing secrets.
