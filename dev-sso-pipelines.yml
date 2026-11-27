@@ -11,6 +11,9 @@ parameters:
       - iam_role_policy_attachment
       - lambda_internet_security_group
       - lambda_vpc_config
+      - lex_customer_queue_locale
+      - lex_qinconnect_locale
+      - lex_yes_no_locale
 
   - name: terraformAction
     displayName: Terraform action
@@ -35,6 +38,12 @@ variables:
     terraformTarget: 'module.lambda_internet_security_group'
   ${{ if eq(parameters.targetModule, 'lambda_vpc_config') }}:
     terraformTarget: 'module.snow_lambda_vpc'
+  ${{ if eq(parameters.targetModule, 'lex_customer_queue_locale') }}:
+    terraformTarget: 'module.lex_it_support_queue_fr_ca'
+  ${{ if eq(parameters.targetModule, 'lex_qinconnect_locale') }}:
+    terraformTarget: 'module.lex_fr_ca'
+  ${{ if eq(parameters.targetModule, 'lex_yes_no_locale') }}:
+    terraformTarget: 'module.lex_yes_no_fr_ca'
 
 pool:
   vmImage: ubuntu-latest
@@ -81,7 +90,7 @@ stages:
 
               if ! terraform show -json "$plan_file" | jq -e '
                 all(.resource_changes[]?;
-                  .address | test("^module\\.(snow_lambda_vpc_access_policy|lambda_internet_security_group|snow_lambda_vpc)\\.")
+                  .address | test("^module\\.(snow_lambda_vpc_access_policy|lambda_internet_security_group|snow_lambda_vpc|lex_it_support_queue_fr_ca|lex_fr_ca|lex_yes_no_fr_ca)\\.")
                 )
               ' > /dev/null; then
                 echo "Terraform plan could not be verified against the dev-sso-env module scope." >&2
