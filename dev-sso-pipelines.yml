@@ -1,0 +1,169 @@
+trigger: none
+
+pr: none
+
+parameters:
+  - name: targetModule
+    displayName: Target module
+    type: string
+    default: lambda_vpc_config
+    values:
+      - iam_role_policy_attachment
+      - lambda_internet_security_group
+      - lambda_vpc_config
+
+  - name: terraformAction
+    displayName: Terraform action
+    type: string
+    default: plan
+    values:
+      - plan
+      - apply
+
+variables:
+  terraformVersion: '1.10.5'
+  deploymentRegion: 'us-east-1'
+  workingDirectory: 'environments/dev-sso-env'
+  backendBucket: 'bts-cloud-terraform-tfstate'
+  backendRegion: 'us-east-1'
+  backendKey: 'terraform-state/dev/us-east-1/dev-sso-env/terraform.tfstate'
+  expectedAccountId: '518902362956'
+  planArtifactName: 'terraform-plan-dev-sso-env-${{ parameters.targetModule }}'
+  ${{ if eq(parameters.targetModule, 'iam_role_policy_attachment') }}:
+    terraformTarget: 'module.snow_lambda_vpc_access_policy'
+  ${{ if eq(parameters.targetModule, 'lambda_internet_security_group') }}:
+    terraformTarget: 'module.lambda_internet_security_group'
+  ${{ if eq(parameters.targetModule, 'lambda_vpc_config') }}:
+    terraformTarget: 'module.snow_lambda_vpc'
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: Plan
+    displayName: Plan dev-sso-env ${{ parameters.targetModule }}
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: terraform_plan
+        steps:
+          - checkout: self
+
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: $(terraformVersion)
+
+          - bash: |
+              set -euo pipefail
+              umask 077
+              source "$BUILD_SOURCESDIRECTORY/scripts/aws-oidc.sh"
+              export AWS_ROLE_SESSION_NAME="azure-pipelines-dev-sso-$BUILD_BUILDID"
+
+              account="$(aws sts get-caller-identity --query Account --output text)"
+              if [ "$account" != "$EXPECTED_ACCOUNT_ID" ]; then
+                echo "Unexpected AWS account: $account" >&2
+                exit 1
+              fi
+
+              terraform fmt -check -recursive .
+              terraform fmt -check -recursive "$BUILD_SOURCESDIRECTORY/modules-dev-sso"
+              terraform init -input=false -reconfigure \
+                "-backend-config=bucket=$BACKEND_BUCKET" \
+                "-backend-config=key=$BACKEND_KEY" \
+                "-backend-config=region=$BACKEND_REGION" \
+                -backend-config=encrypt=true
+              terraform validate -no-color
+
+              mkdir -p "$PLAN_DIRECTORY"
+              plan_file="$PLAN_DIRECTORY/terraform.tfplan"
+              terraform plan -input=false -no-color -lock-timeout=5m \
+                "-target=$TERRAFORM_TARGET" -out="$plan_file"
+
+              if ! terraform show -json "$plan_file" | jq -e '
+                all(.resource_changes[]?;
+                  .address | test("^module\\.(snow_lambda_vpc_access_policy|lambda_internet_security_group|snow_lambda_vpc)\\.")
+                )
+              ' > /dev/null; then
+                echo "Terraform plan could not be verified against the dev-sso-env module scope." >&2
+                exit 1
+              fi
+
+              cp .terraform.lock.hcl "$PLAN_DIRECTORY/"
+            displayName: Validate and save Terraform plan
+            workingDirectory: $(Build.SourcesDirectory)/$(workingDirectory)
+            env:
+              AWS_OIDC_ROLE_ARN: $(AWS_DEV_OIDC_ROLE_ARN)
+              AWS_REGION: $(deploymentRegion)
+              AWS_PAGER: ''
+              TF_IN_AUTOMATION: 'true'
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+              SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+              EXPECTED_ACCOUNT_ID: $(expectedAccountId)
+              BACKEND_BUCKET: $(backendBucket)
+              BACKEND_KEY: $(backendKey)
+              BACKEND_REGION: $(backendRegion)
+              PLAN_DIRECTORY: $(Pipeline.Workspace)/$(planArtifactName)
+              TERRAFORM_TARGET: $(terraformTarget)
+
+          - publish: $(Pipeline.Workspace)/$(planArtifactName)
+            displayName: Publish saved Terraform plan
+            artifact: $(planArtifactName)
+
+  - stage: Apply
+    displayName: Apply dev-sso-env ${{ parameters.targetModule }}
+    dependsOn: Plan
+    condition: and(succeeded(), eq('${{ parameters.terraformAction }}', 'apply'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: terraform_apply
+        environment: dev
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: TerraformInstaller@1
+                  displayName: Install Terraform
+                  inputs:
+                    terraformVersion: $(terraformVersion)
+
+                - download: none
+
+                - download: current
+                  displayName: Download saved Terraform plan
+                  artifact: $(planArtifactName)
+
+                - bash: |
+                    set -euo pipefail
+                    umask 077
+                    source "$BUILD_SOURCESDIRECTORY/scripts/aws-oidc.sh"
+                    export AWS_ROLE_SESSION_NAME="azure-pipelines-dev-sso-$BUILD_BUILDID"
+
+                    account="$(aws sts get-caller-identity --query Account --output text)"
+                    if [ "$account" != "$EXPECTED_ACCOUNT_ID" ]; then
+                      echo "Unexpected AWS account: $account" >&2
+                      exit 1
+                    fi
+
+                    cp "$PLAN_DIRECTORY/.terraform.lock.hcl" .
+                    terraform init -input=false -reconfigure -lockfile=readonly \
+                      "-backend-config=bucket=$BACKEND_BUCKET" \
+                      "-backend-config=key=$BACKEND_KEY" \
+                      "-backend-config=region=$BACKEND_REGION" \
+                      -backend-config=encrypt=true
+                    terraform apply -input=false -no-color -lock-timeout=5m \
+                      "$PLAN_DIRECTORY/terraform.tfplan"
+                  displayName: Apply saved Terraform plan
+                  workingDirectory: $(Build.SourcesDirectory)/$(workingDirectory)
+                  env:
+                    AWS_OIDC_ROLE_ARN: $(AWS_DEV_OIDC_ROLE_ARN)
+                    AWS_REGION: $(deploymentRegion)
+                    AWS_PAGER: ''
+                    TF_IN_AUTOMATION: 'true'
+                    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+                    SYSTEM_OIDCREQUESTURI: $(System.OidcRequestUri)
+                    EXPECTED_ACCOUNT_ID: $(expectedAccountId)
+                    BACKEND_BUCKET: $(backendBucket)
+                    BACKEND_KEY: $(backendKey)
+                    BACKEND_REGION: $(backendRegion)
+                    PLAN_DIRECTORY: $(Pipeline.Workspace)/$(planArtifactName)
